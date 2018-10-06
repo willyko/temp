@@ -63,7 +63,6 @@ int64_t nLastMultithreadMempoolFailure = 0;
 bool fLogThreadpool = false;
 tp::ThreadPool *threadpool = NULL;
 std::vector<CInv> vInvToSend;
-bool fLoaded = false;
 extern AssetBalanceMap mempoolMapAssetBalances;
 #if defined(NDEBUG)
 # error "Syscoin cannot be compiled without assertions."
@@ -488,16 +487,17 @@ static void LimitMempoolSize(CTxMemPool& pool, size_t limit, unsigned long age) 
 }
 bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pindex, CCoinsViewCache& view)
 {
+    if(tx.IsCoinBase())
+        return true;
     std::vector<std::vector<unsigned char> > vvchArgs;
     int op;
     // minted txs create an output at vout[0] so we simply spend it on disconnect
     if(tx.nVersion == SYSCOIN_TX_VERSION_MINT){
         const uint256 &hash = tx.GetHash();
-        bool is_coinbase = tx.IsCoinBase();
         COutPoint out(hash, 0);
         Coin coin;
         bool is_spent = view.SpendCoin(out, &coin);
-        if (!is_spent || tx.vout[0] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
+        if (!is_spent || tx.vout[0] != coin.out || pindex->nHeight != coin.nHeight || false != coin.fCoinBase) {
             LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Mint spend failed\n");
             return false;
         }
@@ -531,13 +531,26 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
             // reverse allocations
             receiverAllocation.nBalance -= amountTuple.second;
             senderAllocation.nBalance += amountTuple.second; 
-            auto it = mapAssetAllocations.find(receiverTupleStr);
-            if( it != mapAssetAllocations.end() ) {
-                it->second = std::move(receiverAllocation);
+            
+            if(receiverAllocation.nBalance < 0) {
+                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",receiverTupleStr, receiverAllocation.nBalance);
+                return false;
             }
-            else {
-               mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
-            }                                  
+            else if(receiverAllocation.nBalance == 0){
+                if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
+                    LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
+                    return false;
+                }
+            }
+            else{
+                auto it = mapAssetAllocations.find(receiverTupleStr);
+                if( it != mapAssetAllocations.end() ) {
+                    it->second = std::move(receiverAllocation);
+                }
+                else {
+                   mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+                }    
+            }                              
         }
         auto it = mapAssetAllocations.find(senderTupleStr);
         if( it != mapAssetAllocations.end() ) {
@@ -629,15 +642,7 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
 // SYSCOIN
 bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
 {
-    // Ensure that we don't fail on verifydb which loads recent UTXO and will fail if the input is already spent, 
-    // but during runtime fLoaded should be true so it should check UTXO in correct state
-    if (!fLoaded)
-        return true;     
-    static int64_t nFlushIndexBlocks = 0;
-    std::string statusRpc = "";
-    if (fJustCheck && (IsInitialBlockDownload() || RPCIsInWarmup(&statusRpc)))
-        return true;
- 
+
     AssetAllocationMap mapAssetAllocations;
     AssetMap mapAssets;
     AssetBalanceMap blockMapAssetBalances;
@@ -648,7 +653,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
     std::string errorMessage;
     bool good = true;
     if (block.vtx.empty()) {
-        if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
+        if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET || tx.IsCoinBase())
             return true;
 
         if (DecodeAssetAllocationTx(tx, op, vvchArgs))
@@ -693,7 +698,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
 
             good = true;
             const CTransaction &tx = *sortedBlock.vtx[i];
-            if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
+            if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET || tx.IsCoinBase())
                 continue;
                      
             if (DecodeAssetAllocationTx(tx, op, vvchArgs))

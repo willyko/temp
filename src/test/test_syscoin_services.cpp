@@ -627,7 +627,7 @@ string AssetNew(const string& node, const string& address, const string& pubdata
 	BOOST_CHECK(update_flags == paramUpdateFlags);
 
 
-	GenerateBlocks(5, node);
+	GenerateBlocks(6, node);
 	if (!otherNode1.empty())
 	{
 		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + guid ));
@@ -705,7 +705,7 @@ void AssetUpdate(const string& node, const string& guid, const string& pubdata, 
 	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == oldaddress);
 	totalsupply = find_value(r.get_obj(), "total_supply");
 	BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == newamount);
-	GenerateBlocks(5, node);
+	GenerateBlocks(6, node);
 	if (!otherNode1.empty())
 	{
 		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + guid ));
@@ -752,7 +752,7 @@ void AssetTransfer(const string& node, const string &tonode, const string& guid,
 
 
 	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
-	GenerateBlocks(5, node);
+	GenerateBlocks(6, node);
 
 	BOOST_CHECK_NO_THROW(r = CallRPC(tonode, "assetinfo " + guid));
 	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == toaddress);
@@ -917,7 +917,7 @@ string AssetSend(const string& node, const string& guid, const string& inputs, c
 		BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 		BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 
-		GenerateBlocks(1, node);
+		GenerateBlocks(11, node);
 		BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid ));
 
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "total_supply").get_str(), fromsupply);

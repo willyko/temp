@@ -1017,11 +1017,6 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
         bool fJustCheck, int nHeight, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck) {
 	if (passetdb == nullptr)
 		return false;
-	if (tx.IsCoinBase() && !fJustCheck && !bSanityCheck)
-	{
-		LogPrintf("*Trying to add asset in coinbase transaction, skipping...");
-		return false;
-	}
 	const uint256& txHash = tx.GetHash();
 	if (!bSanityCheck)
 		LogPrint(BCLog::SYS, "*** ASSET %d %d %s %s\n", nHeight,
@@ -1154,6 +1149,11 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update supply");
 				return error(errorMessage.c_str());
 			}
+            if((nHeight - dbAsset.nHeight) <= 10)
+            {
+                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("You must wait atleast 10 blocks between updating your asset");
+                return error(errorMessage.c_str());
+            }           
             // increase total supply
             theAsset.nTotalSupply += theAsset.nBalance;
 			theAsset.nBalance += dbAsset.nBalance;
@@ -1221,10 +1221,9 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
                         receiverAllocation.nBalance = mapBalanceReceiver->second;
                     } 
                                             
-					receiverAllocation.txHash = txHash;
 					// adjust sender balance
 					theAsset.nBalance -= amountTuple.second;
-                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, nHeight, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1);
+                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, txHash, nHeight, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1);
                     auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
                     if (!rv.second)
                         rv.first->second = std::move(receiverAllocation);                                  
@@ -1280,6 +1279,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 			// with input ranges precision is forced to 0
 		}
 		// set the asset's txn-dependent values
+        theAsset.nHeight = nHeight;
 		theAsset.txHash = txHash;
 		// write asset, if asset send, only write on pow since asset -> asset allocation is not 0-conf compatible
 		if (!bSanityCheck) {

@@ -95,13 +95,11 @@ enum {
 class CAssetAllocation {
 public:
 	CAssetAllocationTuple assetAllocationTuple;
-	uint256 txHash;
 	RangeAmountTuples listSendingAllocationAmounts;
 	CAmount nBalance;
 	template <typename Stream, typename Operation>
 	inline void SerializationOp(Stream& s, Operation ser_action) {
 		READWRITE(assetAllocationTuple);
-		READWRITE(txHash);
 		READWRITE(listSendingAllocationAmounts);
 		READWRITE(nBalance);
 	}
@@ -126,7 +124,6 @@ public:
 
 	inline CAssetAllocation operator=(const CAssetAllocation &b) {
 		assetAllocationTuple = b.assetAllocationTuple;
-		txHash = b.txHash;
 		listSendingAllocationAmounts = b.listSendingAllocationAmounts;
 		nBalance = b.nBalance;
 		return *this;
@@ -135,7 +132,7 @@ public:
 	inline friend bool operator!=(const CAssetAllocation &a, const CAssetAllocation &b) {
 		return !(a == b);
 	}
-	inline void SetNull() { nBalance = 0; listSendingAllocationAmounts.clear(); assetAllocationTuple.SetNull(); txHash.SetNull(); }
+	inline void SetNull() { nBalance = 0; listSendingAllocationAmounts.clear(); assetAllocationTuple.SetNull(); }
 	inline bool IsNull() const { return (assetAllocationTuple.IsNull()); }
 	bool UnserializeFromTx(const CTransaction &tx);
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);
@@ -150,8 +147,11 @@ public:
     bool ReadAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, CAssetAllocation& assetallocation) {
         return Read(make_pair(assetAllocationKey, assetAllocationTuple), assetallocation);
     }
+    bool EraseAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple) {
+        return Erase(make_pair(assetAllocationKey, assetAllocationTuple));
+    }
     bool Flush(const AssetAllocationMap &mapAssetAllocations);
-	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender);
+	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {

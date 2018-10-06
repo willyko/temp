@@ -80,7 +80,7 @@ void CAssetAllocation::Serialize( vector<unsigned char> &vchData) {
 	vchData = vector<unsigned char>(dsAsset.begin(), dsAsset.end());
 
 }
-void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocation& assetallocation, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender) {
+void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocation& assetallocation, const uint256 &txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender) {
 	if (gArgs.IsArgSet("-zmqpubassetallocation") || fAssetAllocationIndex) {
 		UniValue oName(UniValue::VOBJ);
 		bool isMine = true;
@@ -89,11 +89,11 @@ void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocation& asset
 			const string& strObj = oName.write();
 			GetMainSignals().NotifySyscoinUpdate(strObj.c_str(), "assetallocation");
 			if (isMine && fAssetAllocationIndex) {
-				const string& strKey = assetallocation.txHash.GetHex()+"-"+boost::lexical_cast<string>(asset.nAsset)+"-"+ strSender +"-"+ strReceiver;
+				const string& strKey = txHash.GetHex()+"-"+boost::lexical_cast<string>(asset.nAsset)+"-"+ strSender +"-"+ strReceiver;
 				{
 					LOCK2(mempool.cs, cs_assetallocationindex);
 					// we want to the height from mempool if it exists or use the one passed in
-					CTxMemPool::txiter it = mempool.mapTx.find(assetallocation.txHash);
+					CTxMemPool::txiter it = mempool.mapTx.find(txHash);
 					if (it != mempool.mapTx.end())
 						nHeight = (*it).GetHeight();
 					AssetAllocationIndex[nHeight][strKey] = strObj;
@@ -235,11 +235,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
         bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck, bool bMiner) {
     if (passetallocationdb == nullptr)
 		return false;
-	if (tx.IsCoinBase() && !fJustCheck && !bSanityCheck)
-	{
-		LogPrint(BCLog::SYS, "*Trying to add assetallocation in coinbase transaction, skipping...");
-		return false;
-	}
 	const uint256 & txHash = tx.GetHash();
 	if (!bSanityCheck)
 		LogPrint(BCLog::SYS,"*** ASSET ALLOCATION %d %d %s %s\n", nHeight,
@@ -400,10 +395,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			if (!GetAssetAllocation(receiverAllocationTuple, receiverAllocation)) {
 				receiverAllocation.assetAllocationTuple = receiverAllocationTuple;
 			}
-  
-		
-			receiverAllocation.txHash = txHash;         
-            passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, nHeight, dbAsset, nBalanceAfterSend, amountTuple.second, user1);
+         
+            passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, txHash, nHeight, dbAsset, nBalanceAfterSend, amountTuple.second, user1);
             const string& receiverTupleStr = receiverAllocationTuple.ToString();
             if(fJustCheck){
                 LOCK(cs_assetallocation);
@@ -621,8 +614,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                     
                     if(!fJustCheck){
     
-                        receiverAllocation.txHash = txHash;
-                        passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, nHeight, dbAsset, nBalanceAfterSend, amountTuple.second, user1);
+                        passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, txHash, nHeight, dbAsset, nBalanceAfterSend, amountTuple.second, user1);
                         
                         auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
                         if (!rv.second)
@@ -644,9 +636,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             
         }
         else if(!fJustCheck){
-    		theAssetAllocation.txHash = txHash;
     		theAssetAllocation.listSendingAllocationAmounts.clear();
-            passetallocationdb->WriteAssetAllocationIndex(theAssetAllocation, nHeight, dbAsset, theAssetAllocation.nBalance, 0, ""); 
+            passetallocationdb->WriteAssetAllocationIndex(theAssetAllocation, txHash, nHeight, dbAsset, theAssetAllocation.nBalance, 0, ""); 
             auto rv = mapAssetAllocations.emplace(std::move(senderTupleStr), std::move(theAssetAllocation));
             if (!rv.second)
                 rv.first->second = std::move(theAssetAllocation);
@@ -1110,7 +1101,6 @@ bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& a
     }
     oAssetAllocation.pushKV("_id", allocationTupleStr);
 	oAssetAllocation.pushKV("asset", assetallocation.assetAllocationTuple.nAsset);
-    oAssetAllocation.pushKV("txid", assetallocation.txHash.GetHex());
 	oAssetAllocation.pushKV("owner",  bech32::Encode(Params().Bech32HRP(),assetallocation.assetAllocationTuple.vchAddress));
 	oAssetAllocation.pushKV("balance", ValueFromAssetAmount(assetallocation.nBalance, asset.nPrecision));
     oAssetAllocation.pushKV("balance_zdag", ValueFromAssetAmount(nBalanceZDAG, asset.nPrecision));
@@ -1120,7 +1110,6 @@ bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, co
 {
 	CAmount nAmountDisplay = nAmount;   
 	oAssetAllocation.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
-	oAssetAllocation.pushKV("txid", assetallocation.txHash.GetHex());
 	oAssetAllocation.pushKV("asset", assetallocation.assetAllocationTuple.nAsset);
 	oAssetAllocation.pushKV("sender", strSender);
 	oAssetAllocation.pushKV("sender_balance", ValueFromAssetAmount(nSenderBalance, asset.nPrecision));
@@ -1269,10 +1258,6 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 	vector<vector<uint8_t> > vchAddresses;
 	int32_t nAsset;
 	if (!oOptions.isNull()) {
-		const UniValue &txid = find_value(oOptions, "txid");
-		if (txid.isStr()) {
-			strTxid = txid.get_str();
-		}
 		const UniValue &assetObj = find_value(oOptions, "asset");
 		if(assetObj.isNum()) {
 			nAsset = boost::lexical_cast<int32_t>(assetObj.get_int());
@@ -1302,11 +1287,6 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 		try {
 			if (pcursor->GetKey(key) && key.first == assetAllocationKey) {
 				pcursor->GetValue(txPos);
-				if (!strTxid.empty() && strTxid != txPos.txHash.GetHex())
-				{
-					pcursor->Next();
-					continue;
-				}
 				if (nAsset > 0 && nAsset != txPos.assetAllocationTuple.nAsset)
 				{
 					pcursor->Next();
@@ -1399,7 +1379,6 @@ UniValue listassetallocations(const JSONRPCRequest& request) {
 			"[from]           (numeric, optional, default=0) The number of results to skip.\n"
 			"[options]        (array, optional) A json object with options to filter results\n"
 			"    {\n"
-			"      \"txid\":txid					(string) Transaction ID to filter.\n"
 			"	   \"asset\":guid					(number) Asset GUID to filter.\n"
 			"	   \"receivers\"					(array) a json array with receivers\n"
 			"		[\n"
@@ -1413,7 +1392,6 @@ UniValue listassetallocations(const JSONRPCRequest& request) {
 			+ HelpExampleCli("listassetallocations", "10 10")
 			+ HelpExampleCli("listassetallocations", "0 0 '{\"asset\":92922}'")
 			+ HelpExampleCli("listassetallocations", "0 0 '{\"receivers\":[{\"receiver\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"receiver\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
-			+ HelpExampleCli("listassetallocations", "0 0 '{\"txid\":\"1c7f966dab21119bac53213a2bc7532bff1fa844c124fd750a7d0b1332440bd1\"}'")
 		);
 	UniValue options;
 	int count = 10;

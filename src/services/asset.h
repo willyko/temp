@@ -86,6 +86,7 @@ public:
 	std::vector<uint8_t> vchAddress;
 	std::vector<unsigned char> vchContract;
     uint256 txHash;
+    unsigned int nHeight;
 	std::vector<unsigned char> vchPubData;
 	CAmount nBalance;
 	CAmount nTotalSupply;
@@ -116,6 +117,7 @@ public:
 		READWRITE(nBalance);
 		READWRITE(nTotalSupply);
 		READWRITE(nMaxSupply);
+        READWRITE(nHeight);
 		READWRITE(VARINT(nUpdateFlags));
 		READWRITE(VARINT(nPrecision));
 		READWRITE(vchContract);      
@@ -137,13 +139,14 @@ public:
 		nUpdateFlags = b.nUpdateFlags;
 		nPrecision = b.nPrecision;
 		vchContract = b.vchContract;
+        nHeight = b.nHeight;
         return *this;
     }
 
     inline friend bool operator!=(const CAsset &a, const CAsset &b) {
         return !(a == b);
     }
-	inline void SetNull() { vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); vchAddress.clear(); vchPubData.clear(); }
+	inline void SetNull() { nHeight = 0;vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); vchAddress.clear(); vchPubData.clear(); }
     inline bool IsNull() const { return (nAsset == 0); }
     bool UnserializeFromTx(const CTransaction &tx);
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);

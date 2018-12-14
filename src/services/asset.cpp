@@ -24,6 +24,7 @@
 #include <policy/policy.h>
 #include <consensus/validation.h>
 #include <wallet/fees.h>
+#include <services/ranges.h>
 unsigned int MAX_UPDATES_PER_BLOCK = 10;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;

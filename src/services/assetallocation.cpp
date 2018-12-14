@@ -26,6 +26,7 @@
 #include <future>
 #include <boost/multiprecision/cpp_dec_float.hpp>
 #include <key_io.h>
+#include <services/ranges.h>
 using namespace std;
 using namespace boost::multiprecision;
 vector<pair<uint256, int64_t> > vecTPSTestReceivedTimes;

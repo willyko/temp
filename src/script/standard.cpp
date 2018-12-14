@@ -11,7 +11,8 @@
 #include <util.h>
 #include <utilstrencodings.h>
 
-
+// SYSCOIN
+extern bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut);
 bool fAcceptDatacarrier = DEFAULT_ACCEPT_DATACARRIER;
 unsigned nMaxDatacarrierBytes = MAX_OP_RETURN_RELAY;
 

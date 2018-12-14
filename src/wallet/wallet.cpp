@@ -32,7 +32,8 @@
 #include <algorithm>
 #include <assert.h>
 #include <future>
-
+// SYSCOIN
+extern const int SYSCOIN_TX_VERSION_MINT;
 #include <boost/algorithm/string/replace.hpp>
 
 static const size_t OUTPUT_GROUP_MAX_ENTRIES = 10;

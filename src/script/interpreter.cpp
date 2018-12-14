@@ -11,7 +11,8 @@
 #include <pubkey.h>
 #include <script/script.h>
 #include <uint256.h>
-
+// SYSCOIN
+extern bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut);
 namespace {
 
 inline bool set_success(ScriptError* ret)

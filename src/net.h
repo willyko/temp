@@ -934,11 +934,6 @@ public:
             if (!filterInventoryKnown.contains(inv.hash)) {
                 LogPrint(BCLog::NET, "PushInventory --  inv: %s peer=%d\n", inv.ToString(), id);
                 vInventoryTxToSend.push_back(inv.hash);
-                // SYSCOIN randomize tx inv's to send out every 100 txs for optimal network propogation in the face of network latency to well connected to nodes
-                if ((vInventoryTxToSend.size() % 100) == 0) {
-                    FastRandomContext insecure_rand;
-                    std::random_shuffle(vInventoryTxToSend.begin(), vInventoryTxToSend.end(), insecure_rand);
-                }
             }
         } else if (inv.type == MSG_BLOCK) {
             vInventoryBlockToSend.push_back(inv.hash);

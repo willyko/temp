@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018 The Syscoin Core developers
+﻿// Copyright (c) 2016-2018 The Syscoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -161,8 +161,6 @@ void StartNode(const string &dataDir, bool regTest, const string& extraArgs)
 				node3Online = true;
 				node3LastBlock = 0;
 			}
-			MilliSleep(500);
-            CallExtRPC(dataDir, "prunesyscoinservices");
 			MilliSleep(500);
 		}
 		catch (const runtime_error& error)
@@ -748,13 +746,13 @@ string AssetNew(const string& node, const string& name, const string& address, c
 	string otherNode1, otherNode2;
 	GetOtherNodes(node, otherNode1, otherNode2);
 	UniValue r;
-
+    
 	// "assetnew [name] [address] [public] [contract] [precision=8] [use_inputranges] [supply] [max_supply] [interest_rate] [update_flags] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetnew " + name + " " + address + " " + pubdata + " " + contract + " " + precision + " " + useinputranges + " " + supply + " " + maxsupply + " " + interestrate + " " + updateflags + " " + witness));
 	UniValue arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsendrawtransaction " + hex_str));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str));
 	string guid = arr[1].get_str();
 	GenerateBlocks(5, node);
@@ -856,7 +854,7 @@ void AssetUpdate(const string& node, const string& name, const string& pubdata, 
 	UniValue arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsendrawtransaction " + hex_str));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str));
 
 	GenerateBlocks(5, node);
@@ -909,7 +907,7 @@ void AssetTransfer(const string& node, const string &tonode, const string& name,
 	UniValue arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsendrawtransaction " + hex_str));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str));
 
 	GenerateBlocks(5, node);
@@ -933,7 +931,7 @@ void AssetClaimInterest(const string& node, const string& name, const string& ad
 	UniValue arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsendrawtransaction " + hex_str));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str));
 	GenerateBlocks(1);
 
@@ -1007,7 +1005,7 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
 
 
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsendrawtransaction " + hex_str));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoindecoderawtransaction " + hex_str));
 	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "txtype").get_str(), "assetallocationsend");
 	if (!theAssetAllocation.listSendingAllocationAmounts.empty())
@@ -1052,7 +1050,7 @@ void BurnAssetAllocation(const string& node, const string &guid, const string &a
 	UniValue varray = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + varray[0].get_str()));
 	string hexStr = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsendrawtransaction " + hexStr));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hexStr, true, false));
     if(confirm){
     	GenerateBlocks(5, "node1");
     	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " burn false"));
@@ -1127,7 +1125,7 @@ string AssetSend(const string& node, const string& name, const string& inputs, c
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
 	if (completetx) {
-		BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsendrawtransaction " + hex_str));
+		BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 		BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str));
 
 		GenerateBlocks(1, node);

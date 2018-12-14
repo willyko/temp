@@ -312,7 +312,7 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin)
 	UniValue varray = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + varray[0].get_str()));
 	string hexStr = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinsendrawtransaction " + hexStr));
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hexStr, true, false));
 	GenerateBlocks(5, "node1");	
 	CMutableTransaction txIn;
 	if (!DecodeHexTx(txIn, hexStr))
@@ -672,7 +672,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 		UniValue arr = r.get_array();
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
 		string hex_str = find_value(r.get_obj(), "hex").get_str();
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinsendrawtransaction " + hex_str));
+		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
 
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
 		string guid = arr[1].get_str();
@@ -681,7 +681,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 		arr = r.get_array();
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
 		hex_str = find_value(r.get_obj(), "hex").get_str();
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinsendrawtransaction " + hex_str));
+		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
 
 		assetMap[guid] = address2;
@@ -929,7 +929,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_maxsenders)
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + varray[0].get_str() + " " + "\"{\\\"addresses\\\":[\\\"" + strAddress + "\\\"]}\""));
 		varray = r.get_array();
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + varray[0].get_str()));
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinsendrawtransaction " + find_value(r.get_obj(), "hex").get_str()));
+		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + find_value(r.get_obj(), "hex").get_str(), true, false));
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
 		// activation	
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "aliasnew " + aliasname + " '' 3 " + mediantimestr + " '' ''"));
@@ -937,7 +937,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_maxsenders)
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + varray1[0].get_str() + " " + "\"{\\\"addresses\\\":[\\\"" + strAddress + "\\\"]}\""));
 		varray1 = r.get_array();
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + varray1[0].get_str()));
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinsendrawtransaction " + find_value(r.get_obj(), "hex").get_str()));
+		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + find_value(r.get_obj(), "hex").get_str(), true, false));
 		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
 	}
 	senderstring += "]\"";
@@ -1013,7 +1013,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_collect_interest_checktotalsupply_address)
 	UniValue arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinsendrawtransaction " + hex_str));
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
 	GenerateBlocks(5);
 
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetinfo " + guid + " false"));

@@ -3731,7 +3731,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
             // Time to send but the peer has requested we not relay transactions.
             if (fSendTrickle) {
                 LOCK(pto->cs_filter);
-                if (!pto->fRelayTxes) pto->vInventoryTxToSend.clear();
+                if (!pto->fRelayTxes) pto->setInventoryTxToSend.clear();
             }
 
             // Respond to BIP35 mempool requests
@@ -3748,7 +3748,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 
                 for (const auto& txinfo : vtxinfo) {
                     const uint256& hash = txinfo.tx->GetHash();
-                    pto->vInventoryTxToSend.erase(hash);
+                    pto->setInventoryTxToSend.erase(hash);
                     if (filterrate) {
                         if (txinfo.feeRate.GetFeePerK() < filterrate)
                             continue;
@@ -3765,7 +3765,6 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                     }
                 }
                 // SYSCOIN
-                pto->vInventoryTxToSend.clear();
                 pto->timeLastMempoolReq = GetTime();
             }
 
@@ -3791,7 +3790,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                 //unsigned int nRelayedTransactions = 0;
                 LOCK(pto->cs_filter);
                 // SYSCOIN
-                for (auto& hash:pto->vInventoryTxToSend) {
+                for (auto& hash:pto->setInventoryTxToSend) {
                     // Fetch the top element from the heap
                     /*std::pop_heap(vInvTx.begin(), vInvTx.end(), compareInvMempoolOrder);
                     std::set<uint256>::iterator it = vInvTx.back();
@@ -3799,7 +3798,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                     uint256 hash = *it;
                     // Remove it from the to-be-sent set
                     pto->setInventoryTxToSend.erase(it);*/
-                    pto->vInventoryTxToSend.erase(hash);
+                    pto->setInventoryTxToSend.erase(hash);
                     // Check if not in the filter already
                     if (pto->filterInventoryKnown.contains(hash)) {
                         continue;
@@ -3836,7 +3835,6 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                     pto->filterInventoryKnown.insert(hash);
                 }
             }
-            pto->vInventoryTxToSend.clear();
             
             // Add blocks
             for(const auto& hash: pto->vInventoryBlockToSend) {

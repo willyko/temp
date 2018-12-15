@@ -788,7 +788,7 @@ public:
     // inventory based relay
     CRollingBloomFilter filterInventoryKnown;
     // Set of transaction ids we still have to announce.
-    std::vector<uint256> vInventoryTxToSend;
+	std::set<uint256> setInventoryTxToSend;
     // List of block ids we still have announce.
     // There is no final sorting before sending, as they are always sent immediately
     // and in the order requested.
@@ -933,7 +933,7 @@ public:
         if (inv.type == MSG_TX) {
             if (!filterInventoryKnown.contains(inv.hash)) {
                 LogPrint(BCLog::NET, "PushTxInventory --  inv: %s peer=%d\n", inv.ToString(), id);
-                vInventoryTxToSend.push_back(inv.hash);
+				setInventoryTxToSend.insert(inv.hash);
             }
         } else if (inv.type == MSG_BLOCK) {
             vInventoryBlockToSend.push_back(inv.hash);

@@ -738,10 +738,15 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 	int microsInSecond = 1000 * 1000;
 	tpstarttime = tpstarttime + 1 * microsInSecond;
 	printf("Adding assetsend transactions to queue on sender nodes...\n");
-	for (auto &sender : senders)
+	for (auto &sender : senders){
 		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestadd",  boost::lexical_cast<string>(tpstarttime)));
-	for (auto &receiver : receivers)
+        BOOST_CHECK_NO_THROW(r = CallExtRPC(sender, "tpstestinfo"));
+        BOOST_CHECK_EQUAL(find_value(r.get_obj(), "testinitiatetime").get_int64(), tpstarttime);
+    }
+	for (auto &receiver : receivers){
 		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestadd", boost::lexical_cast<string>(tpstarttime)));
+        BOOST_CHECK_EQUAL(find_value(r.get_obj(), "testinitiatetime").get_int64(), tpstarttime);
+    }
 
 	
 	printf("Waiting 11 seconds as per protocol...\n");
@@ -784,6 +789,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "false"));
 	for (auto &receiver : receivers)
 		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "false"));
+    exit(0);
 }
 BOOST_AUTO_TEST_CASE(generate_big_assetname_address)
 {

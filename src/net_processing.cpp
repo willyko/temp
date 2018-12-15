@@ -3712,7 +3712,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
             LOCK(pto->cs_inventory);
             // SYSCOIN
             vInvToSend.clear();
-            vInvToSend.reserve(pto->vInventoryBlockToSend.size());
+            vInvToSend.reserve(3000);
             
             pto->vInventoryBlockToSend.clear();
 
@@ -3748,7 +3748,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 
                 for (const auto& txinfo : vtxinfo) {
                     const uint256& hash = txinfo.tx->GetHash();
-                    //pto->setInventoryTxToSend.erase(hash);
+                    pto->vInventoryTxToSend.erase(hash);
                     if (filterrate) {
                         if (txinfo.feeRate.GetFeePerK() < filterrate)
                             continue;
@@ -3799,6 +3799,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                     uint256 hash = *it;
                     // Remove it from the to-be-sent set
                     pto->setInventoryTxToSend.erase(it);*/
+                    pto->vInventoryTxToSend.erase(hash);
                     // Check if not in the filter already
                     if (pto->filterInventoryKnown.contains(hash)) {
                         continue;

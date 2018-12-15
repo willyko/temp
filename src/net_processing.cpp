@@ -3708,6 +3708,8 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 		//
 		// Message: inventory
 		//
+		if (!pto->setInventoryTxToSend.empty())
+			LogPrintf("pto->setInventoryTxToSend size %d\n", pto->setInventoryTxToSend.size());
 		std::vector<CInv> vInv;
 		{
 			LOCK(pto->cs_inventory);
@@ -3739,7 +3741,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 			// Time to send but the peer has requested we not relay transactions.
 			if (fSendTrickle) {
 				LOCK(pto->cs_filter);
-				if (!pto->fRelayTxes) pto->setInventoryTxToSend.clear();
+				if (!pto->fRelayTxes) { pto->setInventoryTxToSend.clear(); LogPrintf("setInventoryTxToSend clear\n"); }
 			}
 
 			// Respond to BIP35 mempool requests
@@ -3814,6 +3816,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 						continue;
 					}
 					if (filterrate && txinfo.feeRate.GetFeePerK() < filterrate) {
+						LogPrintf("fee rate too low\n");
 						continue;
 					}
 					if (pto->pfilter && !pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;

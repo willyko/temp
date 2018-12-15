@@ -3759,11 +3759,13 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 					CInv inv(MSG_TX, hash);
 					pto->setInventoryTxToSend.erase(hash);
 					if (filterrate) {
-						if (txinfo.feeRate.GetFeePerK() < filterrate)
+						if (txinfo.feeRate.GetFeePerK() < filterrate) {
+							LogPrintf("fee rate 1\n");
 							continue;
+						}
 					}
 					if (pto->pfilter) {
-						if (!pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;
+						if (!pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) { LogPrintf("not relevant\n");  continue;}
 					}
 					pto->filterInventoryKnown.insert(hash);
 					vInv.push_back(inv);
@@ -3811,12 +3813,16 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 					// Not in the mempool anymore? don't bother sending it.
 					auto txinfo = mempool.info(hash);
 					if (!txinfo.tx) {
+						LogPrintf("not in mempool\n");
 						continue;
 					}
 					if (filterrate && txinfo.feeRate.GetFeePerK() < filterrate) {
+						LogPrintf("feerate 2\n");
 						continue;
 					}
-					if (pto->pfilter && !pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;
+					if (pto->pfilter && !pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) {
+						LogPrintf("not relevant 2\n"); continue;
+					}
 					// Send
 					vInv.push_back(CInv(MSG_TX, hash));
 					nRelayedTransactions++;

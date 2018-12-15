@@ -1133,7 +1133,7 @@ UniValue sendrawtransaction(const JSONRPCRequest& request)
         bool fMissingInputs;
         // SYSCOIN
         if (!AcceptToMemoryPool(mempool, state, std::move(tx), &fMissingInputs,
-                                nullptr /* plTxnReplaced */, false /* bypass_limits */, nMaxRawTxFee, fTPSTestEnabled)) {
+                                nullptr /* plTxnReplaced */, false /* bypass_limits */, nMaxRawTxFee, false, fTPSTestEnabled)) {
             if (state.IsInvalid()) {
                 throw JSONRPCError(RPC_TRANSACTION_REJECTED, FormatStateMessage(state));
             } else {

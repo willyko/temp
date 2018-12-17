@@ -1003,6 +1003,7 @@ UniValue tpstestinfo(const JSONRPCRequest& request) {
 	UniValue oTPSTestReceivers(UniValue::VARR);
 	UniValue oTPSTestReceiversMempool(UniValue::VARR);
 	oTPSTestResults.pushKV("enabled", fTPSTestEnabled);
+    oTPSTestResults.pushKV("testinitiatetime", (int64_t)nTPSTestingStartTime);
 	oTPSTestResults.pushKV("teststarttime", (int64_t)nTPSTestingSendRawEndTime);
 	for (auto &receivedTime : vecTPSTestReceivedTimes) {
 		UniValue oTPSTestStatusObj(UniValue::VOBJ);

@@ -299,6 +299,8 @@ public:
     /** Convert a CMutableTransaction into a CTransaction. */
     CTransaction(const CMutableTransaction &tx);
     CTransaction(CMutableTransaction &&tx);
+    // SYSCOIN
+    CTransaction& operator=(const CTransaction& tx);
 
     template <typename Stream>
     inline void Serialize(Stream& s) const {

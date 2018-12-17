@@ -2404,7 +2404,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         if (!AlreadyHave(inv) &&
             AcceptToMemoryPool(mempool, state, ptx, &fMissingInputs, &lRemovedTxn, false /* bypass_limits */, 0 /* nAbsurdFee */, false /* fDryRun */, true /* bMultiThreaded */)) {
-            mempool.check(pcoinsTip.get());
+            // SYSCOIN
+            //mempool.check(pcoinsTip.get());
             RelayTransaction(tx, connman);
             for (unsigned int i = 0; i < tx.vout.size(); i++) {
                 vWorkQueue.emplace_back(inv.hash, i);
@@ -3766,7 +3767,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 						if (!pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;
 					}
 					pto->filterInventoryKnown.insert(hash);
-					vInv.push_back(inv);
+					vInv.emplace_back(inv);
 					if (vInv.size() == MAX_INV_SZ) {
 						connman->PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
 						vInv.clear();
@@ -3781,7 +3782,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 				std::vector<std::set<uint256>::iterator> vInvTx;
 				vInvTx.reserve(pto->setInventoryTxToSend.size());
 				for (std::set<uint256>::iterator it = pto->setInventoryTxToSend.begin(); it != pto->setInventoryTxToSend.end(); it++) {
-					vInvTx.push_back(it);
+					vInvTx.emplace_back(it);
 				}
 				CAmount filterrate = 0;
 				{
@@ -3818,7 +3819,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 					}
 					if (pto->pfilter && !pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;
 					// Send
-					vInv.push_back(CInv(MSG_TX, hash));
+					vInv.emplace_back(CInv(MSG_TX, hash));
 					nRelayedTransactions++;
 					{
 						// Expire old relay messages
@@ -3843,7 +3844,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 		}
 		// SYSCOIN Send non-tx/non-block inventory items
 		for (const auto& inv : pto->vInventoryOtherToSend) {
-			vInv.push_back(inv);
+			vInv.emplace_back(inv);
 			if (vInv.size() == MAX_INV_SZ) {
 				connman->PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
 				vInv.clear();

@@ -286,22 +286,22 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
     static const valtype vchFalse(0);
     // static const valtype vchZero(0);
     static const valtype vchTrue(1, 1);
-
-    CScript::const_iterator pc = script.begin();
-    CScript::const_iterator pend = script.end();
-    CScript::const_iterator pbegincodehash = script.begin();
-    opcodetype opcode;
-    valtype vchPushValue;
-    std::vector<bool> vfExec;
-    std::vector<valtype> altstack;
-    set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
-    if (script.size() > MAX_SCRIPT_SIZE)
-        return set_error(serror, SCRIPT_ERR_SCRIPT_SIZE);
-    int nOpCount = 0;
-    bool fRequireMinimal = (flags & SCRIPT_VERIFY_MINIMALDATA) != 0;
-
+    // SYSCOIN
     try
     {
+        CScript::const_iterator pc = script.begin();
+        CScript::const_iterator pend = script.end();
+        CScript::const_iterator pbegincodehash = script.begin();
+        opcodetype opcode;
+        valtype vchPushValue;
+        std::vector<bool> vfExec;
+        std::vector<valtype> altstack;
+        set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
+        if (script.size() > MAX_SCRIPT_SIZE)
+            return set_error(serror, SCRIPT_ERR_SCRIPT_SIZE);
+        int nOpCount = 0;
+        bool fRequireMinimal = (flags & SCRIPT_VERIFY_MINIMALDATA) != 0;
+    
         while (pc < pend)
         {
             bool fExec = !count(vfExec.begin(), vfExec.end(), false);
@@ -1070,14 +1070,15 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
             if (stack.size() + altstack.size() > MAX_STACK_SIZE)
                 return set_error(serror, SCRIPT_ERR_STACK_SIZE);
         }
+        // SYSCOIN
+        if (!vfExec.empty())
+            return set_error(serror, SCRIPT_ERR_UNBALANCED_CONDITIONAL);
     }
     catch (...)
     {
         return set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
     }
-
-    if (!vfExec.empty())
-        return set_error(serror, SCRIPT_ERR_UNBALANCED_CONDITIONAL);
+    
 
     return set_success(serror);
 }

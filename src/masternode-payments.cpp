@@ -14,7 +14,7 @@
 #include "netmessagemaker.h"
 #include "spork.h"
 #include "util.h"
-
+#include <outputtype.h>
 #include <boost/lexical_cast.hpp>
 // SYSCOIN
 extern void Misbehaving(NodeId nodeid, int howmuch, const std::string& message="") EXCLUSIVE_LOCKS_REQUIRED(cs_main);
@@ -247,7 +247,7 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int nBlockH
             return;
         }
         // fill payee with locally calculated winner and hope for the best
-        payee = GetScriptForDestination(mnInfo.pubKeyCollateralAddress.GetID());
+        payee = GetScriptForDestination(GetDestinationForKey(mnInfo.pubKeyCollateralAddress, OutputType::BECH32));
 		nStartHeightBlock = 0;
     }
 
@@ -454,7 +454,7 @@ bool CMasternodePayments::IsScheduled(const masternode_info_t& mnInfo, int nNotB
     if(!masternodeSync.IsMasternodeListSynced()) return false;
 
     CScript mnpayee;
-    mnpayee = GetScriptForDestination(mnInfo.pubKeyCollateralAddress.GetID());
+    mnpayee = GetScriptForDestination(GetDestinationForKey(mnInfo.pubKeyCollateralAddress, OutputType::BECH32));
 
     CScript payee;
     for(int64_t h = nCachedBlockHeight; h <= nCachedBlockHeight + 8; h++){
@@ -788,7 +788,7 @@ bool CMasternodePayments::ProcessBlock(int nBlockHeight, CConnman& connman)
     LogPrint(BCLog::MNPAYMENT, "CMasternodePayments::ProcessBlock -- Masternode found by GetNextMasternodeInQueueForPayment(): %s\n", mnInfo.outpoint.ToStringShort());
 
 
-    CScript payee = GetScriptForDestination(mnInfo.pubKeyCollateralAddress.GetID());
+    CScript payee = GetScriptForDestination(GetDestinationForKey(mnInfo.pubKeyCollateralAddress, OutputType::BECH32));
 
     CMasternodePaymentVote voteNew(activeMasternode.outpoint, nBlockHeight, payee, mnodeman.GetStartHeight(mnInfo));
 

@@ -126,6 +126,8 @@ struct PrecomputedTransactionData
 
     template <class T>
     explicit PrecomputedTransactionData(const T& tx);
+    // SYSCOIN
+    PrecomputedTransactionData() {}
 };
 
 enum class SigVersion
@@ -176,7 +178,6 @@ protected:
 
 public:
     GenericTransactionSignatureChecker(const T* txToIn, unsigned int nInIn, const CAmount& amountIn) : txTo(txToIn), nIn(nInIn), amount(amountIn), txdata(nullptr) {}
-    // SYSCOIN const
     GenericTransactionSignatureChecker(const T* txToIn, unsigned int nInIn, const CAmount& amountIn, const PrecomputedTransactionData& txdataIn) : txTo(txToIn), nIn(nInIn), amount(amountIn), txdata(&txdataIn) {}
     bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override;
     bool CheckLockTime(const CScriptNum& nLockTime) const override;

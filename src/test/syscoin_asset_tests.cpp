@@ -15,6 +15,7 @@
 #include "services/ranges.h"
 #include "core_io.h"
 #include <key.h>
+#include <math.h>
 using namespace std;
 BOOST_GLOBAL_FIXTURE( SyscoinTestingSetup );
 void printRangeVector (vector<CRange> &vecRange, string tag) {
@@ -651,8 +652,14 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 	printf("Running generate_asset_throughput...\n");
 	GenerateBlocks(5, "node1");
 	GenerateBlocks(5, "node3");
+    struct OutputObj {
+        string txid;
+        int vout;
+    };
+    vector<string> vecAssets;
 	map<string, string> assetMap;
 	map<string, string> assetAddressMap;
+    map<string, OutputObj> addressTXIDMap;
 	// setup senders and receiver node addresses
 	vector<string> senders;
 	vector<string> receivers;
@@ -660,76 +667,183 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 	senders.push_back("node2");
 	receivers.push_back("node3");
 	BOOST_CHECK(receivers.size() == 1);
-
+    // user modifiable variables
 	int numberOfTransactionToSend = 100;
-	// create 1000 addresses and assets for each asset	
-	printf("creating sender addresses/assets...\n");
-	for (int i = 0; i < numberOfTransactionToSend; i++) {
-		string address1 = GetNewFundedAddress("node1");
-		string address2 = GetNewFundedAddress("node1");
+   
+    // should be 1 to 250
+    int numberOfAssetSendsPerBlock = 1;
+    BOOST_CHECK(numberOfAssetSendsPerBlock >= 1 && numberOfAssetSendsPerBlock <= 250);
+    // shouldn't really modify, each tx should be sent to 250 addresses for speed
+    int numberOfTxPerBlock = 250;
+    // make sure numberOfAssetSendsPerBlock isn't a fraction of numberOfTransactionToSend
+    BOOST_CHECK((numberOfTransactionToSend % numberOfAssetSendsPerBlock) == 0);
+    
+	// create addresses and assets for each asset	
+    std::string sendManyString = "";
+    vector<string> unfundedAccounts;
+    vector<string> fundedAccounts;
+    vector<string> tempAccountList;
+    vector<string> rawSignedAssetAllocationSends;
+    int numAssets = ceil(((float)numberOfTransactionToSend/numberOfTxPerBlock/numberOfAssetSendsPerBlock));
+    int numFundingAccountsNeeded = numberOfTransactionToSend/numberOfAssetSendsPerBlock;
+    printf("Throughput test: Total transaction count: %d, Total Physical Transactions %d, Total Number of Assets needed %d\n\n", numberOfTransactionToSend, numFundingAccountsNeeded, numAssets);
+    printf("creating %d unfunded addresses...\n", numberOfTxPerBlock);
+    for(int i =0;i<numberOfTxPerBlock;i++){
+        BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
+        unfundedAccounts.emplace_back(r.get_str());
+    }
+    
+    // create assets needed
+    printf("creating %d sender assets...\n", numAssets);
+    for(int i =0;i<numAssets;i++){
+        string newAssetAddress = GetNewFundedAddress("node1");
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew tpstest " + newAssetAddress + " '' '' 8 false 250 250 0 63 ''"));
+        UniValue arr = r.get_array();
+        string guid = arr[1].get_str();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
+        string hex_str = find_value(r.get_obj(), "hex").get_str();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
+        vecAssets.emplace_back(guid);
+    }
+    GenerateBlocks(5);
+    // create addresses for funding
+    printf("creating %d funded accounts for using with assetsend/assetallocationsend in subsequent steps...\n", numFundingAccountsNeeded);
+    for (int i = 0; i < numFundingAccountsNeeded; i++) {
+        if(sendManyString != "") 
+            sendManyString += ",";
+        BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
+        tempAccountList.emplace_back(r.get_str());
+        sendManyString += "\\\"" + r.get_str() + "\\\":1";
+        if(i != 0 && (i%numberOfTxPerBlock) == 0)
+        {
+            std::string strSendMany = "sendmany \"\" \"{" + sendManyString + "}\"";
+            BOOST_CHECK_THROW(r = CallRPC("node1", strSendMany, false), runtime_error);
+            string txid = r.get_str();
+            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
+            // save txids to reference later via syscointxfund
+            int index = 0;
+            // track all of the address outputs for funding with syscointxfund later
+            for(auto& address: tempAccountList){
+                OutputObj outputObj;
+                outputObj.txid = txid;
+                outputObj.vout = index++;
+                addressTXIDMap[address] = outputObj;
+            }
+            fundedAccounts.insert( fundedAccounts.end(), tempAccountList.begin(), tempAccountList.end() );
+            tempAccountList.clear();
+            sendManyString = "";
+        }
+    }
+    if(sendManyString != ""){           
+         std::string strSendMany = "sendmany \"\" \"{" + sendManyString + "}\"";
+        BOOST_CHECK_THROW(r = CallRPC("node1", strSendMany, false), runtime_error);
+        string txid = r.get_str();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
+        // save txids to reference later via syscointxfund
+        int index = 0;
+        // track all of the address outputs for funding with syscointxfund later
+        for(auto& address: tempAccountList){
+            OutputObj outputObj;
+            outputObj.txid = txid;
+            outputObj.vout = index++;
+            addressTXIDMap[address] = outputObj;
+        }
+        fundedAccounts.insert( fundedAccounts.end(), tempAccountList.begin(), tempAccountList.end() );
+    }
+    int assetSendIndex = 0;
+    printf("sending asset with assetsend to %d funded accounts using %d assets...\n", numFundingAccountsNeeded, numAssets);
+    for (auto& assetGuid: vecAssets) {
+        // send asset to numFundingAccountsNeeded addresses
+        string assetSendMany = "";
+        for(auto& fundedAccount: fundedAccounts){
+            if(assetSendMany != "") 
+                assetSendMany += ",";
+            assetSendMany += "{\\\"ownerto\\\":\\\"" + fundedAccount + "\\\",\\\"amount\\\":1}";
+            if(assetSendIndex != 0 && (assetSendIndex%numberOfTxPerBlock) == 0){
+                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + assetGuid + " \"[" + assetSendMany + "]\" '' ''"));
+                UniValue arr = r.get_array();
+                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
+                string hex_str = find_value(r.get_obj(), "hex").get_str();
+                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
+                assetSendMany = "";
+            }
+            assetSendIndex++;
+        }
+        if(assetSendMany != "")
+        {
+            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + assetGuid + " \"[" + assetSendMany + "]\" '' ''"));
+            UniValue arr = r.get_array();
+            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
+            string hex_str = find_value(r.get_obj(), "hex").get_str();
+            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
+        }
 
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew tpstest " + address1 + " '' '' 8 false 1 10 0 63 ''"));
-		UniValue arr = r.get_array();
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-		string hex_str = find_value(r.get_obj(), "hex").get_str();
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
-
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
-		string guid = arr[1].get_str();
-
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + guid + " \"[{\\\"ownerto\\\":\\\"" + address2 + "\\\",\\\"amount\\\":1}]\" '' ''"));
-		arr = r.get_array();
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-		hex_str = find_value(r.get_obj(), "hex").get_str();
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
-
-		assetMap[guid] = address2;
-		assetAddressMap[guid] = address1;
-		if (i % 100 == 0)
-			printf("%.2f percentage done\n", 100.0f * ((float)(i + 1)/(float)numberOfTransactionToSend));
-
-	}
-
+    }     
+   
 	GenerateBlocks(10);
-	printf("Creating assetsend transactions...\n");
+	printf("Creating assetallocationsend transactions...\n");
 	for (auto &sender : senders)
 		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "true"));
 	for (auto &receiver : receivers)
 		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "true"));
 	int count = 0;
-	// setup total senders, and amount that we can add to tpstestadd at once (I noticed that if you push more than 100 or so to tpstestadd at once it will crap out)
-	int totalSenderNodes = senders.size();
-	int senderNodeCount = 0;
-	int totalPerSenderNode = assetMap.size() / totalSenderNodes;
-	if (totalPerSenderNode > 100)
-		totalPerSenderNode = 100;
+	int unfoundedAccountIndex = 0;
+    int assetAllocationSendIndex = 0;
+	// create vector of signed transactions
+    string assetAllocationSendMany = "";
+	for (auto& assetGuid: vecAssets) {
+        // send asset to numFundingAccountsNeeded addresses
+        assetAllocationSendMany = "";
+        for(auto& fundedAccount: fundedAccounts){
+         
+            if(assetAllocationSendMany != "") 
+                assetAllocationSendMany += ",";
+            assetAllocationSendMany += "{\\\"ownerto\\\":\\\"" + unfundedAccounts[unfoundedAccountIndex++] + "\\\",\\\"amount\\\":1}";
+            if(assetAllocationSendIndex != 0 && (assetAllocationSendIndex%numberOfAssetSendsPerBlock) == 0){
+                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsend " + assetGuid + " " + fundedAccount + "\"[" + assetAllocationSendMany + "]\" '' ''"));
+                UniValue arr = r.get_array();
+                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
+                string hex_str = find_value(r.get_obj(), "hex").get_str();
+                rawSignedAssetAllocationSends.emplace_back(hex_str);
+                assetAllocationSendMany = "";               
+            }
+            if(unfoundedAccountIndex >= unfundedAccounts.size())   
+                unfoundedAccountIndex = 0;
+            assetAllocationSendIndex++;      
+        }
+    }
+    BOOST_CHECK(assetAllocationSendMany.empty());
+    
+    // push vector of signed transactions to tpstestadd on every sender node distributed evenly
+    printf("Dividing work between %d senders...\n", senders.size());
+    count = 0;
+    int overallcount = 0;
+    for(unsigned int i =0;i<senders.size();i++){
+         string vecTX = "[";
+         for(unsigned int j=0;j< rawSignedAssetAllocationSends.size();j++){
+            if(count == i){
+                overallcount++;
+                if(vecTX != "[")
+                    vecTX += ",";
+                vecTX += "{\"tx\":\"" + rawSignedAssetAllocationSends[j] + "\"}";
+            }
+            count++;
+            if(count >= senders.size())
+                count = 0;
+            // max data size you can push to rpc
+            if(overallcount >= 100){
+                vecTX += "]";
+                BOOST_CHECK_NO_THROW(CallExtRPC(senders[i], "tpstestadd", "0," + vecTX));
+                vecTX = "["; 
+            }
+        }
+        if(vecTX != "["){
+            vecTX += "]";
+            BOOST_CHECK_NO_THROW(CallExtRPC(senders[i], "tpstestadd", "0," + vecTX));   
+        }    
+    }
+
 	
-	// create vector of signed transactions and push them to tpstestadd on every sender node distributed evenly
-	string vecTX = "[";
-	for (auto& assetTuple : assetMap) {
-		count++;
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsend " + assetTuple.first + " " + assetTuple.second + " \"[{\\\"ownerto\\\":\\\"" + assetAddressMap[assetTuple.first] + "\\\",\\\"amount\\\":1}]\" '' ''"));
-		UniValue arr = r.get_array();
-		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str() ));
-		string hex_str = find_value(r.get_obj(), "hex").get_str();
-		vecTX += "{\"tx\":\"" + hex_str + "\"}";
-		if ((count % totalPerSenderNode) == 0) {
-			vecTX += "]";
-			if (senderNodeCount >= totalSenderNodes)
-				senderNodeCount = 0;
-			BOOST_CHECK_NO_THROW(CallExtRPC(senders[senderNodeCount], "tpstestadd", "0," + vecTX));
-			vecTX = "[";
-			senderNodeCount++;
-		}
-		else
-			vecTX += ",";
-
-		if (count % 100 == 0)
-			printf("%.2f percentage done\n", 100.0f * ((float)count/(float)numberOfTransactionToSend));
-
-
-	}
 	// set the start time to 1 second from now (this needs to be profiled, if the tpstestadd setting time to every node exceeds say 500ms then this time should be extended to account for the latency).
 	// rule of thumb if sender count is high (> 25) then profile how long it takes and multiple by 10 and get ceiling of next second needed to send this rpc to every node to have them sync up
 

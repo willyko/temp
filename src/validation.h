@@ -32,6 +32,7 @@
 #include <atomic>
 // SYSCOIN
 #include <thread_pool/thread_pool.hpp>
+#include <script/interpreter.h>
 class JSONRPCRequest;
 class CBlockIndex;
 class CBlockTreeDB;
@@ -40,12 +41,12 @@ class CCoinsViewDB;
 class CInv;
 class CConnman;
 class CScriptCheck;
+class CScriptCheckConcurrent;
 class CBlockPolicyEstimator;
 class CTxMemPool;
 class CValidationState;
 struct ChainTxData;
 
-struct PrecomputedTransactionData;
 struct LockPoints;
 // SYSCOIN
 extern std::vector<CInv> vInvToSend;
@@ -395,11 +396,10 @@ private:
 
 public:
     CScriptCheck(): ptxTo(nullptr), nIn(0), nFlags(0), cacheStore(false), error(SCRIPT_ERR_UNKNOWN_ERROR) {}
-    CScriptCheck(const CTxOut& outIn, const CTransaction& txToIn, unsigned int nInIn, unsigned int nFlagsIn, bool cacheIn, PrecomputedTransactionData* txdataIn) :
+    CScriptCheck(const CTxOut& outIn, const CTransaction& txToIn, unsigned int nInIn, unsigned int nFlagsIn, bool cacheIn, PrecomputedTransactionData *txdataIn) :
         m_tx_out(outIn), ptxTo(&txToIn), nIn(nInIn), nFlags(nFlagsIn), cacheStore(cacheIn), error(SCRIPT_ERR_UNKNOWN_ERROR), txdata(txdataIn) { }
         
-    // SYSCOIN const
-    bool operator()() const;
+    bool operator()();
 
     void swap(CScriptCheck &check) {
         std::swap(ptxTo, check.ptxTo);
@@ -413,7 +413,37 @@ public:
 
     ScriptError GetScriptError() const { return error; }
 };
+// SYSCOIN
+/**
+ * Closure representing one script multithreaded verification (we want to copy all data instead of store pointers as it may go out of scope in threadpool and cause undefined behaviour in CScriptCheck)
+ * Note that this stores references to the spending transaction
+ */
+class CScriptCheckConcurrent
+{
+private:
+    CTxOut m_tx_out;
+    CTransaction txTo;
+    unsigned int nIn;
+    unsigned int nFlags;
+    bool cacheStore;
+    PrecomputedTransactionData txdata;
 
+public:
+    CScriptCheckConcurrent(): nIn(0), nFlags(0), cacheStore(false) {}
+    CScriptCheckConcurrent(const CTxOut& outIn, const CTransaction& txToIn, unsigned int nInIn, unsigned int nFlagsIn, bool cacheIn, const PrecomputedTransactionData &txdataIn) :
+        m_tx_out(outIn), txTo(txToIn), nIn(nInIn), nFlags(nFlagsIn), cacheStore(cacheIn), txdata(txdataIn) { }
+        
+    bool operator()() const;
+
+    void swap(CScriptCheckConcurrent &check) {
+        std::swap(txTo, check.txTo);
+        std::swap(m_tx_out, check.m_tx_out);
+        std::swap(nIn, check.nIn);
+        std::swap(nFlags, check.nFlags);
+        std::swap(cacheStore, check.cacheStore);
+        std::swap(txdata, check.txdata);
+    }
+};
 /** Initializes the script-execution cache */
 void InitScriptExecutionCache();
 

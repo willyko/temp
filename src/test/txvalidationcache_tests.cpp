@@ -18,8 +18,8 @@
 #include <policy/policy.h>
 
 #include <boost/test/unit_test.hpp>
-
-bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks, uint256* hashCacheEntry=nullptr, bool *isCached = nullptr);
+// SYSCOIN
+bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks=nullptr, std::vector<CScriptCheckConcurrent> *pvChecksConcurrent=nullptr, uint256* hashCacheEntry=nullptr);
 
 BOOST_AUTO_TEST_SUITE(tx_validationcache_tests)
 

@@ -19,6 +19,7 @@
 #include "util.h"
 #include "warnings.h"
 #include <shutdown.h>
+#include <outputtype.h>
 extern void Misbehaving(NodeId nodeid, int howmuch, const std::string& message="") EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 /** Masternode manager */
 CMasternodeMan mnodeman;
@@ -451,7 +452,7 @@ bool CMasternodeMan::GetMasternodeInfo(const CScript& payee, masternode_info_t& 
 {
     LOCK(cs);
     for (const auto& mnpair : mapMasternodes) {
-        CScript scriptCollateralAddress = GetScriptForDestination(mnpair.second.pubKeyCollateralAddress.GetID());
+        CScript scriptCollateralAddress = GetScriptForDestination(GetDestinationForKey(mnpair.second.pubKeyCollateralAddress, OutputType::BECH32));
         if (scriptCollateralAddress == payee) {
             mnInfoRet = mnpair.second.GetInfo();
             return true;

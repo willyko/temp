@@ -25,6 +25,7 @@
 #include <consensus/validation.h>
 #include <wallet/fees.h>
 #include <services/ranges.h>
+#include <outputtype.h>
 unsigned int MAX_UPDATES_PER_BLOCK = 10;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
@@ -378,7 +379,7 @@ UniValue syscointxfund_helper(const string &vchAddress, const string &vchWitness
 		txNew.vin.push_back(CTxIn(addressOutPoint, pcoin.out.scriptPubKey));
 
 	COutPoint witnessOutpoint;
-	if (!vchWitness.empty())
+	if (!vchWitness.empty() && vchWitness != "''")
 	{
 		string strWitnessAddress;
 		strWitnessAddress = vchWitness;
@@ -673,7 +674,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
 		CReserveKey reservekey(pwallet);
 		CPubKey vchPubKey;
 		reservekey.GetReservedKey(vchPubKey, true);
-		CTxOut changeOut(nChange, GetScriptForDestination(vchPubKey.GetID()));
+		CTxOut changeOut(nChange, GetScriptForDestination(GetDestinationForKey(vchPubKey, OutputType::BECH32)));
 		if (!IsDust(changeOut, dustRelayFee))
 			tx.vout.push_back(changeOut);
 	}

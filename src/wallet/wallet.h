@@ -108,7 +108,7 @@ enum AvailableCoinsType
 constexpr OutputType DEFAULT_ADDRESS_TYPE{OutputType::BECH32};
 
 //! Default for -changetype
-constexpr OutputType DEFAULT_CHANGE_TYPE{OutputType::CHANGE_AUTO};
+constexpr OutputType DEFAULT_CHANGE_TYPE{OutputType::BECH32};
 
 enum WalletFlags : uint64_t {
     // wallet flags in the upper section (> 1 << 31) will lead to not opening the wallet if flag is unknown

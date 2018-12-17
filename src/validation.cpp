@@ -328,7 +328,7 @@ enum class FlushStateMode {
 static bool FlushStateToDisk(const CChainParams& chainParams, CValidationState &state, FlushStateMode mode, int nManualPruneHeight=0);
 static void FindFilesToPruneManual(std::set<int>& setFilesToPrune, int nManualPruneHeight);
 static void FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfterHeight);
-bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks = nullptr, uint256* hashCacheEntry=nullptr, bool *isCached = nullptr);
+bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks = nullptr, std::vector<CScriptCheckConcurrent> *pvChecksConcurrent = nullptr, uint256* hashCacheEntry = nullptr);
 static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 
 bool CheckFinalTx(const CTransaction &tx, int flags)
@@ -675,9 +675,8 @@ static void UpdateMempoolForReorg(DisconnectedBlockTransactions &disconnectpool,
 // Used to avoid mempool polluting consensus critical paths if CCoinsViewMempool
 // were somehow broken and returning the wrong scriptPubKeys
 static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& view, const CTxMemPool& pool,
-                 unsigned int flags, bool cacheSigStore, PrecomputedTransactionData& txdata,std::vector<CScriptCheck> *pvChecks, uint256* hashCacheEntryOut, bool *isCached) {
+                 unsigned int flags, bool cacheSigStore, PrecomputedTransactionData& txdata,std::vector<CScriptCheck> *pvChecks, std::vector<CScriptCheckConcurrent> *pvChecksConcurrent, uint256* hashCacheEntry) {
     AssertLockHeld(cs_main);
-
     // pool.cs should be locked already, but go ahead and re-take the lock here
     // to enforce that mempool doesn't change between when we check the view
     // and when we actually call through to CheckInputs
@@ -705,12 +704,11 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
         }
     }
     // SYSCOIN
-    return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata,pvChecks,hashCacheEntryOut,isCached);
+    return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata, pvChecks, pvChecksConcurrent,hashCacheEntry);
 }
 // SYSCOIN
 static CuckooCache::cache<uint256, SignatureCacheHasher> scriptExecutionCache;
 static uint256 scriptExecutionCacheNonce(GetRandHash());
-
 static CCheckQueue<CScriptCheck> scriptcheckqueue(128);
 
 void ThreadScriptCheck() {
@@ -852,7 +850,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // CoinsViewCache instead of create its own
         if (!CheckSequenceLocks(tx, STANDARD_LOCKTIME_VERIFY_FLAGS, &lp))
             return state.DoS(0, false, REJECT_NONSTANDARD, "non-BIP68-final");
-
+         
         CAmount nFees = 0;
         if (!Consensus::CheckTxInputs(tx, state, view, GetSpendHeight(view), nFees)) {
             return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
@@ -879,9 +877,15 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             const Coin &coin = view.AccessCoin(txin.prevout);
             if (coin.IsCoinBase()) {
                 fSpendsCoinbase = true;
+                bMultiThreaded = false;
                 break;
             }
+            // SYSCOIN
+            else if(txin.scriptWitness.IsNull()){
+                 return state.DoS(10, false, REJECT_NONSTANDARD, "non-witness");
+            }
         }
+             
 
         CTxMemPoolEntry entry(ptx, nFees, nAcceptTime, chainActive.Height(),
                               fSpendsCoinbase, nSigOpsCost, lp);
@@ -1062,38 +1066,22 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                               FormatMoney(::incrementalRelayFee.GetFee(nSize))));
             }
         }
-    
-        // SYSCOIN
-        bool isCached = false;
-        std::vector<CScriptCheck> vChecks;
-        uint256 hashCacheEntry;
-        // Check against previous transactions
-        // This is done last to help prevent CPU exhaustion denial-of-service attacks.
-        PrecomputedTransactionData txdata(tx);
-        constexpr unsigned int scriptVerifyFlags = STANDARD_SCRIPT_VERIFY_FLAGS;
-        if (!CheckInputsFromMempoolAndCache(tx, state, view, pool, scriptVerifyFlags, true, txdata, &vChecks, &hashCacheEntry, &isCached)) {
-            // SCRIPT_VERIFY_CLEANSTACK requires SCRIPT_VERIFY_WITNESS, so we
-            // need to turn both off, and compare against just turning off CLEANSTACK
-            // to see if the failure is specifically due to witness validation.
-            CValidationState stateDummy; // Want reported failures to be from first CheckInputsFromMempoolAndCache
-            if (!tx.HasWitness() && CheckInputs(tx, stateDummy, view, true, scriptVerifyFlags & ~(SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK), true, false, txdata) &&
-                !CheckInputs(tx, stateDummy, view, true, scriptVerifyFlags & ~SCRIPT_VERIFY_CLEANSTACK, true, false, txdata)) {
-                // Only the witness is missing, so the transaction itself may be fine.
-                state.SetCorruptionPossible();
-            }
-            return false;
-        }
         if (test_accept) {
             // Tx was accepted, but not added
             return true;
         }  
-        // if cache was hit we return, we already have processed this tx
-        if (isCached)
-            return true;
-            
+        
+        std::vector<CScriptCheckConcurrent> vChecksConcurrent; 
+        std::vector<CScriptCheck> vChecks;    
+        PrecomputedTransactionData txdata(tx);      
+        uint256 hashCacheEntry;
+        if(!CheckInputsFromMempoolAndCache(tx, state, view, pool, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, bMultiThreaded? nullptr: &vChecks, bMultiThreaded? &vChecksConcurrent: nullptr, &hashCacheEntry))
+            return false;
+                                    
+        // SYSCOIN
         if (!bMultiThreaded) {
             CCheckQueueControl<CScriptCheck> control(&scriptcheckqueue);
-            control.Add(vChecks);
+            control.Add(vChecks);   
             if (!control.Wait())
                 return false;
             if (!CheckSyscoinInputs(tx, state, view, true, chainActive.Height(), CBlock())) {
@@ -1148,9 +1136,9 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             static int64_t totalExecutionMicros = 0;
             static int64_t minExecutionMicros = 1000000000;
             static int64_t maxExecutionMicros = 0;
-
+            const CTransaction &txIn = *ptx;
             // define a task for the worker to process
-            std::packaged_task<void()> task([&pool, chainparams, ptx, hash, coins_to_uncache, hashCacheEntry, vChecks]() {
+            std::packaged_task<void()> task([&pool, chainparams, txIn, hash, coins_to_uncache, hashCacheEntry, vChecksConcurrent]() {
                 // metrics
                 int64_t time;
                 if (fLogThreadpool) {
@@ -1161,16 +1149,13 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                 int thisSyscoinCheckCount = 0;
                 int thisCheckMicros = 0;
                 int thisSyscoinCheckMicros = 0;
-                    
-
-                CValidationState validationState;
-                CCoinsViewCache coinsViewCache(pcoinsTip.get());
-                const CTransaction& txIn = *ptx;
-                bool isCheckPassing = true;  // optimistic in case vChecks is empty
-                for (auto &check : vChecks)
-                {
-                    if (fLogThreadpool) 
-                        thisCheckCount += 1;
+               
+               
+                bool isCheckPassing = true;
+                                 
+                if (fLogThreadpool) 
+                    thisCheckCount += 1;
+                for(const auto& check: vChecksConcurrent){
                     isCheckPassing = check();
                     if (!isCheckPassing)
                     {
@@ -1185,6 +1170,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                         CValidationState stateDummy;
                         FlushStateToDisk(chainparams, stateDummy, FlushStateMode::PERIODIC);
                         break;
+                        
                     }
                 }
                 if (fLogThreadpool) {
@@ -1194,23 +1180,28 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
                 if (isCheckPassing)
                 {
+                    CCoinsViewCache coinsViewCache(pcoinsTip.get()); 
+                    CValidationState validationState;
                     int64_t syscoinCheckTime;
                     if (fLogThreadpool) {
                         syscoinCheckTime = GetTimeMicros();
                         thisSyscoinCheckCount += 1;
                     }
-                    if (!CheckSyscoinInputs(txIn, validationState, coinsViewCache, true, chainActive.Height(), CBlock()))
                     {
-                        nLastMultithreadMempoolFailure = GetTime();
-                        LOCK2(cs_main, mempool.cs);
-                        LogPrint(BCLog::MEMPOOL, "%s: %s\n", "CheckSyscoinInputs Error", hash.ToString());
-                        for (const COutPoint& hashTx : coins_to_uncache)
-                            pcoinsTip->Uncache(hashTx);
-                        pool.removeRecursive(txIn, MemPoolRemovalReason::UNKNOWN);
-                        pool.ClearPrioritisation(hash);
-                        // After we've (potentially) uncached entries, ensure our coins cache is still within its size limits   
-                        CValidationState stateDummy;
-                        FlushStateToDisk(chainparams, stateDummy, FlushStateMode::PERIODIC);
+                         
+                        if (!CheckSyscoinInputs(txIn, validationState, coinsViewCache, true, chainActive.Height(), CBlock()))
+                        {
+                            nLastMultithreadMempoolFailure = GetTime();
+                            LOCK2(cs_main, mempool.cs);
+                            LogPrint(BCLog::MEMPOOL, "%s: %s\n", "CheckSyscoinInputs Error", hash.ToString());
+                            for (const COutPoint& hashTx : coins_to_uncache)
+                                pcoinsTip->Uncache(hashTx);
+                            pool.removeRecursive(txIn, MemPoolRemovalReason::UNKNOWN);
+                            pool.ClearPrioritisation(hash);
+                            // After we've (potentially) uncached entries, ensure our coins cache is still within its size limits   
+                            CValidationState stateDummy;
+                            FlushStateToDisk(chainparams, stateDummy, FlushStateMode::PERIODIC);
+                        }
                     }
                     scriptExecutionCache.insert(hashCacheEntry);
                     if (fLogThreadpool) {
@@ -1741,11 +1732,16 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
     CTxUndo txundo;
     UpdateCoins(tx, inputs, txundo, nHeight);
 }
-// SYSCOIN const
-bool CScriptCheck::operator()() const {
+bool CScriptCheck::operator()() {
     const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
     const CScriptWitness *witness = &ptxTo->vin[nIn].scriptWitness;
-    return VerifyScript(scriptSig, m_tx_out.scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker(ptxTo, nIn, m_tx_out.nValue, cacheStore, *txdata));
+    return VerifyScript(scriptSig, m_tx_out.scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker(ptxTo, nIn, m_tx_out.nValue, cacheStore, *txdata), &error);
+}
+// SYSCOIN
+bool CScriptCheckConcurrent::operator()() const {
+    const CScript &scriptSig = txTo.vin[nIn].scriptSig;
+    const CScriptWitness *witness = &txTo.vin[nIn].scriptWitness;      
+    return VerifyScript(scriptSig, m_tx_out.scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker(&txTo, nIn, m_tx_out.nValue, cacheStore, txdata));
 }
 
 int GetSpendHeight(const CCoinsViewCache& inputs)
@@ -1779,13 +1775,15 @@ void InitScriptExecutionCache() {
  *
  * Non-static (and re-declared) in src/test/txvalidationcache_tests.cpp
  */
-bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks, uint256* hashCacheEntryOut, bool *isCached)
+bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks, std::vector<CScriptCheckConcurrent> *pvChecksConcurrent, uint256* hashCacheEntryOut)
 {
     if (!tx.IsCoinBase())
     {
         if (pvChecks)
             pvChecks->reserve(tx.vin.size());
-
+        // SYSCOIN
+        if (pvChecksConcurrent)
+            pvChecksConcurrent->reserve(tx.vin.size());
         // The first loop above does all the inexpensive checks.
         // Only if ALL inputs pass do we perform expensive ECDSA signature checks.
         // Helps prevent CPU exhaustion attacks.
@@ -1811,8 +1809,6 @@ bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsVi
             if (hashCacheEntryOut)
                 *hashCacheEntryOut = hashCacheEntry;
             if (scriptExecutionCache.contains(hashCacheEntry, !cacheFullScriptStore)) {
-                if (isCached)
-                    *isCached = true;
                 return true;
             }
             for (unsigned int i = 0; i < tx.vin.size(); i++) {
@@ -1827,35 +1823,42 @@ bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsVi
                 // spent being checked as a part of CScriptCheck.
 
                 // Verify signature
-                CScriptCheck check(coin.out, tx, i, flags, cacheSigStore, &txdata);
-                if (pvChecks) {
-                    pvChecks->push_back(CScriptCheck());
-                    check.swap(pvChecks->back());
-                } else if (!check()) {
-                    if (flags & STANDARD_NOT_MANDATORY_VERIFY_FLAGS) {
-                        // Check whether the failure was caused by a
-                        // non-mandatory script verification check, such as
-                        // non-standard DER encodings or non-null dummy
-                        // arguments; if so, don't trigger DoS protection to
-                        // avoid splitting the network between upgraded and
-                        // non-upgraded nodes.
-                        CScriptCheck check2(coin.out, tx, i,
-                                flags & ~STANDARD_NOT_MANDATORY_VERIFY_FLAGS, cacheSigStore, &txdata);
-                        if (check2())
-                            return state.Invalid(false, REJECT_NONSTANDARD, strprintf("non-mandatory-script-verify-flag (%s)", ScriptErrorString(check.GetScriptError())));
+                if(pvChecksConcurrent){
+                    CScriptCheckConcurrent checkConcurrent(coin.out, tx, i, flags, cacheSigStore, txdata); 
+                    pvChecksConcurrent->push_back(CScriptCheckConcurrent());
+                    checkConcurrent.swap(pvChecksConcurrent->back());
+                }
+                else {
+                    CScriptCheck check(coin.out, tx, i, flags, cacheSigStore, &txdata);
+                    if (pvChecks) {
+                        pvChecks->push_back(CScriptCheck());
+                        check.swap(pvChecks->back());
+                    } else if (!check()) {
+                        if (flags & STANDARD_NOT_MANDATORY_VERIFY_FLAGS) {
+                            // Check whether the failure was caused by a
+                            // non-mandatory script verification check, such as
+                            // non-standard DER encodings or non-null dummy
+                            // arguments; if so, don't trigger DoS protection to
+                            // avoid splitting the network between upgraded and
+                            // non-upgraded nodes.
+                            CScriptCheck check2(coin.out, tx, i,
+                                    flags & ~STANDARD_NOT_MANDATORY_VERIFY_FLAGS, cacheSigStore, &txdata);
+                            if (check2())
+                                return state.Invalid(false, REJECT_NONSTANDARD, strprintf("non-mandatory-script-verify-flag (%s)", ScriptErrorString(check.GetScriptError())));
+                        }
+                        // Failures of other flags indicate a transaction that is
+                        // invalid in new blocks, e.g. an invalid P2SH. We DoS ban
+                        // such nodes as they are not following the protocol. That
+                        // said during an upgrade careful thought should be taken
+                        // as to the correct behavior - we may want to continue
+                        // peering with non-upgraded nodes even after soft-fork
+                        // super-majority signaling has occurred.
+                        return state.DoS(100,false, REJECT_INVALID, strprintf("mandatory-script-verify-flag-failed (%s)", ScriptErrorString(check.GetScriptError())));
                     }
-                    // Failures of other flags indicate a transaction that is
-                    // invalid in new blocks, e.g. an invalid P2SH. We DoS ban
-                    // such nodes as they are not following the protocol. That
-                    // said during an upgrade careful thought should be taken
-                    // as to the correct behavior - we may want to continue
-                    // peering with non-upgraded nodes even after soft-fork
-                    // super-majority signaling has occurred.
-                    return state.DoS(100,false, REJECT_INVALID, strprintf("mandatory-script-verify-flag-failed (%s)", ScriptErrorString(check.GetScriptError())));
                 }
             }
 
-            if (cacheFullScriptStore && !pvChecks) {
+            if (cacheFullScriptStore && !pvChecks && !pvChecksConcurrent) {
                 // We executed all of the provided scripts, and were told to
                 // cache the result. Do so now.
                 scriptExecutionCache.insert(hashCacheEntry);

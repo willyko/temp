@@ -33,6 +33,8 @@ static const uint64_t ONE_YEAR_IN_SECONDS = 31536000;
 std::string stringFromVch(const std::vector<unsigned char> &vch);
 std::vector<unsigned char> vchFromValue(const UniValue& value);
 std::vector<unsigned char> vchFromString(const std::string &str);
+std::vector<uint8_t> vchFromStringUint8(const std::string &str);
+std::string stringFromVchUint8(const std::vector<uint8_t> &vch);
 std::string stringFromValue(const UniValue& value);
 void CreateRecipient(const CScript& scriptPubKey, CRecipient& recipient);
 void CreateAssetRecipient(const CScript& scriptPubKey, CRecipient& recipient);
@@ -46,7 +48,7 @@ bool GetSyscoinData(const CScript &scriptPubKey, std::vector<unsigned char> &vch
 void SysTxToJSON(const int op, const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash, UniValue &entry, const char& type);
 std::string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, std::string& responseEnglish, const char &type, std::string& responseGUID);
 bool IsOutpointMature(const COutPoint& outpoint);
-UniValue syscointxfund_helper(const std::string &vchAddress, const std::string &vchWitness, const CRecipient &recipient, std::vector<CRecipient> &vecSend);
+UniValue syscointxfund_helper(const std::string &vchWitness, std::vector<CRecipient> &vecSend);
 bool FlushSyscoinDBs();
 bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::string& ownerAddressToMatch);
 CWallet* GetDefaultWallet();
@@ -88,9 +90,9 @@ class CAsset {
 public:
 	std::vector<unsigned char> vchAsset;
 	std::vector<unsigned char> vchSymbol;
-	std::string vchAddress;
+	std::vector<uint8_t> vchAddress;
 	std::vector<unsigned char> vchContract;
-    std::vector<std::string> vchBlacklist;
+    std::vector<std::vector<uint8_t> > vchBlacklist;
 	std::vector<unsigned char> vchExtra;
 	// if allocations are tracked by individual inputs
 	std::vector<CRange> listAllocationInputs;

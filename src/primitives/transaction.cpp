@@ -8,7 +8,8 @@
 #include <hash.h>
 #include <tinyformat.h>
 #include <utilstrencodings.h>
-
+// SYSCOIN
+const int SYSCOIN_TX_VERSION_MINT = 0x7402;
 std::string COutPoint::ToString() const
 {
     return strprintf("COutPoint(%s, %u)", hash.ToString().substr(0,10), n);
@@ -96,7 +97,13 @@ CTransaction& CTransaction::operator=(const CTransaction &tx) {
 CAmount CTransaction::GetValueOut() const
 {
     CAmount nValueOut = 0;
+    bool bFirstOutput = true;
     for (const auto& tx_out : vout) {
+        // SYSCOIN
+        if(bFirstOutput && nVersion == SYSCOIN_TX_VERSION_MINT){
+            bFirstOutput = false;
+            continue;
+        }
         nValueOut += tx_out.nValue;
         if (!MoneyRange(tx_out.nValue) || !MoneyRange(nValueOut))
             throw std::runtime_error(std::string(__func__) + ": value out of range");

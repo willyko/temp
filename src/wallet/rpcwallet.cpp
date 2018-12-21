@@ -43,6 +43,7 @@ using namespace std;
 #include <services/assetallocation.h>
 #include <services/asset.h>
 #include <base58.h>
+#include <bech32.h>
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
 bool GetWalletNameFromJSONRPCRequest(const JSONRPCRequest& request, std::string& wallet_name)
@@ -1123,7 +1124,6 @@ static UniValue sendmany(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
-
     std::string help_text;
     if (!IsDeprecatedRPCEnabled("accounts")) {
         help_text = "sendmany \"\" {\"address\":amount,...} ( minconf \"comment\" [\"address\",...] replaceable conf_target \"estimate_mode\")\n"
@@ -1206,7 +1206,6 @@ static UniValue sendmany(const JSONRPCRequest& request)
             "\nAs a json rpc call\n"
             + HelpExampleRpc("sendmany", "\"\", {\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\":0.01,\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\":0.02}, 6, \"testing\"");
     }
-
     if (request.fHelp || request.params.size() < 2 || request.params.size() > 8) throw std::runtime_error(help_text);
 
     // Make sure the results are valid at least up to the most recent block
@@ -1227,11 +1226,9 @@ static UniValue sendmany(const JSONRPCRequest& request)
     int nMinDepth = 1;
     if (!request.params[2].isNull())
         nMinDepth = request.params[2].get_int();
-
     mapValue_t mapValue;
     if (!request.params[3].isNull() && !request.params[3].get_str().empty())
         mapValue["comment"] = request.params[3].get_str();
-
     UniValue subtractFeeFromAmount(UniValue::VARR);
     if (!request.params[4].isNull())
         subtractFeeFromAmount = request.params[4].get_array();
@@ -1250,10 +1247,8 @@ static UniValue sendmany(const JSONRPCRequest& request)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid estimate_mode parameter");
         }
     }
-
     std::set<CTxDestination> destinations;
     std::vector<CRecipient> vecSend;
-
     CAmount totalAmount = 0;
     std::vector<std::string> keys = sendTo.getKeys();
     for (const std::string& name_ : keys) {
@@ -1261,8 +1256,8 @@ static UniValue sendmany(const JSONRPCRequest& request)
         if (!IsValidDestination(dest)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Syscoin address: ") + name_);
         }
-
-        if (destinations.count(dest)) {
+        // SYSCOIN
+        if (!fTPSTest && destinations.count(dest)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
         }
         destinations.insert(dest);
@@ -1283,7 +1278,6 @@ static UniValue sendmany(const JSONRPCRequest& request)
         CRecipient recipient = {scriptPubKey, nAmount, fSubtractFeeFromAmount};
         vecSend.push_back(recipient);
     }
-
     EnsureWalletIsUnlocked(pwallet);
 
     // Check funds
@@ -1295,7 +1289,6 @@ static UniValue sendmany(const JSONRPCRequest& request)
 
     // Shuffle recipient list
     std::shuffle(vecSend.begin(), vecSend.end(), FastRandomContext());
-
     // Send
     CReserveKey keyChange(pwallet);
     CAmount nFeeRequired = 0;
@@ -1310,7 +1303,6 @@ static UniValue sendmany(const JSONRPCRequest& request)
         strFailReason = strprintf("Transaction commit failed:: %s", FormatStateMessage(state));
         throw JSONRPCError(RPC_WALLET_ERROR, strFailReason);
     }
-
     return tx->GetHash().GetHex();
 }
 
@@ -1857,7 +1849,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     
                     CAssetAllocation assetallocation(tx);
                     if (!assetallocation.IsNull()) {
-                        const string& strAddress = assetallocation.vchAddress;
+                        const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.vchAddress);
                         CCoinsViewCache inputs(pcoinsTip.get());
   
                         if (FindAssetOwnerInTx(inputs, tx, strAddress))
@@ -1871,7 +1863,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                             for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                 UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                 // update to owner
-                                oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first);
+                                oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), amountTuple.first));
                                 oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision, dbAsset.bUseInputRanges));
                                 oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                             }
@@ -1881,7 +1873,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                             for (auto& inputTuple : assetallocation.listSendingAllocationInputs) {
                                 UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                 UniValue oAssetAllocationInputsArray(UniValue::VARR);
-                                oAssetAllocationReceiversObj.pushKV("ownerto", inputTuple.first);
+                                oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), inputTuple.first));
                                 for (auto& inputRange : inputTuple.second) {
                                     UniValue oInput(UniValue::VOBJ);
                                     oInput.pushKV("start", (int)inputRange.start);
@@ -1961,7 +1953,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         CAssetAllocation assetallocation(tx);
                         if (!assetallocation.IsNull()) {
                             CCoinsViewCache inputs(pcoinsTip.get());
-                            const string& strAddress = assetallocation.vchAddress;
+                            const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.vchAddress);
                             if (FindAssetOwnerInTx(inputs, tx, strAddress))
                                 ownerName = strAddress;
                             if (ownerName.empty())
@@ -1972,7 +1964,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                                 for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                     // update to owner
-                                    oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first);
+                                    oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), amountTuple.first));
                                     oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision, dbAsset.bUseInputRanges));
                                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                                 }
@@ -1982,7 +1974,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                                 for (auto& inputTuple : assetallocation.listSendingAllocationInputs) {
                                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                     UniValue oAssetAllocationInputsArray(UniValue::VARR);
-                                    oAssetAllocationReceiversObj.pushKV("ownerto", inputTuple.first);
+                                    oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), inputTuple.first));
                                     for (auto& inputRange : inputTuple.second) {
                                         UniValue oInput(UniValue::VOBJ);
                                         oInput.pushKV("start", (int)inputRange.start);
@@ -2527,13 +2519,7 @@ static UniValue gettransaction(const JSONRPCRequest& request)
     CAmount nCredit = wtx.GetCredit(filter);
     CAmount nDebit = wtx.GetDebit(filter);
     CAmount nNet = nCredit - nDebit;
-    // SYSCOIN
-    CAmount nValueOut = wtx.tx->GetValueOut();
-    if(wtx.tx->nVersion == SYSCOIN_TX_VERSION_MINT && wtx.tx->vout.size() == 2){
-        nValueOut -= wtx.tx->vout[0].nValue;
-        nValueOut += 10000;    
-    }
-    CAmount nFee = (wtx.IsFromMe(filter) ? nValueOut - nDebit : 0);
+    CAmount nFee = (wtx.IsFromMe(filter) ? wtx.tx->GetValueOut() - nDebit : 0);
 
     entry.pushKV("amount", ValueFromAmount(nNet - nFee));
     if (wtx.IsFromMe(filter))

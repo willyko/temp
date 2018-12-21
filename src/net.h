@@ -51,7 +51,7 @@ static const unsigned int MAX_LOCATOR_SZ = 101;
 static const unsigned int MAX_ADDR_TO_SEND = 1000;
 /**
  * Maximum length of incoming protocol messages (no message over 32 MiB is
- * currently acceptable).  Syscoin has 4 MiB here, but we need more space
+ * currently acceptable).  Bitcoin has 4 MiB here, but we need more space
  * to allow for 2,000 block headers with auxpow.
  */
 /* FIXME: Once the headers size limit is deployed sufficiently in the network,

@@ -56,7 +56,7 @@ bool CreateGraphFromVTX(const int &nHeight, const std::vector<CTransactionRef>& 
 	AddressMap mapAddressIndex;
 	std::vector<vector<unsigned char> > vvchArgs;
 	int op;
-	string sender;
+	std::vector<uint8_t> sender;
 	for (unsigned int n = 0; n< blockVtx.size(); n++) {
 		const CTransactionRef txRef = blockVtx[n];
 		if (!txRef)
@@ -79,7 +79,7 @@ bool CreateGraphFromVTX(const int &nHeight, const std::vector<CTransactionRef>& 
 				
 				if (!allocation.listSendingAllocationAmounts.empty()) {
 					for (auto& allocationInstance : allocation.listSendingAllocationAmounts) {
-						const string& receiver = allocationInstance.first;
+						const std::vector<uint8_t>& receiver = allocationInstance.first;
 						AddressMap::const_iterator it = mapAddressIndex.find(receiver);
 						if (it == mapAddressIndex.end()) {
 							vertices.push_back(add_vertex(graph));
@@ -91,7 +91,7 @@ bool CreateGraphFromVTX(const int &nHeight, const std::vector<CTransactionRef>& 
 				}
 				else if (!allocation.listSendingAllocationInputs.empty()) {
 					for (auto& allocationInstance : allocation.listSendingAllocationInputs) {
-						const string& receiver = allocationInstance.first;
+						const std::vector<uint8_t>& receiver = allocationInstance.first;
 						AddressMap::const_iterator it = mapAddressIndex.find(receiver);
 						if (it == mapAddressIndex.end()) {
 							vertices.push_back(add_vertex(graph));

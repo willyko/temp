@@ -1676,13 +1676,7 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
     CAmount nDebit = GetDebit(filter);
     if (nDebit > 0) // debit>0 means we signed/sent this transaction
     {
-        // SYSCOIN
-        CAmount nValueOut = tx->GetValueOut();
-        if(tx->nVersion == SYSCOIN_TX_VERSION_MINT && tx->vout.size() == 2){
-            nValueOut -= tx->vout[0].nValue;      
-            nValueOut += 10000;  
-        }
-        nFee = nDebit - nValueOut;
+        nFee = nDebit - tx->GetValueOut();
     }
 
     // Sent/received.
@@ -2373,6 +2367,8 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
             if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs && !coinControl->IsSelected(COutPoint(entry.first, i)))
                 continue;
             // SYSCOIN
+            if((!coinControl || !coinControl->HasSelected() || !coinControl->IsSelected(COutPoint(entry.first, i))) && pcoin->tx->vout[i].nValue <= GetFee(3000))
+                continue;
             if (nCoinType != ONLY_1000 && IsLockedCoin(entry.first, i))
                 continue;
 

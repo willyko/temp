@@ -213,14 +213,7 @@ QString TransactionDesc::toHTML(interfaces::Node& node, interfaces::Wallet& wall
                 strHTML += "<b>" + tr("Total debit") + ":</b> " + SyscoinUnits::formatHtmlWithUnit(unit, -nValue) + "<br>";
                 strHTML += "<b>" + tr("Total credit") + ":</b> " + SyscoinUnits::formatHtmlWithUnit(unit, nValue) + "<br>";
             }
-
-            // SYSCOIN
-            CAmount nValueOut = wtx.tx->GetValueOut();
-            if(wtx.tx->nVersion == SYSCOIN_TX_VERSION_MINT && wtx.tx->vout.size() == 2){
-                nValueOut -= wtx.tx->vout[0].nValue;  
-                nValueOut += 10000;    
-            }
-            CAmount nTxFee = nDebit - nValueOut;
+            CAmount nTxFee = nDebit - wtx.tx->GetValueOut();
             if (nTxFee > 0)
                 strHTML += "<b>" + tr("Transaction fee") + ":</b> " + SyscoinUnits::formatHtmlWithUnit(unit, -nTxFee) + "<br>";
         }

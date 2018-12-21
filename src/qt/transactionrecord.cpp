@@ -103,12 +103,8 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
         {
             //
             // Debit
-            //
-            // SYSCOIN
-            CAmount nValueOut = wtx.tx->GetValueOut();
-            if(wtx.tx->nVersion == SYSCOIN_TX_VERSION_MINT && wtx.tx->vout.size() > 0)
-                nValueOut -= wtx.tx->vout[1].nValue;              
-            CAmount nTxFee = nDebit - nValueOut;
+            //          
+            CAmount nTxFee = nDebit - wtx.tx->GetValueOut();
 
             for (unsigned int nOut = 0; nOut < wtx.tx->vout.size(); nOut++)
             {

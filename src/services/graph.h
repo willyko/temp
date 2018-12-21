@@ -15,7 +15,7 @@ typedef boost::adjacency_list< boost::vecS, boost::vecS, boost::directedS > Grap
 typedef boost::graph_traits<Graph> Traits;
 typedef typename Traits::vertex_descriptor vertex_descriptor;
 typedef std::map<int, std::vector<int> > IndexMap;
-typedef std::map<std::string, int> AddressMap;
+typedef std::map<std::vector<uint8_t>, int> AddressMap;
 template <class T, class Compare = std::less<T> >
 struct sorted_vector {
 	std::vector<T> V;

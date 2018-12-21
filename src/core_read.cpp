@@ -125,7 +125,8 @@ bool DecodeHexTx(CMutableTransaction& tx, const std::string& hex_tx, bool try_no
             if (ssData.eof() && (!try_witness || CheckTxScriptsSanity(tx))) {
                 return true;
             }
-        } catch (const std::exception&) {
+        } catch (const std::exception& e) {
+        LogPrintf("DecodeHexTx try no witness exception %s\n", e.what());
             // Fall through.
         }
     }
@@ -137,7 +138,8 @@ bool DecodeHexTx(CMutableTransaction& tx, const std::string& hex_tx, bool try_no
             if (ssData.empty()) {
                 return true;
             }
-        } catch (const std::exception&) {
+        } catch (const std::exception& e) {
+        LogPrintf("DecodeHexTx try witness exception %s\n", e.what());
             // Fall through.
         }
     }

@@ -27,7 +27,7 @@ bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptO
 class CAssetAllocationTuple {
 public:
 	std::vector<unsigned char> vchAsset;
-	std::string vchAddress;
+	std::vector<uint8_t> vchAddress;
 	ADD_SERIALIZE_METHODS;
 
 	template <typename Stream, typename Operation>
@@ -35,7 +35,7 @@ public:
 		READWRITE(vchAsset);
 		READWRITE(vchAddress);
 	}
-	CAssetAllocationTuple(const std::vector<unsigned char> &asset, const std::string &vchAddress_) {
+	CAssetAllocationTuple(const std::vector<unsigned char> &asset, const std::vector<uint8_t> &vchAddress_) {
 		vchAsset = asset;
 		vchAddress = vchAddress_;
 	}
@@ -70,9 +70,9 @@ public:
 		return (vchAsset.empty() && vchAddress.empty());
 	}
 };
-typedef std::pair<std::string, std::vector<CRange> > InputRanges;
+typedef std::pair<std::vector<uint8_t>, std::vector<CRange> > InputRanges;
 typedef std::vector<InputRanges> RangeInputArrayTuples;
-typedef std::vector<std::pair<std::string, CAmount > > RangeAmountTuples;
+typedef std::vector<std::pair<std::vector<uint8_t>, CAmount > > RangeAmountTuples;
 typedef std::map<uint256, int64_t> ArrivalTimesMap;
 typedef std::map<std::string, std::string> AssetAllocationIndexItem;
 typedef std::map<int, AssetAllocationIndexItem> AssetAllocationIndexItemMap;
@@ -95,7 +95,7 @@ enum {
 class CAssetAllocation {
 public:
 	std::vector<unsigned char> vchAsset;
-	std::string vchAddress;
+	std::vector<uint8_t> vchAddress;
 	uint256 txHash;
 	unsigned int nHeight;
 	unsigned int nLastInterestClaimHeight;

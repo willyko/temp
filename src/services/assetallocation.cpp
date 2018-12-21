@@ -27,6 +27,7 @@
 #include <boost/multiprecision/cpp_dec_float.hpp>
 #include <key_io.h>
 #include <services/ranges.h>
+#include <bech32.h>
 using namespace std;
 using namespace boost::multiprecision;
 vector<pair<uint256, int64_t> > vecTPSTestReceivedTimes;
@@ -35,7 +36,7 @@ bool IsAssetAllocationOp(int op) {
 	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_COLLECT_INTEREST || op == OP_ASSET_ALLOCATION_BURN;
 }
 string CAssetAllocationTuple::ToString() const {
-	return HexStr(vchAsset) + "-" + vchAddress;
+	return HexStr(vchAsset) + "-" + bech32::Encode(Params().Bech32HRP(),vchAddress);
 }
 string assetAllocationFromOp(int op) {
     switch (op) {
@@ -312,7 +313,7 @@ bool AccumulateInterestSinceLastClaim(CAssetAllocation & assetAllocation, const 
 	if (nBlocksSinceLastUpdate <= 0)
 		return false;
 	// can't accumulate on burn
-	if (assetAllocation.vchAddress == "burn")
+	if (assetAllocation.vchAddress == vchFromStringUint8("burn"))
 		return false;
 	// formula is 1/N * (blocks since last update * previous balance/interest rate) where N is the number of blocks in the total time period
 	assetAllocation.nAccumulatedBalanceSinceLastInterestClaim += ((double)assetAllocation.nBalance)*nBlocksSinceLastUpdate;
@@ -523,7 +524,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			return error(errorMessage.c_str());
 		}
 	}
-	const string &user1 = theAssetAllocation.vchAddress;
+	const string &user1 = bech32::Encode(Params().Bech32HRP(),theAssetAllocation.vchAddress);
 
 	const CAssetAllocationTuple assetAllocationTuple(theAssetAllocation.vchAsset, theAssetAllocation.vchAddress);
 
@@ -631,7 +632,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Invalid amount entered in the script output");
             return error(errorMessage.c_str());
         }   
-        if(amountTuple.first != "burn")
+        if(amountTuple.first != vchFromStringUint8("burn"))
         {
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Must send output to burn address");
             return error(errorMessage.c_str());
@@ -708,7 +709,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 		}
 		if (dbAssetAllocation.vchAddress != theAssetAllocation.vchAddress || !FindAssetOwnerInTx(inputs, tx, user1))
 		{
-			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot send this asset. Asset allocation owner must sign off on this change");
+            LogPrintf("dbAssetAllocation.vchAddress %s theAssetAllocation.vchAddress %s user1 %s\n", bech32::Encode(Params().Bech32HRP(),dbAssetAllocation.vchAddress).c_str(),bech32::Encode(Params().Bech32HRP(),theAssetAllocation.vchAddress).c_str(), user1.c_str());
+			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015a - " + _("Cannot send this asset. Asset allocation owner must sign off on this change");
 			return error(errorMessage.c_str());
 		}	
 		if (!GetAsset(assetAllocationTuple.vchAsset, dbAsset))
@@ -830,7 +832,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 						receiverAllocation.nBalance += amountTuple.second;
 						theAssetAllocation.nBalance -= amountTuple.second;
 					
-						const string& receiverAddress = receiverAllocation.vchAddress;
+						const string& receiverAddress = bech32::Encode(Params().Bech32HRP(),receiverAllocation.vchAddress);
 						if (!dbAsset.vchBlacklist.empty() && std::find(dbAsset.vchBlacklist.begin(), dbAsset.vchBlacklist.end(), receiverAllocation.vchAddress) != dbAsset.vchBlacklist.end())
 						{
 							errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2034 - " + _("Receiver has been blacklisted cannot send: ") + receiverAddress;
@@ -942,7 +944,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 						theAssetAllocation.listAllocationInputs = outputSubtract;
 						theAssetAllocation.nBalance -= rangeTotals[i];
 					
-						const string& receiverAddress = receiverAllocation.vchAddress;
+						const string& receiverAddress = bech32::Encode(Params().Bech32HRP(),receiverAllocation.vchAddress);
 						if (!dbAsset.vchBlacklist.empty() && std::find(dbAsset.vchBlacklist.begin(), dbAsset.vchBlacklist.end(), receiverAllocation.vchAddress) != dbAsset.vchBlacklist.end())
 						{
 							errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2034 - " + _("Receiver has been blacklisted cannot send: ") + receiverAddress;
@@ -1128,7 +1130,7 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	strAddressFrom = strAddress;
 	LOCK(cs_assetallocation);
 	CAssetAllocation theAssetAllocation;
-	const CAssetAllocationTuple assetAllocationTuple(vchAsset, strAddress);
+	const CAssetAllocationTuple assetAllocationTuple(vchAsset, bech32::Decode(strAddress).second);
 	if (!GetAssetAllocation(assetAllocationTuple, theAssetAllocation))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1500 - " + _("Could not find a asset allocation with this key"));
 
@@ -1140,15 +1142,14 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(addressFrom);
 	}
-
-	CRecipient addrrecipient;
-	CreateAssetRecipient(scriptPubKeyFromOrig, addrrecipient);
+    
 	CAmount amount = AssetAmountFromValueNonNeg(params[2], theAsset.nPrecision, theAsset.bUseInputRanges);
 	
 	theAssetAllocation.ClearAssetAllocation();
 	theAssetAllocation.vchAsset = assetAllocationTuple.vchAsset;
 	theAssetAllocation.vchAddress = assetAllocationTuple.vchAddress;
-	theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair("burn", amount));
+    string burnAddr = "burn";
+	theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchFromStringUint8("burn"), amount));
 
 	vector<unsigned char> data;
 	theAssetAllocation.Serialize(data);
@@ -1173,7 +1174,7 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	CreateFeeRecipient(scriptData, data, fee);
 	vecSend.push_back(fee);
 
-	return syscointxfund_helper(strAddress, "", addrrecipient, vecSend);
+	return syscointxfund_helper("", vecSend);
 }
 UniValue assetallocationsend(const JSONRPCRequest& request) {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
@@ -1214,7 +1215,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
     }
 	LOCK(cs_assetallocation);
 	CAssetAllocation theAssetAllocation;
-	const CAssetAllocationTuple assetAllocationTuple(vchAsset, strAddress);
+	const CAssetAllocationTuple assetAllocationTuple(vchAsset, strAddress == "burn"? vchFromStringUint8("burn"): bech32::Decode(strAddress).second);
 	if (!GetAssetAllocation(assetAllocationTuple, theAssetAllocation))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1500 - " + _("Could not find a asset allocation with this key"));
 
@@ -1238,7 +1239,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
         CTxDestination dest = DecodeDestination(toStr);
 		if (!IsValidDestination(dest))
 			throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1502 - " + _("Asset must be sent to a valid syscoin address"));
-
+        vector<uint8_t> vchAddressTo = bech32::Decode(toStr).second;
 	
 		UniValue inputRangeObj = find_value(receiverObj, "ranges");
 		UniValue amountObj = find_value(receiverObj, "amount");
@@ -1257,13 +1258,13 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 					throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "end range not found for an input");
 				vectorOfRanges.push_back(CRange(startRangeObj.get_int(), endRangeObj.get_int()));
 			}
-			theAssetAllocation.listSendingAllocationInputs.push_back(make_pair(toStr, vectorOfRanges));
+			theAssetAllocation.listSendingAllocationInputs.push_back(make_pair(vchAddressTo, vectorOfRanges));
 		}
 		else if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, theAsset.nPrecision, theAsset.bUseInputRanges);
 			if (amount <= 0)
 				throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "amount must be positive");
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(toStr, amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchAddressTo, amount));
 		}
 		else
 			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected inputrange as string or amount as number in receiver array");
@@ -1274,9 +1275,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(addressFrom);
 	}
-
-	CRecipient addrrecipient;
-	CreateAssetRecipient(scriptPubKeyFromOrig, addrrecipient);
+    
 	CScript scriptPubKey;
 
 	// check to see if a transaction for this asset/address tuple has arrived before minimum latency period
@@ -1314,7 +1313,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 	CreateFeeRecipient(scriptData, data, fee);
 	vecSend.push_back(fee);
 
-	return syscointxfund_helper(strAddress, strWitness, addrrecipient, vecSend);
+	return syscointxfund_helper(strWitness, vecSend);
 }
 UniValue assetallocationcollectinterest(const JSONRPCRequest& request) {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
@@ -1343,16 +1342,14 @@ UniValue assetallocationcollectinterest(const JSONRPCRequest& request) {
 	}
 	LOCK(cs_assetallocation);
 	CAssetAllocation theAssetAllocation;
-	const CAssetAllocationTuple assetAllocationTuple(vchAsset, strAddress);
+	const CAssetAllocationTuple assetAllocationTuple(vchAsset, bech32::Decode(strAddress).second);
 	if (!GetAssetAllocation(assetAllocationTuple, theAssetAllocation))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1506 - " + _("Could not find a asset allocation with this key"));
 	CScript scriptPubKeyFromOrig;
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(address);
 	}
-
-	CRecipient addrrecipient;
-	CreateAssetRecipient(scriptPubKeyFromOrig, addrrecipient);	
+    
 	CScript scriptPubKey;
 	theAssetAllocation.ClearAssetAllocation();
 	theAssetAllocation.vchAsset = assetAllocationTuple.vchAsset;
@@ -1377,7 +1374,7 @@ UniValue assetallocationcollectinterest(const JSONRPCRequest& request) {
 	CreateFeeRecipient(scriptData, data, fee);
 	vecSend.push_back(fee);
 
-	return syscointxfund_helper(strAddress, strWitness, addrrecipient, vecSend);
+	return syscointxfund_helper(strWitness, vecSend);
 }
 
 UniValue assetallocationinfo(const JSONRPCRequest& request) {
@@ -1391,7 +1388,7 @@ UniValue assetallocationinfo(const JSONRPCRequest& request) {
 	bool bGetInputs = params[2].get_bool();
 	UniValue oAssetAllocation(UniValue::VOBJ);
 	string strAddressFrom = vchAddressFrom;
-	const CAssetAllocationTuple assetAllocationTuple(vchAsset, strAddressFrom);
+	const CAssetAllocationTuple assetAllocationTuple(vchAsset, strAddressFrom == "burn"? vchFromStringUint8("burn"): bech32::Decode(strAddressFrom).second);
 	CAssetAllocation txPos;
 	LOCK(cs_assetallocation);
 	if (passetallocationdb == nullptr || !passetallocationdb->ReadAssetAllocation(assetAllocationTuple, txPos))
@@ -1443,7 +1440,7 @@ int DetectPotentialAssetAllocationSenderConflicts(const CAssetAllocationTuple& a
 	// go through arrival times and check that balances don't overrun the POW balance
 	pair<uint256, int64_t> lastArrivalTime;
 	lastArrivalTime.second = GetTimeMillis();
-	map<string, CAmount> mapBalances;
+	map<std::vector<uint8_t>, CAmount> mapBalances;
 	// init sender balance, track balances by address
 	// this is important because asset allocations can be sent/received within blocks and will overrun balances prematurely if not tracked properly, for example pow balance 3, sender sends 3, gets 2 sends 2 (total send 3+2=5 > balance of 3 from last stored state, this is a valid scenario and shouldn't be flagged)
 	CAmount &senderBalance = mapBalances[assetAllocationTupleSender.vchAddress];
@@ -1521,7 +1518,7 @@ UniValue assetallocationsenderstatus(const JSONRPCRequest& request) {
     LOCK(cs_assetallocation);
     
     const int64_t & nNow = GetTimeMillis();
-	const CAssetAllocationTuple assetAllocationTupleSender(vchAsset, strAddressSender);
+	const CAssetAllocationTuple assetAllocationTupleSender(vchAsset, bech32::Decode(strAddressSender).second);
     
        // if arrival times have expired, then expire any conflicting status for this sender as well
     ArrivalTimesMap arrivalTimes;
@@ -1560,7 +1557,7 @@ bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& a
 	oAssetAllocation.pushKV("interest_rate", assetallocation.fInterestRate);
     oAssetAllocation.pushKV("txid", assetallocation.txHash.GetHex());
     oAssetAllocation.pushKV("height", (int)assetallocation.nHeight);
-	oAssetAllocation.pushKV("owner", assetallocation.vchAddress);
+	oAssetAllocation.pushKV("owner",  bech32::Encode(Params().Bech32HRP(),assetallocation.vchAddress));
 	oAssetAllocation.pushKV("balance", ValueFromAssetAmount(assetallocation.nBalance, asset.nPrecision, asset.bUseInputRanges));
 	oAssetAllocation.pushKV("interest_claim_height", (int)assetallocation.nLastInterestClaimHeight);
 	oAssetAllocation.pushKV("memo", stringFromVch(assetallocation.vchMemo));
@@ -1641,13 +1638,13 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 	entry.pushKV("txtype", opName);
 	entry.pushKV("_id", CAssetAllocationTuple(assetallocation.vchAsset, assetallocation.vchAddress).ToString());
 	entry.pushKV("asset", HexStr(assetallocation.vchAsset));
-	entry.pushKV("owner", assetallocation.vchAddress);
+	entry.pushKV("owner", bech32::Encode(Params().Bech32HRP(), assetallocation.vchAddress));
 	entry.pushKV("memo", stringFromVch(assetallocation.vchMemo));
 	UniValue oAssetAllocationReceiversArray(UniValue::VARR);
 	if (!assetallocation.listSendingAllocationAmounts.empty()) {
 		for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
 			UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-			oAssetAllocationReceiversObj.pushKV("owner", amountTuple.first);
+			oAssetAllocationReceiversObj.pushKV("owner", bech32::Encode(Params().Bech32HRP(),amountTuple.first));
 			oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision, dbAsset.bUseInputRanges));
 			oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
 		}
@@ -1656,7 +1653,7 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 		for (auto& inputTuple : assetallocation.listSendingAllocationInputs) {
 			UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
 			UniValue oAssetAllocationInputsArray(UniValue::VARR);
-			oAssetAllocationReceiversObj.pushKV("owner", inputTuple.first);
+			oAssetAllocationReceiversObj.pushKV("owner", bech32::Encode(Params().Bech32HRP(),inputTuple.first));
 			for (auto& inputRange : inputTuple.second) {
 				UniValue oInput(UniValue::VOBJ);
 				oInput.pushKV("start", (int)inputRange.start);
@@ -1756,7 +1753,7 @@ bool CAssetAllocationTransactionsDB::ScanAssetAllocationIndex(const int count, c
 
 bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
-	vector<string> vchAddresses;
+	vector<vector<uint8_t> > vchAddresses;
 	vector<unsigned char> vchAsset;
 	int nStartBlock = 0;
 	if (!oOptions.isNull()) {
@@ -1776,7 +1773,7 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 				const UniValue &owner = ownersArray[i].get_obj();
 				const UniValue &ownerStr = find_value(owner, "receiver");
 				if (ownerStr.isStr()) {
-					vchAddresses.push_back(owner.get_str());
+					vchAddresses.push_back(bech32::Decode(ownerStr.get_str()).second);
 				}
 			}
 		}

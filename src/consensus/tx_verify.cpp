@@ -238,12 +238,11 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
     }
 
     // SYSCOIN
-    CAmount value_out = tx.GetValueOut();
     if(tx.nVersion == SYSCOIN_TX_VERSION_MINT){
         if(tx.vout.size() != 2)
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-mint-outputs-wrong");
-        value_out -= tx.vout[1].nValue;
     }
+    const CAmount &value_out = tx.GetValueOut();
     if (nValueIn < value_out){
         return state.DoS(100, false, REJECT_INVALID, "bad-txns-in-belowout", false,
             strprintf("value in (%s) < value out (%s)", FormatMoney(nValueIn), FormatMoney(value_out)));

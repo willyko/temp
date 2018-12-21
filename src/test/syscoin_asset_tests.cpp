@@ -16,6 +16,7 @@
 #include "core_io.h"
 #include <key.h>
 #include <math.h>
+#include <key_io.h>
 using namespace std;
 BOOST_GLOBAL_FIXTURE( SyscoinTestingSetup );
 void printRangeVector (vector<CRange> &vecRange, string tag) {
@@ -33,7 +34,6 @@ void addToRangeVector (vector<CRange> &vecRange, int range_start, int range_end)
 	CRange range(range_start, range_end);
 	vecRange.push_back(range);
 }
-
 BOOST_FIXTURE_TEST_SUITE (syscoin_asset_tests, BasicSyscoinTestingSetup)
 
 BOOST_AUTO_TEST_CASE(generate_range_merge)
@@ -304,48 +304,262 @@ BOOST_AUTO_TEST_CASE(generate_big_assetdata)
 	BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == guid1);
 	BOOST_CHECK(find_value(r.get_obj(), "symbol").get_str() == "USD");
 }
+BOOST_AUTO_TEST_CASE(generate_asset_throughput)
+{
+    int64_t start = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	UniValue r;
+	printf("Running generate_asset_throughput...\n");
+	GenerateBlocks(5, "node1");
+	GenerateBlocks(5, "node3"); 
+    vector<string> vecAssets;
+	// setup senders and receiver node addresses
+	vector<string> senders;
+	vector<string> receivers;
+	senders.push_back("node1");
+	senders.push_back("node2");
+	receivers.push_back("node3");
+	BOOST_CHECK(receivers.size() == 1);
+    // user modifiable variables
+	
+    // for every asset you add numberOfAssetSendsPerBlock tx's effectively
+    int numAssets = 50;
+    BOOST_CHECK(numAssets >= 1);
+
+    int numberOfAssetSendsPerBlock = 250;
+    BOOST_CHECK(numberOfAssetSendsPerBlock >= 1 && numberOfAssetSendsPerBlock <= 250);
+  
+      // NOT MEANT TO BE MODIFIED! CALCULATE INSTEAD!
+    const int numberOfTransactionToSend = numAssets*numberOfAssetSendsPerBlock;
+    
+    // make sure numberOfAssetSendsPerBlock isn't a fraction of numberOfTransactionToSend
+    BOOST_CHECK((numberOfTransactionToSend % numberOfAssetSendsPerBlock) == 0);
+    
+    vector<string> unfundedAccounts;
+    vector<string> rawSignedAssetAllocationSends;
+    vector<string> vecFundedAddresses;
+    
+    printf("Throughput test: Total transaction count: %d, Receivers Per Asset Allocation Transfer %d, Total Number of Assets needed %d\n\n", numberOfTransactionToSend, numberOfAssetSendsPerBlock, numAssets);
+    printf("creating %d unfunded addresses...\n", 250);
+    for(int i =0;i<250;i++){
+        BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
+        unfundedAccounts.emplace_back(r.get_str());
+    }
+    
+    GenerateBlocks(5);
+    // create address for funding
+    BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
+    string fundedAccount = r.get_str();
+    printf("creating %d funded accounts for using with assetsend/assetallocationsend in subsequent steps...\n", numAssets*250);
+    
+    for(int i =0;i<numAssets;i++){
+        BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
+        string fundedAccount = r.get_str();
+        r = CallRPC("node1", "sendtoaddress " + fundedAccount + " 1", true, false);
+        vecFundedAddresses.push_back(fundedAccount);
+    }
+    GenerateBlocks(5);
+    // create assets needed
+    printf("creating %d sender assets...\n", numAssets);
+    for(int i =0;i<numAssets;i++){
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew tpstest " + vecFundedAddresses[i] + " '' '' 8 false 250 250 0 63 ''"));
+        UniValue arr = r.get_array();
+        string guid = arr[1].get_str();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + vecFundedAddresses[i]));
+        arr = r.get_array();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
+        string hex_str = find_value(r.get_obj(), "hex").get_str();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
+  
+        vecAssets.push_back(guid);
+    }  
+    GenerateBlocks(5);
+    for(int i =0;i<numAssets;i++){
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + vecAssets[i] + " \"[{\\\"ownerto\\\":\\\"" + vecFundedAddresses[i] + "\\\",\\\"amount\\\":250}]\" '' ''"));
+        UniValue arr = r.get_array();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + vecFundedAddresses[i]));
+        arr = r.get_array();           
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
+        string hex_str = find_value(r.get_obj(), "hex").get_str();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
+    }  
+   
+	GenerateBlocks(5);
+	printf("Creating assetallocationsend transactions...\n");
+	for (auto &sender : senders)
+		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "true"));
+	for (auto &receiver : receivers)
+		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "true"));
+	int count = 0;
+	int unfoundedAccountIndex = 0;
+    int assetAllocationSendIndex = 0;
+	// create vector of signed transactions
+    string assetAllocationSendMany = "";
+    int txCount = 0;
+	for(int i =0;i<numAssets;i++){
+        // send asset to numberOfAssetSendsPerBlock addresses
+        string assetAllocationSendMany = "";
+        // +1 to account for change output
+        for (int j = 0; j < numberOfAssetSendsPerBlock; j++) {
+            if(assetAllocationSendMany != "") 
+                assetAllocationSendMany += ",";
+            assetAllocationSendMany += "{\\\"ownerto\\\":\\\"" + unfundedAccounts[unfoundedAccountIndex++] + "\\\",\\\"amount\\\":1}";
+            if(unfoundedAccountIndex >= unfundedAccounts.size())   
+                unfoundedAccountIndex = 0;      
+        }
+
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsend " + vecAssets[i] + " " + vecFundedAddresses[i] + " \"[" + assetAllocationSendMany + "]\" '' ''"));
+        UniValue arr = r.get_array();
+        r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + vecFundedAddresses[i] );
+        arr = r.get_array();
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
+        string hex_str = find_value(r.get_obj(), "hex").get_str();
+        rawSignedAssetAllocationSends.push_back(hex_str);                                            
+    }
+    BOOST_CHECK(assetAllocationSendMany.empty());
+    
+    // push vector of signed transactions to tpstestadd on every sender node distributed evenly
+    int txPerSender = rawSignedAssetAllocationSends.size() / senders.size();
+    // max 10 tx per call for max buffer size sent to rpc
+    if(txPerSender > 10)
+        txPerSender = 10;
+    printf("Dividing work (%d transactions) between %d senders (%d per sender)...\n", rawSignedAssetAllocationSends.size(), senders.size(), txPerSender);   
+    unsigned int j=0;
+    unsigned int i=0;
+    unsigned int senderIndex=0;
+    while(j < rawSignedAssetAllocationSends.size()){
+        string vecTX = "[";
+        unsigned int currentTxIndex = i * txPerSender;
+        unsigned int nextTxIndex = (i+1) * txPerSender;
+        if((nextTxIndex+txPerSender) > rawSignedAssetAllocationSends.size())
+            nextTxIndex += txPerSender;
+        for(j=currentTxIndex;j< nextTxIndex;j++){
+            if(j >= rawSignedAssetAllocationSends.size())
+                break;
+            if(vecTX != "[")
+                vecTX += ",";
+            vecTX += "{\"tx\":\"" + rawSignedAssetAllocationSends[j] + "\"}";
+        }
+        if(vecTX != "["){
+            vecTX += "]";
+            BOOST_CHECK_NO_THROW(CallExtRPC(senders[senderIndex++], "tpstestadd", "0," + vecTX));  
+        } 
+        if(senderIndex >= senders.size())
+            senderIndex = 0;
+        i++;
+    }
+    
+	// set the start time to 1 second from now (this needs to be profiled, if the tpstestadd setting time to every node exceeds say 500ms then this time should be extended to account for the latency).
+	// rule of thumb if sender count is high (> 25) then profile how long it takes and multiple by 10 and get ceiling of next second needed to send this rpc to every node to have them sync up
+
+	// this will set a start time to every node which will send the vector of signed txs to the network
+	int64_t tpstarttime = GetTimeMicros();
+	int microsInSecond = 1000 * 1000;
+	tpstarttime = tpstarttime + 1 * microsInSecond;
+	printf("Adding assetsend transactions to queue on sender nodes...\n");
+	for (auto &sender : senders){
+		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestadd",  boost::lexical_cast<string>(tpstarttime)));
+        BOOST_CHECK_NO_THROW(r = CallExtRPC(sender, "tpstestinfo"));
+        BOOST_CHECK_EQUAL(find_value(r.get_obj(), "testinitiatetime").get_int64(), tpstarttime);
+    }
+	for (auto &receiver : receivers){
+		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestadd", boost::lexical_cast<string>(tpstarttime)));
+        BOOST_CHECK_EQUAL(find_value(r.get_obj(), "testinitiatetime").get_int64(), tpstarttime);
+    }
+
+	
+	printf("Waiting 11 seconds as per protocol...\n");
+	// start 11 second wait
+	MilliSleep(11000);
+
+	// get the elapsed time of each node on how long it took to push the vector of signed txs to the network
+	int64_t avgteststarttime = 0;
+	for (auto &sender : senders) {
+		BOOST_CHECK_NO_THROW(r = CallExtRPC(sender, "tpstestinfo"));
+		avgteststarttime += find_value(r.get_obj(), "teststarttime").get_int64();
+	}
+	avgteststarttime /= senders.size();
+
+	// gather received transfers on the receiver, you can query any receiver node here, in general they all should see the same state after the elapsed time.
+	BOOST_CHECK_NO_THROW(r = CallExtRPC(receivers[0], "tpstestinfo"));
+	UniValue tpsresponse = r.get_obj();
+	UniValue tpsresponsereceivers = find_value(tpsresponse, "receivers").get_array();
+
+	float totalTime = 0;
+	for (size_t i = 0; i < tpsresponsereceivers.size(); i++) {
+		const UniValue &responseObj = tpsresponsereceivers[i].get_obj();
+		totalTime += find_value(responseObj, "time").get_int64() - avgteststarttime;
+	}
+	// average the start time - received time by the number of responses received (usually number of responses should match number of transactions sent beginning of test)
+	totalTime /= tpsresponsereceivers.size();
+
+	// avg time per tx it took to hit the mempool
+	UniValue tpsresponsereceiversmempool = find_value(tpsresponse, "receivers_mempool").get_array();
+	float totalTimeMempool = 0;
+	for (size_t i = 0; i < tpsresponsereceiversmempool.size(); i++) {
+		const UniValue &responseObj = tpsresponsereceiversmempool[i].get_obj();
+		totalTimeMempool += find_value(responseObj, "time").get_int64() - avgteststarttime;
+	}
+	// average the start time - received time by the number of responses received (usually number of responses should match number of transactions sent beginning of test)
+	totalTimeMempool /= tpsresponsereceiversmempool.size();
+
+	printf("tpstarttime %lld avgteststarttime %lld totaltime %.2f, totaltime mempool %.2f num responses %zu\n", tpstarttime, avgteststarttime, totalTime, totalTimeMempool, tpsresponsereceivers.size());
+	for (auto &sender : senders)
+		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "false"));
+	for (auto &receiver : receivers)
+		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "false"));
+    int64_t end = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    printf("elapsed time in seconds: %lld\n", end-start);
+    exit(0);
+}
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin)
 {
-	printf("Running generate_burn_syscoin...\n");
-	UniValue r;
-	string newaddress = GetNewFundedAddress("node1");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinburn " + newaddress + " 9.9 true"));
-	UniValue varray = r.get_array();
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + varray[0].get_str()));
-	string hexStr = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hexStr, true, false));
-	GenerateBlocks(5, "node1");	
-	CMutableTransaction txIn;
-	if (!DecodeHexTx(txIn, hexStr))
-		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5513 - " + _("Could not send raw transaction: Cannot decode transaction from hex string"));
-	CTransaction tx(txIn);
-	BOOST_CHECK(tx.vout[0].scriptPubKey.IsUnspendable());	
-	BOOST_CHECK_THROW(r = CallRPC("node1", "syscoinburn " + newaddress + " 0.1 true"), runtime_error);
+    printf("Running generate_burn_syscoin...\n");
+    UniValue r;
+    string newaddress = GetNewFundedAddress("node1");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinburn 9.9 true"));
+    UniValue varray = r.get_array();
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + varray[0].get_str() + " " + newaddress));
+    varray = r.get_array();
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + varray[0].get_str()));
+    string hexStr = find_value(r.get_obj(), "hex").get_str();
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hexStr, true, false));
+    GenerateBlocks(5, "node1"); 
+    CMutableTransaction txIn;
+    BOOST_CHECK(DecodeHexTx(txIn, hexStr, true, true));
+    CTransaction tx(txIn);
+    BOOST_CHECK(tx.vout[0].scriptPubKey.IsUnspendable());   
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinburn 0.1 true"));
+    varray = r.get_array();
+    BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + varray[0].get_str() + " " + newaddress), runtime_error);
 }
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset)
 {
-	UniValue r;
-	printf("Running generate_burn_syscoin_asset...\n");
-	GenerateBlocks(5);
-	GenerateBlocks(5, "node2");
-	GenerateBlocks(5, "node3");
-	
-	string creatoraddress = GetNewFundedAddress("node1");
-	string useraddress = GetNewFundedAddress("node1");
-	
-	string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
-	
-	AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress + "\\\",\\\"amount\\\":0.5}]\"", "memoassetburn");
-	// try to burn more than we own
-	BOOST_CHECK_THROW(r = CallRPC("node1", "assetallocationburn " + assetguid + " " + useraddress + " 0.6"), runtime_error);
-	// this one is ok
-	BurnAssetAllocation("node1", assetguid, useraddress, "0.5");
+    UniValue r;
+    printf("Running generate_burn_syscoin_asset...\n");
+    GenerateBlocks(5);
+    GenerateBlocks(5, "node2");
+    GenerateBlocks(5, "node3");
+    
+    string creatoraddress = GetNewFundedAddress("node1");
+    string useraddress = GetNewFundedAddress("node1");
+    
+    string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
+    
+    AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress + "\\\",\\\"amount\\\":0.5}]\"", "memoassetburn");
+    // try to burn more than we own
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationburn " + assetguid + " " + useraddress + " 0.6"));
+    UniValue arr = r.get_array();
+    BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + useraddress), runtime_error);
+    // this one is ok
+    BurnAssetAllocation("node1", assetguid, useraddress, "0.5");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress + " false"));
-	UniValue balance2 = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance2.getValStr(), "0.00000000");
-	// make sure you can't move coins from burn recipient
-	BOOST_CHECK_THROW(r = CallRPC("node1", "assetallocationsend " + assetguid + " burn " + "\"[{\\\"ownerto\\\":\\\"" + useraddress + "\\\",\\\"amount\\\":0.5}]\"" + " memo ''"), runtime_error);
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress + " false"));
+    UniValue balance2 = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance2.getValStr(), "0.00000000");
+    // make sure you can't move coins from burn recipient
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsend " + assetguid + " burn " + "\"[{\\\"ownerto\\\":\\\"" + useraddress + "\\\",\\\"amount\\\":0.5}]\"" + " memo ''"));
+    arr = r.get_array();
+    BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " burn"), runtime_error);
 
 
 }
@@ -404,116 +618,116 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_multiple)
 // a = 1, a->b(0.4), a->c(0.2), burn a(0.4) (a=0, b=0.4, c=0.2 and burn=0.4)
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag)
 {
-	UniValue r;
-	printf("Running generate_burn_syscoin_asset_zdag...\n");
-	GenerateBlocks(5);
-	GenerateBlocks(5, "node2");
-	GenerateBlocks(5, "node3");
+    UniValue r;
+    printf("Running generate_burn_syscoin_asset_zdag...\n");
+    GenerateBlocks(5);
+    GenerateBlocks(5, "node2");
+    GenerateBlocks(5, "node3");
 
-	string creatoraddress = GetNewFundedAddress("node1");
+    string creatoraddress = GetNewFundedAddress("node1");
 
-	string useraddress2 = GetNewFundedAddress("node1");
-	string useraddress3 = GetNewFundedAddress("node1");
+    string useraddress2 = GetNewFundedAddress("node1");
+    string useraddress3 = GetNewFundedAddress("node1");
     string useraddress1 = GetNewFundedAddress("node1");
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false);
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false);
 
 
-	GenerateBlocks(5, "node1");
-	GenerateBlocks(5, "node2");
+    GenerateBlocks(5, "node1");
+    GenerateBlocks(5, "node2");
 
-	string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
+    string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
 
-	AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":1.0}]\"", "memoassetburn");
+    AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":1.0}]\"", "memoassetburn");
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"", "zdagburn");
-	MilliSleep(1000);
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"", "zdagburn");
+    MilliSleep(1000);
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
 
-	BurnAssetAllocation("node1", assetguid, useraddress1, "0.4", false);
+    BurnAssetAllocation("node1", assetguid, useraddress1, "0.4", false);
 
-	GenerateBlocks(5, "node1");
+    GenerateBlocks(5, "node1");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress1 + " false"));
-	UniValue balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.00000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress1 + " false"));
+    UniValue balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.00000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress2 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress2 + " false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress3 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.20000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress3 + " false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.20000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " burn false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " burn false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
 }
 // a = 1, burn a(0.8) a->b (0.4), a->c(0.2) (a=0.4, b=0.4, c=0.2 and burn=0)
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag1)
 {
-	UniValue r;
-	printf("Running generate_burn_syscoin_asset_zdag1...\n");
-	GenerateBlocks(5);
-	GenerateBlocks(5, "node2");
-	GenerateBlocks(5, "node3");
+    UniValue r;
+    printf("Running generate_burn_syscoin_asset_zdag1...\n");
+    GenerateBlocks(5);
+    GenerateBlocks(5, "node2");
+    GenerateBlocks(5, "node3");
 
-	string creatoraddress = GetNewFundedAddress("node1");
-	
-	string useraddress2 = GetNewFundedAddress("node1");
-	string useraddress3 = GetNewFundedAddress("node1");
+    string creatoraddress = GetNewFundedAddress("node1");
+    
+    string useraddress2 = GetNewFundedAddress("node1");
+    string useraddress3 = GetNewFundedAddress("node1");
     string useraddress1 = GetNewFundedAddress("node1");
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false);
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false);
 
 
-	GenerateBlocks(5, "node1");
-	GenerateBlocks(5, "node2");
+    GenerateBlocks(5, "node1");
+    GenerateBlocks(5, "node2");
 
-	string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
-	
-	AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":1.0}]\"", "memoassetburn");
+    string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
+    
+    AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":1.0}]\"", "memoassetburn");
 
-	BurnAssetAllocation("node1", assetguid, useraddress1, "0.8", false);
+    BurnAssetAllocation("node1", assetguid, useraddress1, "0.8", false);
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"", "zdagburn");
-	MilliSleep(1000);
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"", "zdagburn");
+    MilliSleep(1000);
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
 
-	GenerateBlocks(5, "node1");
+    GenerateBlocks(5, "node1");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress1 + " false"));
-	UniValue balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress1 + " false"));
+    UniValue balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress2 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress2 + " false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.40000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress3 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.20000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress3 + " false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.20000000");
 
-	// no burn found        
-	BOOST_CHECK_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " burn false"), runtime_error);
+    // no burn found        
+    BOOST_CHECK_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " burn false"), runtime_error);
 }
 // a = 1, a->b (0.2), b->a(0.2),  a->c(0.2), c->a(0.2), burn a(0.5), burn a(0.5), burn a(0.2), a->c(0.2), burn c(0.2) (a=0.1, b=0, c=0 and burn=0.9)
 // what happens during POW (burn happens at the end) a->b (0.2), b->a(0.2),  a->c(0.2), c->a(0.2), a->c(0.2), burn a(0.5), burn a(0.5) (this one won't go through), burn a(0.2) (now I should have 0.1 in a), burn c(0.2)
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag2)
 {
-	UniValue r;
-	printf("Running generate_burn_syscoin_asset_zdag2...\n");
-	GenerateBlocks(5);
-	GenerateBlocks(5, "node2");
-	GenerateBlocks(5, "node3");
+    UniValue r;
+    printf("Running generate_burn_syscoin_asset_zdag2...\n");
+    GenerateBlocks(5);
+    GenerateBlocks(5, "node2");
+    GenerateBlocks(5, "node3");
 
-	string creatoraddress = GetNewFundedAddress("node1");
-	string useraddress1 = GetNewFundedAddress("node1");
-	string useraddress2 = GetNewFundedAddress("node1");
-	string useraddress3 = GetNewFundedAddress("node1");
+    string creatoraddress = GetNewFundedAddress("node1");
+    string useraddress1 = GetNewFundedAddress("node1");
+    string useraddress2 = GetNewFundedAddress("node1");
+    string useraddress3 = GetNewFundedAddress("node1");
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress2 + "\",\"1\"", false);
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false);
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false);
@@ -521,54 +735,54 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag2)
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false);
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress1 + "\",\"1\"", false); 
     CallExtRPC("node2", "sendtoaddress" , "\"" + useraddress3 + "\",\"1\"", false);
-	GenerateBlocks(5, "node1");
-	GenerateBlocks(5, "node2");
+    GenerateBlocks(5, "node1");
+    GenerateBlocks(5, "node2");
     GenerateBlocks(5, "node3");
 
-	string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
+    string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
 
-	AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":1.0}]\"", "memoassetburn"); 
+    AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":1.0}]\"", "memoassetburn"); 
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
-	MilliSleep(1000);
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
+    MilliSleep(1000);
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress2, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
-	MilliSleep(1000);
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress2, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
+    MilliSleep(1000);
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
-	MilliSleep(1000);
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
+    MilliSleep(1000);
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress3, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
-	MilliSleep(1000);
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress3, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
+    MilliSleep(1000);
 
-	BurnAssetAllocation("node1", assetguid, useraddress1, "0.5", false);
+    BurnAssetAllocation("node1", assetguid, useraddress1, "0.5", false);
 
-	// this one should be thrown away for not enough balance on POW
-	BurnAssetAllocation("node1", assetguid, useraddress1, "0.5", false);
+    // this one should be thrown away for not enough balance on POW
+    BurnAssetAllocation("node1", assetguid, useraddress1, "0.5", false);
 
-	BurnAssetAllocation("node1", assetguid, useraddress1, "0.2", false);
+    BurnAssetAllocation("node1", assetguid, useraddress1, "0.2", false);
 
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"", "zdagburn");
 
-	BurnAssetAllocation("node1", assetguid, useraddress3, "0.2", false);
+    BurnAssetAllocation("node1", assetguid, useraddress3, "0.2", false);
 
-	GenerateBlocks(5, "node1");
+    GenerateBlocks(5, "node1");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress1 + " false"));
-	UniValue balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.10000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress1 + " false"));
+    UniValue balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.10000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress2 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.00000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress2 + " false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.00000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress3 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.00000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " " + useraddress3 + " false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.00000000");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " burn false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(balance.getValStr(), "0.90000000");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + assetguid + " burn false"));
+    balance = find_value(r.get_obj(), "balance");
+    BOOST_CHECK_EQUAL(balance.getValStr(), "0.90000000");
 
 }
 // a = 1, a->b(0.1), burn a(0.8), a->b (0.4), b->c(0.1), (a=0.5, b=0.4, c=0.1 and no burn) (check a, b are flagged as sender because burn on a + zdag with a and child is b associated with a)
@@ -631,279 +845,20 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag3)
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + assetguid + " " + useraddress2 + " ''"));
     BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_NOT_FOUND);    
 
-	// now do more zdag and check status are ok this time
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"", "zdagburn");
-	MilliSleep(1000);
-	AssetAllocationTransfer(true, "node1", assetguid, useraddress2, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.1}]\"", "zdagburn");
+    // now do more zdag and check status are ok this time
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"", "zdagburn");
+    MilliSleep(1000);
+    AssetAllocationTransfer(true, "node1", assetguid, useraddress2, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.1}]\"", "zdagburn");
 
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + assetguid + " " + useraddress2 + " ''"));
-	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_MINOR_CONFLICT);
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + assetguid + " " + useraddress2 + " ''"));
+    BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_MINOR_CONFLICT);
 
-	MilliSleep(1000);
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + assetguid + " " + useraddress1 + " ''"));
-	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_STATUS_OK);
-	
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + assetguid + " " + useraddress2 + " ''"));
-	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_STATUS_OK);
-}
-BOOST_AUTO_TEST_CASE(generate_asset_throughput)
-{
-	UniValue r;
-	printf("Running generate_asset_throughput...\n");
-	GenerateBlocks(5, "node1");
-	GenerateBlocks(5, "node3");
-    struct OutputObj {
-        string txid;
-        int vout;
-    };
-    vector<string> vecAssets;
-	map<string, string> assetMap;
-	map<string, string> assetAddressMap;
-    map<string, OutputObj> addressTXIDMap;
-	// setup senders and receiver node addresses
-	vector<string> senders;
-	vector<string> receivers;
-	senders.push_back("node1");
-	senders.push_back("node2");
-	receivers.push_back("node3");
-	BOOST_CHECK(receivers.size() == 1);
-    // user modifiable variables
-	int numberOfTransactionToSend = 100;
-   
-    // should be 1 to 250
-    int numberOfAssetSendsPerBlock = 1;
-    BOOST_CHECK(numberOfAssetSendsPerBlock >= 1 && numberOfAssetSendsPerBlock <= 250);
-    // shouldn't really modify, each tx should be sent to 250 addresses for speed
-    int numberOfTxPerBlock = 250;
-    // make sure numberOfAssetSendsPerBlock isn't a fraction of numberOfTransactionToSend
-    BOOST_CHECK((numberOfTransactionToSend % numberOfAssetSendsPerBlock) == 0);
+    MilliSleep(1000);
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + assetguid + " " + useraddress1 + " ''"));
+    BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_STATUS_OK);
     
-	// create addresses and assets for each asset	
-    std::string sendManyString = "";
-    vector<string> unfundedAccounts;
-    vector<string> fundedAccounts;
-    vector<string> tempAccountList;
-    vector<string> rawSignedAssetAllocationSends;
-    int numAssets = ceil(((float)numberOfTransactionToSend/numberOfTxPerBlock/numberOfAssetSendsPerBlock));
-    int numFundingAccountsNeeded = numberOfTransactionToSend/numberOfAssetSendsPerBlock;
-    printf("Throughput test: Total transaction count: %d, Total Physical Transactions %d, Total Number of Assets needed %d\n\n", numberOfTransactionToSend, numFundingAccountsNeeded, numAssets);
-    printf("creating %d unfunded addresses...\n", numberOfTxPerBlock);
-    for(int i =0;i<numberOfTxPerBlock;i++){
-        BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
-        unfundedAccounts.emplace_back(r.get_str());
-    }
-    
-    // create assets needed
-    printf("creating %d sender assets...\n", numAssets);
-    for(int i =0;i<numAssets;i++){
-        string newAssetAddress = GetNewFundedAddress("node1");
-        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew tpstest " + newAssetAddress + " '' '' 8 false 250 250 0 63 ''"));
-        UniValue arr = r.get_array();
-        string guid = arr[1].get_str();
-        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-        string hex_str = find_value(r.get_obj(), "hex").get_str();
-        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
-        vecAssets.emplace_back(guid);
-    }
-    GenerateBlocks(5);
-    // create addresses for funding
-    printf("creating %d funded accounts for using with assetsend/assetallocationsend in subsequent steps...\n", numFundingAccountsNeeded);
-    for (int i = 0; i < numFundingAccountsNeeded; i++) {
-        if(sendManyString != "") 
-            sendManyString += ",";
-        BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
-        tempAccountList.emplace_back(r.get_str());
-        sendManyString += "\\\"" + r.get_str() + "\\\":1";
-        if(i != 0 && (i%numberOfTxPerBlock) == 0)
-        {
-            std::string strSendMany = "sendmany \"\" \"{" + sendManyString + "}\"";
-            BOOST_CHECK_THROW(r = CallRPC("node1", strSendMany, false), runtime_error);
-            string txid = r.get_str();
-            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
-            // save txids to reference later via syscointxfund
-            int index = 0;
-            // track all of the address outputs for funding with syscointxfund later
-            for(auto& address: tempAccountList){
-                OutputObj outputObj;
-                outputObj.txid = txid;
-                outputObj.vout = index++;
-                addressTXIDMap[address] = outputObj;
-            }
-            fundedAccounts.insert( fundedAccounts.end(), tempAccountList.begin(), tempAccountList.end() );
-            tempAccountList.clear();
-            sendManyString = "";
-        }
-    }
-    if(sendManyString != ""){           
-         std::string strSendMany = "sendmany \"\" \"{" + sendManyString + "}\"";
-        BOOST_CHECK_THROW(r = CallRPC("node1", strSendMany, false), runtime_error);
-        string txid = r.get_str();
-        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "generate 1"));
-        // save txids to reference later via syscointxfund
-        int index = 0;
-        // track all of the address outputs for funding with syscointxfund later
-        for(auto& address: tempAccountList){
-            OutputObj outputObj;
-            outputObj.txid = txid;
-            outputObj.vout = index++;
-            addressTXIDMap[address] = outputObj;
-        }
-        fundedAccounts.insert( fundedAccounts.end(), tempAccountList.begin(), tempAccountList.end() );
-    }
-    int assetSendIndex = 0;
-    printf("sending asset with assetsend to %d funded accounts using %d assets...\n", numFundingAccountsNeeded, numAssets);
-    for (auto& assetGuid: vecAssets) {
-        // send asset to numFundingAccountsNeeded addresses
-        string assetSendMany = "";
-        for(auto& fundedAccount: fundedAccounts){
-            if(assetSendMany != "") 
-                assetSendMany += ",";
-            assetSendMany += "{\\\"ownerto\\\":\\\"" + fundedAccount + "\\\",\\\"amount\\\":1}";
-            if(assetSendIndex != 0 && (assetSendIndex%numberOfTxPerBlock) == 0){
-                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + assetGuid + " \"[" + assetSendMany + "]\" '' ''"));
-                UniValue arr = r.get_array();
-                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-                string hex_str = find_value(r.get_obj(), "hex").get_str();
-                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
-                assetSendMany = "";
-            }
-            assetSendIndex++;
-        }
-        if(assetSendMany != "")
-        {
-            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + assetGuid + " \"[" + assetSendMany + "]\" '' ''"));
-            UniValue arr = r.get_array();
-            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-            string hex_str = find_value(r.get_obj(), "hex").get_str();
-            BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
-        }
-
-    }     
-   
-	GenerateBlocks(10);
-	printf("Creating assetallocationsend transactions...\n");
-	for (auto &sender : senders)
-		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "true"));
-	for (auto &receiver : receivers)
-		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "true"));
-	int count = 0;
-	int unfoundedAccountIndex = 0;
-    int assetAllocationSendIndex = 0;
-	// create vector of signed transactions
-    string assetAllocationSendMany = "";
-	for (auto& assetGuid: vecAssets) {
-        // send asset to numFundingAccountsNeeded addresses
-        assetAllocationSendMany = "";
-        for(auto& fundedAccount: fundedAccounts){
-         
-            if(assetAllocationSendMany != "") 
-                assetAllocationSendMany += ",";
-            assetAllocationSendMany += "{\\\"ownerto\\\":\\\"" + unfundedAccounts[unfoundedAccountIndex++] + "\\\",\\\"amount\\\":1}";
-            if(assetAllocationSendIndex != 0 && (assetAllocationSendIndex%numberOfAssetSendsPerBlock) == 0){
-                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsend " + assetGuid + " " + fundedAccount + "\"[" + assetAllocationSendMany + "]\" '' ''"));
-                UniValue arr = r.get_array();
-                BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-                string hex_str = find_value(r.get_obj(), "hex").get_str();
-                rawSignedAssetAllocationSends.emplace_back(hex_str);
-                assetAllocationSendMany = "";               
-            }
-            if(unfoundedAccountIndex >= unfundedAccounts.size())   
-                unfoundedAccountIndex = 0;
-            assetAllocationSendIndex++;      
-        }
-    }
-    BOOST_CHECK(assetAllocationSendMany.empty());
-    
-    // push vector of signed transactions to tpstestadd on every sender node distributed evenly
-    printf("Dividing work between %d senders...\n", senders.size());
-    count = 0;
-    int overallcount = 0;
-    for(unsigned int i =0;i<senders.size();i++){
-         string vecTX = "[";
-         for(unsigned int j=0;j< rawSignedAssetAllocationSends.size();j++){
-            if(count == i){
-                overallcount++;
-                if(vecTX != "[")
-                    vecTX += ",";
-                vecTX += "{\"tx\":\"" + rawSignedAssetAllocationSends[j] + "\"}";
-            }
-            count++;
-            if(count >= senders.size())
-                count = 0;
-            // max data size you can push to rpc
-            if(overallcount >= 100){
-                vecTX += "]";
-                BOOST_CHECK_NO_THROW(CallExtRPC(senders[i], "tpstestadd", "0," + vecTX));
-                vecTX = "["; 
-            }
-        }
-        if(vecTX != "["){
-            vecTX += "]";
-            BOOST_CHECK_NO_THROW(CallExtRPC(senders[i], "tpstestadd", "0," + vecTX));   
-        }    
-    }
-
-	
-	// set the start time to 1 second from now (this needs to be profiled, if the tpstestadd setting time to every node exceeds say 500ms then this time should be extended to account for the latency).
-	// rule of thumb if sender count is high (> 25) then profile how long it takes and multiple by 10 and get ceiling of next second needed to send this rpc to every node to have them sync up
-
-	// this will set a start time to every node which will send the vector of signed txs to the network
-	int64_t tpstarttime = GetTimeMicros();
-	int microsInSecond = 1000 * 1000;
-	tpstarttime = tpstarttime + 1 * microsInSecond;
-	printf("Adding assetsend transactions to queue on sender nodes...\n");
-	for (auto &sender : senders){
-		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestadd",  boost::lexical_cast<string>(tpstarttime)));
-        BOOST_CHECK_NO_THROW(r = CallExtRPC(sender, "tpstestinfo"));
-        BOOST_CHECK_EQUAL(find_value(r.get_obj(), "testinitiatetime").get_int64(), tpstarttime);
-    }
-	for (auto &receiver : receivers){
-		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestadd", boost::lexical_cast<string>(tpstarttime)));
-        BOOST_CHECK_EQUAL(find_value(r.get_obj(), "testinitiatetime").get_int64(), tpstarttime);
-    }
-
-	
-	printf("Waiting 11 seconds as per protocol...\n");
-	// start 11 second wait
-	MilliSleep(11000);
-
-	// get the elapsed time of each node on how long it took to push the vector of signed txs to the network
-	int64_t avgteststarttime = 0;
-	for (auto &sender : senders) {
-		BOOST_CHECK_NO_THROW(r = CallExtRPC(sender, "tpstestinfo"));
-		avgteststarttime += find_value(r.get_obj(), "teststarttime").get_int64();
-	}
-	avgteststarttime /= senders.size();
-
-	// gather received transfers on the receiver, you can query any receiver node here, in general they all should see the same state after the elapsed time.
-	BOOST_CHECK_NO_THROW(r = CallExtRPC(receivers[0], "tpstestinfo"));
-	UniValue tpsresponse = r.get_obj();
-	UniValue tpsresponsereceivers = find_value(tpsresponse, "receivers").get_array();
-
-	float totalTime = 0;
-	for (size_t i = 0; i < tpsresponsereceivers.size(); i++) {
-		const UniValue &responseObj = tpsresponsereceivers[i].get_obj();
-		totalTime += find_value(responseObj, "time").get_int64() - avgteststarttime;
-	}
-	// average the start time - received time by the number of responses received (usually number of responses should match number of transactions sent beginning of test)
-	totalTime /= tpsresponsereceivers.size();
-
-	// avg time per tx it took to hit the mempool
-	UniValue tpsresponsereceiversmempool = find_value(tpsresponse, "receivers_mempool").get_array();
-	float totalTimeMempool = 0;
-	for (size_t i = 0; i < tpsresponsereceiversmempool.size(); i++) {
-		const UniValue &responseObj = tpsresponsereceiversmempool[i].get_obj();
-		totalTimeMempool += find_value(responseObj, "time").get_int64() - avgteststarttime;
-	}
-	// average the start time - received time by the number of responses received (usually number of responses should match number of transactions sent beginning of test)
-	totalTimeMempool /= tpsresponsereceiversmempool.size();
-
-	printf("tpstarttime %ld avgteststarttime %ld totaltime %.2f, totaltime mempool %.2f num responses %zu\n", tpstarttime, avgteststarttime, totalTime, totalTimeMempool, tpsresponsereceivers.size());
-	for (auto &sender : senders)
-		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "false"));
-	for (auto &receiver : receivers)
-		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "false"));
-    exit(0);
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + assetguid + " " + useraddress2 + " ''"));
+    BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_STATUS_OK);
 }
 BOOST_AUTO_TEST_CASE(generate_big_assetname_address)
 {
@@ -1131,6 +1086,8 @@ BOOST_AUTO_TEST_CASE(generate_asset_collect_interest_checktotalsupply_address)
 	// mint up to the max supply
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid + " pub '' " + ValueFromAssetAmount(supplyRemaining, 8, false).write() + " 0.1 [] 63 ''"));
 	UniValue arr = r.get_array();
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress));
+    arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str, true, false));
@@ -1292,6 +1249,8 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_address)
 	//"assetupdate [asset] [public] [supply] [interest_rate] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "assetupdate " + guid + " " + newaddress + " '' 1 0 [] 63 ''"));
 	UniValue arr = r.get_array();
+    BOOST_CHECK_NO_THROW(r = CallRPC("node2", "syscointxfund " + arr[0].get_str() + " " + newaddress));
+    arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "signrawtransactionwithwallet " + arr[0].get_str()));
 	BOOST_CHECK(!find_value(r.get_obj(), "complete").get_bool());
 
@@ -1648,6 +1607,8 @@ BOOST_AUTO_TEST_CASE(generate_assettransfer_address)
 	// xfer an asset that isn't yours
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assettransfer " + guid1 + " " + newaddres2 + " ''"));
 	UniValue arr = r.get_array();
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddres1));
+    arr = r.get_array();    
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
 	BOOST_CHECK(!find_value(r.get_obj(), "complete").get_bool());
 	// update xferred asset

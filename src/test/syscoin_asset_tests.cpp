@@ -322,7 +322,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // user modifiable variables
 	
     // for every asset you add numberOfAssetSendsPerBlock tx's effectively
-    int numAssets = 50;
+    int numAssets = 10;
     BOOST_CHECK(numAssets >= 1);
 
     int numberOfAssetSendsPerBlock = 250;
@@ -337,15 +337,16 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     vector<string> unfundedAccounts;
     vector<string> rawSignedAssetAllocationSends;
     vector<string> vecFundedAddresses;
-    
+    GenerateBlocks(numAssets);  
+    // PHASE 1:  GENERATE UNFUNDED ADDRESSES FOR RECIPIENTS TO ASSETALLOCATIONSEND
     printf("Throughput test: Total transaction count: %d, Receivers Per Asset Allocation Transfer %d, Total Number of Assets needed %d\n\n", numberOfTransactionToSend, numberOfAssetSendsPerBlock, numAssets);
-    printf("creating %d unfunded addresses...\n", 250);
-    for(int i =0;i<250;i++){
+    printf("creating %d unfunded addresses...\n", min(numAssets, 250));
+    for(int i =0;i<min(numAssets, 250);i++){
         BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
         unfundedAccounts.emplace_back(r.get_str());
     }
     
-    GenerateBlocks(5);
+   // PHASE 2:  GENERATE FUNDED ADDRESSES FOR CREATING AND SENDING ASSETS
     // create address for funding
     BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
     string fundedAccount = r.get_str();
@@ -357,7 +358,15 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
         r = CallRPC("node1", "sendtoaddress " + fundedAccount + " 1", true, false);
         vecFundedAddresses.push_back(fundedAccount);
     }
-    GenerateBlocks(5);
+    GenerateBlocks(5);  
+    
+    // PHASE 3:  SET tpstestsetenabled ON ALL SENDER/RECEIVER NODES
+    for (auto &sender : senders)
+        BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "true"));
+    for (auto &receiver : receivers)
+        BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "true"));
+    
+     // PHASE 4:  CREATE ASSETS
     // create assets needed
     printf("creating %d sender assets...\n", numAssets);
     for(int i =0;i<numAssets;i++){
@@ -373,6 +382,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
         vecAssets.push_back(guid);
     }  
     GenerateBlocks(5);
+    // PHASE 5:  SEND ASSETS TO NEW ALLOCATIONS
     for(int i =0;i<numAssets;i++){
         BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + vecAssets[i] + " \"[{\\\"ownerto\\\":\\\"" + vecFundedAddresses[i] + "\\\",\\\"amount\\\":250}]\" '' ''"));
         UniValue arr = r.get_array();
@@ -384,11 +394,9 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     }  
    
 	GenerateBlocks(5);
+    
+    // PHASE 6:  SEND ALLOCATIONS TO NEW ALLOCATIONS (UNFUNDED ADDRESSES) USING ZDAG
 	printf("Creating assetallocationsend transactions...\n");
-	for (auto &sender : senders)
-		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "true"));
-	for (auto &receiver : receivers)
-		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "true"));
 	int count = 0;
 	int unfoundedAccountIndex = 0;
     int assetAllocationSendIndex = 0;
@@ -417,12 +425,13 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     }
     BOOST_CHECK(assetAllocationSendMany.empty());
     
+    // PHASE 7:  DISTRIBUTE LOAD AMONG SENDERS
     // push vector of signed transactions to tpstestadd on every sender node distributed evenly
     int txPerSender = rawSignedAssetAllocationSends.size() / senders.size();
+    printf("Dividing work (%d transactions) between %d senders (%d per sender)...\n", rawSignedAssetAllocationSends.size(), senders.size(), txPerSender);  
     // max 10 tx per call for max buffer size sent to rpc
     if(txPerSender > 10)
-        txPerSender = 10;
-    printf("Dividing work (%d transactions) between %d senders (%d per sender)...\n", rawSignedAssetAllocationSends.size(), senders.size(), txPerSender);   
+        txPerSender = 10; 
     unsigned int j=0;
     unsigned int i=0;
     unsigned int senderIndex=0;
@@ -448,6 +457,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
         i++;
     }
     
+    // PHASE 8:  CALL tpstestadd ON ALL SENDER/RECEIVER NODES WITH A FUTURE TIME
 	// set the start time to 1 second from now (this needs to be profiled, if the tpstestadd setting time to every node exceeds say 500ms then this time should be extended to account for the latency).
 	// rule of thumb if sender count is high (> 25) then profile how long it takes and multiple by 10 and get ceiling of next second needed to send this rpc to every node to have them sync up
 
@@ -466,11 +476,12 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
         BOOST_CHECK_EQUAL(find_value(r.get_obj(), "testinitiatetime").get_int64(), tpstarttime);
     }
 
-	
+	// PHASE 9:  WAIT 10 SECONDS + DELAY SET ABOVE (1 SECOND)
 	printf("Waiting 11 seconds as per protocol...\n");
 	// start 11 second wait
 	MilliSleep(11000);
-
+    
+    // PHASE 10:  CALL tpstestinfo ON SENDERS AND GET AVERAGE START TIME (TIME SENDERS PUSHED TRANSACTIONS TO THE SOCKETS)
 	// get the elapsed time of each node on how long it took to push the vector of signed txs to the network
 	int64_t avgteststarttime = 0;
 	for (auto &sender : senders) {
@@ -478,7 +489,8 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 		avgteststarttime += find_value(r.get_obj(), "teststarttime").get_int64();
 	}
 	avgteststarttime /= senders.size();
-
+    
+    // PHASE 11:  CALL tpstestinfo ON RECEIVERS AND GET AVERAGE RECEIVE TIME, CALCULATE AVERAGE
 	// gather received transfers on the receiver, you can query any receiver node here, in general they all should see the same state after the elapsed time.
 	BOOST_CHECK_NO_THROW(r = CallExtRPC(receivers[0], "tpstestinfo"));
 	UniValue tpsresponse = r.get_obj();
@@ -491,25 +503,17 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 	}
 	// average the start time - received time by the number of responses received (usually number of responses should match number of transactions sent beginning of test)
 	totalTime /= tpsresponsereceivers.size();
-
-	// avg time per tx it took to hit the mempool
-	UniValue tpsresponsereceiversmempool = find_value(tpsresponse, "receivers_mempool").get_array();
-	float totalTimeMempool = 0;
-	for (size_t i = 0; i < tpsresponsereceiversmempool.size(); i++) {
-		const UniValue &responseObj = tpsresponsereceiversmempool[i].get_obj();
-		totalTimeMempool += find_value(responseObj, "time").get_int64() - avgteststarttime;
-	}
-	// average the start time - received time by the number of responses received (usually number of responses should match number of transactions sent beginning of test)
-	totalTimeMempool /= tpsresponsereceiversmempool.size();
-
-	printf("tpstarttime %lld avgteststarttime %lld totaltime %.2f, totaltime mempool %.2f num responses %zu\n", tpstarttime, avgteststarttime, totalTime, totalTimeMempool, tpsresponsereceivers.size());
+    
+    
+    // PHASE 12:  DISPLAY RESULTS
+    
+	printf("tpstarttime %lld avgteststarttime %lld totaltime %.2f, num responses %zu\n", tpstarttime, avgteststarttime, totalTime, tpsresponsereceivers.size());
 	for (auto &sender : senders)
 		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestsetenabled", "false"));
 	for (auto &receiver : receivers)
 		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "false"));
     int64_t end = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     printf("elapsed time in seconds: %lld\n", end-start);
-    exit(0);
 }
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin)
 {

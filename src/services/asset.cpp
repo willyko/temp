@@ -1246,6 +1246,11 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		string user3 = "";
 		if (op == OP_ASSET_TRANSFER) {
 			user2 = vchOwner;
+            if (!FindAssetOwnerInTx(inputs, tx, user1))
+            {
+                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot transfer this asset. Asset owner must sign off on this change");
+                return error(errorMessage.c_str());
+            }           
 		}
 
 		if (op == OP_ASSET_UPDATE) {

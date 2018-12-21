@@ -1266,7 +1266,7 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_address)
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "signrawtransactionwithwallet " + arr[0].get_str()));
     string hex_str = find_value(r.get_obj(), "hex").get_str();
-    BOOST_CHECK_THROW(r = CallRPC("node2", "sendrawtransaction " + hex_str));
+    BOOST_CHECK_THROW(r = CallRPC("node2", "sendrawtransaction " + hex_str), runtime_error);
 
 	AssetUpdate("node1", guid, "pub1");
 	// shouldnt update data, just uses prev data because it hasnt changed
@@ -1631,15 +1631,17 @@ BOOST_AUTO_TEST_CASE(generate_assettransfer_address)
 	UniValue r;
 	AssetTransfer("node1", "node2", guid1, newaddres2);
 	AssetTransfer("node1", "node3", guid2, newaddres3);
-
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetinfo " + guid1 + " false"));
+    BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == newaddres2);
 	// xfer an asset that isn't yours
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assettransfer " + guid1 + " " + newaddres2 + " ''"));
 	UniValue arr = r.get_array();
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddres1));
-    arr = r.get_array();    
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-    string hex_str = find_value(r.get_obj(), "hex").get_str();
-    BOOST_CHECK_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str));
+    BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddres1), runtime_error);
+    
+    GenerateBlocks(5, "node1");
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetinfo " + guid1 + " false"));
+    BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == newaddres2);
+    
 	// update xferred asset
 	AssetUpdate("node2", guid1, "public");
 

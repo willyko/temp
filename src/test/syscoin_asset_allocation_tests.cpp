@@ -13,6 +13,7 @@
 #include <boost/lexical_cast.hpp>
 #include <iterator>
 #include "services/ranges.h"
+#include <key.h>
 using namespace std;
 BOOST_GLOBAL_FIXTURE( SyscoinTestingSetup );
 BOOST_FIXTURE_TEST_SUITE(syscoin_asset_allocation_tests, BasicSyscoinTestingSetup)
@@ -23,8 +24,9 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_address_sync)
 	printf("Running generate_asset_allocation_address_sync...\n");
 	GenerateBlocks(5);
 	string newaddress = GetNewFundedAddress("node1");
-	string newaddressreceiver = GetNewFundedAddress("node1");
-	string guid = AssetNew("node1", "cad", newaddress, "data", "''", "8", "false", "63", "10000", "1000000", "0.05");
+    BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
+    string newaddressreceiver = r.get_str();
+	string guid = AssetNew("node1", "cad", newaddress, "data", "''", "8", "false", "10000", "1000000", "0.05");
 
 	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddressreceiver + "\\\",\\\"amount\\\":5000}]\"", "memoassetinterest");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddressreceiver + " false"));
@@ -45,13 +47,16 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
 	UniValue r;
 	printf("Running generate_asset_allocation_send_address...\n");
 	GenerateBlocks(5);
+    GenerateBlocks(101, "node2");
 	string newaddress1 = GetNewFundedAddress("node1");
-    CallRPC("node2", "sendtoaddress " + newaddress1 + " 10", true, false);
-    CallRPC("node2", "sendtoaddress " + newaddress1 + " 10", true, false);
+    CallRPC("node2", "sendtoaddress " + newaddress1 + " 1", true, false);
+    CallRPC("node2", "sendtoaddress " + newaddress1 + " 1", true, false);
 	GenerateBlocks(5);
 	GenerateBlocks(5, "node2");
-	string newaddress2 = GetNewFundedAddress("node1");
-	string guid = AssetNew("node1", "usd", newaddress1, "data","''", "8", "false", "63", "1", "100000");
+    BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
+    string newaddress2 = r.get_str();
+        
+	string guid = AssetNew("node1", "usd", newaddress1, "data","''", "8", "false", "1", "100000");
 
 	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddress1 + "\\\",\\\"amount\\\":1}]\"", "assetallocationsend");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress1 + " false"));
@@ -142,6 +147,6 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
 	// check just sender as well
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + guid + " " + newaddress1 + " ''"));
 	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_NOT_FOUND);
-
+    ECC_Stop();
 }
 BOOST_AUTO_TEST_SUITE_END ()

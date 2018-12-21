@@ -1265,7 +1265,8 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_address)
     BOOST_CHECK_NO_THROW(r = CallRPC("node2", "syscointxfund " + arr[0].get_str() + " " + newaddress));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "signrawtransactionwithwallet " + arr[0].get_str()));
-	BOOST_CHECK(!find_value(r.get_obj(), "complete").get_bool());
+    string hex_str = find_value(r.get_obj(), "hex").get_str();
+    BOOST_CHECK_THROW(r = CallRPC("node2", "sendrawtransaction " + hex_str));
 
 	AssetUpdate("node1", guid, "pub1");
 	// shouldnt update data, just uses prev data because it hasnt changed
@@ -1312,7 +1313,7 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_precision_address)
 		string maxstr = ValueFromAssetAmount(negonesupply, i, false).get_str();
 		AssetUpdate("node1", guid, "pub12", maxstr);
 		// can't go above max balance (10^18) / (10^i) for i decimal places
-		BOOST_CHECK_THROW(r = CallRPC("node1", "assetupdate " + guid + " pub '' 1 0 [] 63 ''"), runtime_error);
+		BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid + " pub '' 1 0 [] 63 ''"));
 		UniValue arr = r.get_array();
 		BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + addressName), runtime_error);
 		// can't create asset with more than max+1 balance or max+1 supply
@@ -1637,7 +1638,8 @@ BOOST_AUTO_TEST_CASE(generate_assettransfer_address)
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddres1));
     arr = r.get_array();    
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "signrawtransactionwithwallet " + arr[0].get_str()));
-	BOOST_CHECK(!find_value(r.get_obj(), "complete").get_bool());
+    string hex_str = find_value(r.get_obj(), "hex").get_str();
+    BOOST_CHECK_THROW(r = CallRPC("node1", "sendrawtransaction " + hex_str));
 	// update xferred asset
 	AssetUpdate("node2", guid1, "public");
 

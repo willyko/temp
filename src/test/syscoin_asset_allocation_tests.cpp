@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_address_sync)
 	GenerateBlocks(5);
 	string newaddress = GetNewFundedAddress("node1");
 	string newaddressreceiver = GetNewFundedAddress("node1");
-	string guid = AssetNew("node1", "cad", newaddress, "data", "''", "8", "63", "10000", "-1", "0.05");
+	string guid = AssetNew("node1", "cad", newaddress, "data", "''", "8", "false", "63", "10000", "1000000", "0.05");
 
 	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddressreceiver + "\\\",\\\"amount\\\":5000}]\"", "memoassetinterest");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddressreceiver + " false"));
@@ -46,12 +46,12 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
 	printf("Running generate_asset_allocation_send_address...\n");
 	GenerateBlocks(5);
 	string newaddress1 = GetNewFundedAddress("node1");
-	BOOST_CHECK_THROW(CallRPC("node2", "sendtoaddress " + newaddress1 + " 10"), runtime_error);
-	BOOST_CHECK_THROW(CallRPC("node2", "sendtoaddress " + newaddress1 + " 10"), runtime_error);
+    CallRPC("node2", "sendtoaddress " + newaddress1 + " 10", true, false);
+    CallRPC("node2", "sendtoaddress " + newaddress1 + " 10", true, false);
 	GenerateBlocks(5);
 	GenerateBlocks(5, "node2");
 	string newaddress2 = GetNewFundedAddress("node1");
-	string guid = AssetNew("node1", "usd", newaddress1, "data","''", "8", "63", "1", "-1");
+	string guid = AssetNew("node1", "usd", newaddress1, "data","''", "8", "false", "63", "1", "100000");
 
 	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddress1 + "\\\",\\\"amount\\\":1}]\"", "assetallocationsend");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress1 + " false"));

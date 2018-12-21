@@ -866,6 +866,7 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag3)
 }
 BOOST_AUTO_TEST_CASE(generate_big_assetname_address)
 {
+    UniValue r;
 	GenerateBlocks(5);
 	printf("Running generate_big_assetname_address...\n");
 	GenerateBlocks(5);
@@ -882,6 +883,7 @@ BOOST_AUTO_TEST_CASE(generate_big_assetname_address)
 }
 BOOST_AUTO_TEST_CASE(generate_bad_assetmaxsupply_address)
 {
+    UniValue r;
 	GenerateBlocks(5);
 	printf("Running generate_bad_assetmaxsupply_address...\n");
 	GenerateBlocks(5);
@@ -1110,7 +1112,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_collect_interest_checktotalsupply_address)
 
 	// totalsupply cannot go > maxsupply
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid + " jagassetupdate '' 0.001 0.1 [] 63 ''"));
-	UniValue arr = r.get_array();
+	arr = r.get_array();
 	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress), runtime_error);
 }
 BOOST_AUTO_TEST_CASE(generate_asset_collect_interest_average_balance_address)
@@ -1310,7 +1312,9 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_precision_address)
 		string maxstr = ValueFromAssetAmount(negonesupply, i, false).get_str();
 		AssetUpdate("node1", guid, "pub12", maxstr);
 		// can't go above max balance (10^18) / (10^i) for i decimal places
-		BOOST_CHECK_THROW(r = CallRPC("node1", "assetupdate " + guid + " pub '' 1 0 [] 63 ''"), runtime_error);
+        BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid + " pub '' 1 0 [] 63 ''"));
+        arr = r.get_array();
+        BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + addressName), runtime_error);        
 		// can't create asset with more than max+1 balance or max+1 supply
 		string maxstrplusone = ValueFromAssetAmount(negonesupply + (precisionCoin * 2), i, false).get_str();
 		maxstr = ValueFromAssetAmount(negonesupply + precisionCoin, i, false).get_str();
@@ -1348,12 +1352,7 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_precision_address)
 	BOOST_CHECK_NO_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true " + maxstr + " -1 0 63 ''"));
 	BOOST_CHECK_NO_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true 1 " + maxstr + " 0 63 ''"));
 	BOOST_CHECK_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true " + maxstrplusone + " -1 0 63 ''"), runtime_error);
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true " + maxstrplusone + " -1 0 63 ''"));
-	UniValue arr = r.get_array();
-	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + addressName), runtime_error);
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true 1 " + maxstrplusone + " 0 63 ''"));
-	arr = r.get_array();
-	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + addressName), runtime_error);
+	BOOST_CHECK_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true 1 " + maxstrplusone + " 0 63 ''"), runtime_error);
 
 }
 BOOST_AUTO_TEST_CASE(generate_assetsend_address)

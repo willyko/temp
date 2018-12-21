@@ -873,7 +873,10 @@ BOOST_AUTO_TEST_CASE(generate_big_assetname_address)
 	// 256 bytes long
 	string gooddata = "SfsddfdfsdsfSfsdfdfsdsfDsdsdsdsfsfsdsfsdsfdsfsdsfdsfsdsfsdSfsdfdfsdsfSfsdfdfsdsfDsdsdsdsfsfsdsfsdsfdsfsdsfdsfsdsfsdSfsdfdfsdsfSfsdfdfsdsfDsdsdsdsfsfsdsfsdsfdsfsdsfdsfsdsfsdSfsdfdfsdsfSfsdfdfsdsfDsdsdsdsfsfsdsfsdsfdsfsdsfdsfsdsfsdSfsdfdfsdsfSfsdfdfsdsDfdfdd";
 	// cannot create this asset because its more than 8 chars
-	BOOST_CHECK_THROW(CallRPC("node1", "assetnew 123456789 " + newaddress + " " + gooddata + " '' 8 false 1 1 0 63 ''"), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew 123456789 " + newaddress + " " + gooddata + " '' 8 false 1 1 0 63 ''"));
+	UniValue arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress), runtime_error);
+
 	// its 3 chars now so its ok
 	BOOST_CHECK_NO_THROW(CallRPC("node1", "assetnew abc " + newaddress + " " + gooddata + " '' 8 false 1 1 0 63 ''"));
 }
@@ -890,7 +893,9 @@ BOOST_AUTO_TEST_CASE(generate_bad_assetmaxsupply_address)
 	// 1 max supply good
 	BOOST_CHECK_NO_THROW(CallRPC("node1", "assetnew abc " + newaddress + " " + gooddata + " '' 8 false 1 1 0 63 ''"));
 	// balance > max supply
-	BOOST_CHECK_THROW(CallRPC("node1", "assetnew abc " + newaddress + " " + gooddata + " '' 3 false 2000 1000 0 63 ''"), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew abc " + newaddress + " " + gooddata + " '' 3 false 2000 1000 0 63 ''"));
+	UniValue arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress), runtime_error);
 }
 BOOST_AUTO_TEST_CASE(generate_assetuppercase)
 {
@@ -1104,7 +1109,9 @@ BOOST_AUTO_TEST_CASE(generate_asset_collect_interest_checktotalsupply_address)
 	BOOST_CHECK_EQUAL(AssetAmountFromValue(maxsupply, 8, false), 100 * COIN);
 
 	// totalsupply cannot go > maxsupply
-	BOOST_CHECK_THROW(r = CallRPC("node1", "assetupdate " + guid + " jagassetupdate '' 0.001 0.1 [] 63 ''"), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid + " jagassetupdate '' 0.001 0.1 [] 63 ''"));
+	UniValue arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress), runtime_error);
 }
 BOOST_AUTO_TEST_CASE(generate_asset_collect_interest_average_balance_address)
 {
@@ -1270,12 +1277,19 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_address)
     int updateflags = 63 & ~ASSET_UPDATE_SUPPLY;
 	string guid1 = AssetNew("node1", "c", newaddress, "data", "''", "8","false", "1", "10", "0.1", "63");
     // can't change supply > max supply (current balance already 6, max is 10)
-    BOOST_CHECK_THROW(r = CallRPC("node1", "assetupdate " + guid + " " + newaddress + " '' 5 0 [] " + boost::lexical_cast<string>(updateflags) + " ''"), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid + " " + newaddress + " '' 5 0 [] " + boost::lexical_cast<string>(updateflags) + " ''"));
+	arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress), runtime_error);
+
 	AssetUpdate("node1", guid1, "pub12", "1", "0.25", "[]", boost::lexical_cast<string>(updateflags));
 	// ensure can't update interest rate (update flags is set to not allow interest rate/supply update)
-	BOOST_CHECK_THROW(r = CallRPC("node1", "assetupdate " + guid1 + " " + newaddress + " '' 1 0.11 [] " + boost::lexical_cast<string>(updateflags) + " ''"), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid1 + " " + newaddress + " '' 1 0.11 [] " + boost::lexical_cast<string>(updateflags) + " ''"));
+	arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress), runtime_error);
     // can't update supply or interest rate
-    BOOST_CHECK_THROW(r = CallRPC("node1", "assetupdate " + guid1 + " " + newaddress + " '' 1 0 [] " + boost::lexical_cast<string>(updateflags) + " ''"), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetupdate " + guid1 + " " + newaddress + " '' 1 0 [] " + boost::lexical_cast<string>(updateflags) + " ''"));
+	arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + newaddress), runtime_error);
 
 }
 BOOST_AUTO_TEST_CASE(generate_assetupdate_precision_address)
@@ -1334,7 +1348,12 @@ BOOST_AUTO_TEST_CASE(generate_assetupdate_precision_address)
 	BOOST_CHECK_NO_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true " + maxstr + " -1 0 63 ''"));
 	BOOST_CHECK_NO_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true 1 " + maxstr + " 0 63 ''"));
 	BOOST_CHECK_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true " + maxstrplusone + " -1 0 63 ''"), runtime_error);
-	BOOST_CHECK_THROW(CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true 1 " + maxstrplusone + " 0 63 ''"), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true " + maxstrplusone + " -1 0 63 ''"));
+	UniValue arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + addressName), runtime_error);
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew  " + assetName + "2 " + addressName + " pub '' " + istr + " true 1 " + maxstrplusone + " 0 63 ''"));
+	arr = r.get_array();
+	BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + addressName), runtime_error);
 
 }
 BOOST_AUTO_TEST_CASE(generate_assetsend_address)

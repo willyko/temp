@@ -52,7 +52,8 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
         WalletRescanReserver reserver(&wallet);
         reserver.reserve();
         BOOST_CHECK_EQUAL(nullBlock, wallet.ScanForWalletTransactions(oldTip, nullptr, reserver));
-        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 100 * COIN);
+        // SYSCOIN
+        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 69.3 * COIN);
     }
 
     // Prune the older block file.
@@ -67,7 +68,8 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
         WalletRescanReserver reserver(&wallet);
         reserver.reserve();
         BOOST_CHECK_EQUAL(oldTip, wallet.ScanForWalletTransactions(oldTip, nullptr, reserver));
-        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 50 * COIN);
+        // SYSCOIN
+        BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 34.65 * COIN);
     }
 
     // Verify importmulti RPC returns failure for a key whose creation time is
@@ -195,7 +197,8 @@ BOOST_FIXTURE_TEST_CASE(coin_mark_dirty_immature_credit, TestChain100Setup)
     // credit amount is calculated.
     wtx.MarkDirty();
     wallet.AddKeyPubKey(coinbaseKey, coinbaseKey.GetPubKey());
-    BOOST_CHECK_EQUAL(wtx.GetImmatureCredit(), 50*COIN);
+    // SYSCOIN
+    BOOST_CHECK_EQUAL(wtx.GetImmatureCredit(), 34.65*COIN);
 }
 
 static int64_t AddTx(CWallet& wallet, uint32_t lockTime, int64_t mockTime, int64_t blockTime)
@@ -327,7 +330,8 @@ BOOST_FIXTURE_TEST_CASE(ListCoins, ListCoinsTestingSetup)
     BOOST_CHECK_EQUAL(list.begin()->second.size(), 1U);
 
     // Check initial balance from one mature coinbase transaction.
-    BOOST_CHECK_EQUAL(50 * COIN, wallet->GetAvailableBalance());
+    // SYSCOIN
+    BOOST_CHECK_EQUAL(533000000 * COIN, wallet->GetAvailableBalance());
 
     // Add a transaction creating a change address, and confirm ListCoins still
     // returns the coin associated with the change address underneath the
@@ -337,14 +341,16 @@ BOOST_FIXTURE_TEST_CASE(ListCoins, ListCoinsTestingSetup)
     list = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list.size(), 1U);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 2U);
+    // SYSCOIN
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 1U);
 
     // Lock both coins. Confirm number of available coins drops to 0.
     {
         LOCK2(cs_main, wallet->cs_wallet);
         std::vector<COutput> available;
         wallet->AvailableCoins(available);
-        BOOST_CHECK_EQUAL(available.size(), 2U);
+        // SYSCOIN
+        BOOST_CHECK_EQUAL(available.size(), 1U);
     }
     for (const auto& group : list) {
         for (const auto& coin : group.second) {
@@ -363,7 +369,8 @@ BOOST_FIXTURE_TEST_CASE(ListCoins, ListCoinsTestingSetup)
     list = wallet->ListCoins();
     BOOST_CHECK_EQUAL(list.size(), 1U);
     BOOST_CHECK_EQUAL(boost::get<CKeyID>(list.begin()->first).ToString(), coinbaseAddress);
-    BOOST_CHECK_EQUAL(list.begin()->second.size(), 2U);
+    // SYSCOIN
+    BOOST_CHECK_EQUAL(list.begin()->second.size(), 1U);
 }
 
 BOOST_FIXTURE_TEST_CASE(wallet_disableprivkeys, TestChain100Setup)

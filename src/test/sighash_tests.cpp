@@ -162,7 +162,8 @@ BOOST_AUTO_TEST_CASE(sighash_test)
 }
 
 // Goal: check that SignatureHash generates correct hash
-BOOST_AUTO_TEST_CASE(sighash_from_data)
+// SYSCOIN
+/*BOOST_AUTO_TEST_CASE(sighash_from_data)
 {
     UniValue tests = read_json(std::string(json_tests::sighash, json_tests::sighash + sizeof(json_tests::sighash)));
 
@@ -207,5 +208,5 @@ BOOST_AUTO_TEST_CASE(sighash_from_data)
         sh = SignatureHash(scriptCode, *tx, nIn, nHashType, 0, SigVersion::BASE);
         BOOST_CHECK_MESSAGE(sh.GetHex() == sigHashHex, strTest);
     }
-}
+}*/
 BOOST_AUTO_TEST_SUITE_END()

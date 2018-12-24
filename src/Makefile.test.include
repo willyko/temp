@@ -58,8 +58,6 @@ SYSCOIN_TESTS =\
   test/descriptor_tests.cpp \
   test/getarg_tests.cpp \
   test/hash_tests.cpp \
-  test/key_io_tests.cpp \
-  test/key_tests.cpp \
   test/limitedmap_tests.cpp \
   test/dbwrapper_tests.cpp \
   test/main_tests.cpp \
@@ -93,10 +91,8 @@ SYSCOIN_TESTS =\
   test/transaction_tests.cpp \
   test/txindex_tests.cpp \
   test/txvalidation_tests.cpp \
-  test/txvalidationcache_tests.cpp \
   test/uint256_tests.cpp \
   test/util_tests.cpp \
-  test/validation_block_tests.cpp \
   test/versionbits_tests.cpp
 # FIXME: Update and re-enable these tests:
 #   miner_tests

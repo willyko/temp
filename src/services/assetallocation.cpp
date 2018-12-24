@@ -1606,7 +1606,7 @@ bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, co
 		string strCat = "";
 		if (!strSender.empty() || !strReceiver.empty()) {
 			isminefilter filter = ISMINE_SPENDABLE;
-            if(!strSender.empty() && strSender != "burn")
+            if(!strSender.empty() && strSender != "burn" && pwallet)
             {
     			isminefilter mine = IsMine(*pwallet, DecodeDestination(strSender));
     			if ((mine & filter)) {
@@ -1614,7 +1614,7 @@ bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, co
     				nAmountDisplay *= -1;
     			}
             }
-			else if(!strReceiver.empty() && strReceiver != "burn"){
+			else if(!strReceiver.empty() && strReceiver != "burn" && pwallet){
 				isminefilter mine = IsMine(*pwallet, DecodeDestination(strReceiver));
 				if ((mine & filter))
 					strCat = "receive";

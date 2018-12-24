@@ -280,6 +280,8 @@ UniValue SyscoinListReceived(bool includeempty = true, bool includechange = fals
 	map<string, int> mapAddress;
 	UniValue ret(UniValue::VARR);
 	CWallet* const pwallet = GetDefaultWallet();
+    if(!pwallet)
+        return ret;
 	const std::map<CKeyID, int64_t>& mapKeyPool = pwallet->GetAllReserveKeys();
 	for (const std::pair<const CTxDestination, CAddressBookData>& item : pwallet->mapAddressBook) {
 
@@ -403,21 +405,21 @@ UniValue syscointxfund_helper(const string &vchWitness, vector<CRecipient> &vecS
 CWallet* GetDefaultWallet() {
 	const std::vector<std::shared_ptr<CWallet>>& vecWallets = GetWallets();
 	if (vecWallets.empty())
-		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5501 - " + _("No wallets found"));
+		return nullptr;
 	std::shared_ptr<CWallet> const wallet = vecWallets[0];
 	CWallet* const pwallet = wallet.get();
 	return pwallet;
 }
 CAmount GetFee(const size_t nBytes) {
-
+    CWallet* const pwallet = GetDefaultWallet();
 	FeeCalculation feeCalc;
 	CFeeRate feeRate = ::feeEstimator.estimateSmartFee(1, &feeCalc, true);
 	CAmount minFee;
 	if (feeRate != CFeeRate(0)) {
 		minFee = feeRate.GetFeePerK()*nBytes / 1000;
 	}
-	else {
-		minFee = GetRequiredFee(*GetDefaultWallet(), nBytes);
+	else if(pwallet){
+		minFee = GetRequiredFee(*pwallet, nBytes);
 	}
 	return minFee;
 }
@@ -834,9 +836,10 @@ UniValue syscoinaddscript(const JSONRPCRequest& request) {
 	if (request.fHelp || 1 != params.size())
 		throw runtime_error("syscoinaddscript redeemscript\n"
 			"Add redeemscript to local wallet for signing smart contract based syscoin transactions.\n");
-
+    CWallet* const pwallet = GetDefaultWallet();
 	std::vector<unsigned char> data(ParseHex(params[0].get_str()));
-	GetDefaultWallet()->AddCScript(CScript(data.begin(), data.end()));
+    if(pwallet)
+	    pwallet->AddCScript(CScript(data.begin(), data.end()));
 	UniValue res(UniValue::VOBJ);
 	res.pushKV("result", "success");
 	return res;

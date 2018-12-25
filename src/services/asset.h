@@ -58,7 +58,7 @@ bool DecodeAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsi
 bool DecodeAndParseAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char& type);
 bool DecodeAssetScript(const CScript& script, int& op, std::vector<std::vector<unsigned char> > &vvch);
 bool IsAssetOp(int op);
-std::vector<unsigned char> GenerateSyscoinGuid();
+uint32_t GenerateSyscoinGuid();
 bool IsSyscoinScript(const CScript& scriptPubKey, int &op, std::vector<std::vector<unsigned char> > &vvchArgs);
 bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut);
 void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash, UniValue &entry);

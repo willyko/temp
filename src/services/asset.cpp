@@ -786,11 +786,12 @@ void SysTxToJSON(const int op, const vector<unsigned char> &vchData, const vecto
 	else if (type == OP_SYSCOIN_ASSET_ALLOCATION)
 		AssetAllocationTxToJSON(op, vchData, vchHash, entry);
 }
-vector<unsigned char> GenerateSyscoinGuid()
+uint32_t GenerateSyscoinGuid()
 {
-	int64_t rand = GetRand(std::numeric_limits<int64_t>::max());
-	vector<unsigned char> vchGuidRand = CScriptNum(rand).getvch();
-	return vchGuidRand;
+    uint32_t rand = 0;
+    while(rand <= SYSCOIN_TX_VERSION_MINT)
+	    rand = GetRand(std::numeric_limits<uint32_t>::max());
+    return rand;
 }
 unsigned int addressunspent(const string& strAddressFrom, COutPoint& outpoint)
 {
@@ -1613,7 +1614,9 @@ UniValue assetnew(const JSONRPCRequest& request) {
     // build asset object
     CAsset newAsset;
 	newAsset.vchSymbol = vchFromString(strName);
-	newAsset.vchAsset = GenerateSyscoinGuid();
+        int64_t rand = GetRand(std::numeric_limits<uint32_t>::max());
+    vector<unsigned char> vchGuidRand = CScriptNum(rand).getvch();
+	newAsset.vchAsset = vchGuidRand;
 	newAsset.vchPubData = vchPubData;
     newAsset.vchContract = vchContract;
 	newAsset.vchAddress = bech32::Decode(strAddress).second;

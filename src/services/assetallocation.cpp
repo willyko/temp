@@ -30,7 +30,6 @@
 #include <bech32.h>
 using namespace std;
 using namespace boost::multiprecision;
-vector<pair<uint256, int64_t> > vecTPSTestReceivedTimes;
 AssetAllocationIndexItemMap AssetAllocationIndex;
 bool IsAssetAllocationOp(int op) {
 	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_COLLECT_INTEREST || op == OP_ASSET_ALLOCATION_BURN;
@@ -972,8 +971,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 		int64_t ms = INT64_MAX;
 		if (fJustCheck) {
 			ms = GetTimeMillis();
-			if(fTPSTestEnabled)
-				vecTPSTestReceivedTimes.emplace_back(theAssetAllocation.txHash, GetTimeMicros());
 		}
 		const string &user = op == OP_ASSET_COLLECT_INTEREST ? user1 : "";
 		if (!passetallocationdb->WriteAssetAllocation(theAssetAllocation, theAssetAllocation.nBalance, 0, dbAsset, ms, user, user, fJustCheck, bMiner))
@@ -1007,20 +1004,13 @@ UniValue tpstestinfo(const JSONRPCRequest& request) {
 	oTPSTestResults.pushKV("enabled", fTPSTestEnabled);
     oTPSTestResults.pushKV("testinitiatetime", (int64_t)nTPSTestingStartTime);
 	oTPSTestResults.pushKV("teststarttime", (int64_t)nTPSTestingSendRawEndTime);
-	for (auto &receivedTime : vecTPSTestReceivedTimes) {
-		UniValue oTPSTestStatusObj(UniValue::VOBJ);
-		oTPSTestStatusObj.pushKV("txid", receivedTime.first.GetHex());
-		oTPSTestStatusObj.pushKV("time", receivedTime.second);
-		oTPSTestReceivers.push_back(oTPSTestStatusObj);
-	}
-	oTPSTestResults.pushKV("receivers", oTPSTestReceivers);
 	for (auto &receivedTime : vecTPSTestReceivedTimesMempool) {
 		UniValue oTPSTestStatusObj(UniValue::VOBJ);
 		oTPSTestStatusObj.pushKV("txid", receivedTime.first.GetHex());
 		oTPSTestStatusObj.pushKV("time", receivedTime.second);
 		oTPSTestReceiversMempool.push_back(oTPSTestStatusObj);
 	}
-	oTPSTestResults.pushKV("receivers_mempool", oTPSTestReceiversMempool);
+	oTPSTestResults.pushKV("receivers", oTPSTestReceiversMempool);
 	return oTPSTestResults;
 }
 UniValue tpstestsetenabled(const JSONRPCRequest& request) {
@@ -1036,7 +1026,6 @@ UniValue tpstestsetenabled(const JSONRPCRequest& request) {
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1501 - " + _("This function requires tpstest configuration to be set upon startup. Please shutdown and enable it by adding it to your syscoin.conf file and then try again."));
 	fTPSTestEnabled = params[0].get_bool();
 	if (!fTPSTestEnabled) {
-		vecTPSTestReceivedTimes.clear();
 		vecTPSTestReceivedTimesMempool.clear();
 		nTPSTestingSendRawEndTime = 0;
 		nTPSTestingStartTime = 0;

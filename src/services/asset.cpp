@@ -1334,6 +1334,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
                         
 						CAssetAllocation receiverAllocation;
 						const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.vchAsset, amountTuple.first);
+                        const string& receiverTupleStr = receiverAllocationTuple.ToString();
 						// don't need to check for existance of allocation because it may not exist, may be creating it here for the first time for receiver
 						GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
 						if (receiverAllocation.IsNull()) {
@@ -1345,11 +1346,10 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						}
                         {
                             LOCK(cs_assetallocation);
-                            const string& receiverTupleStr = receiverAllocationTuple.ToString();
                             AssetBalanceMap::iterator mapBalanceReceiver = mapAssetBalances.find(receiverTupleStr);
                             if(mapBalanceReceiver == mapAssetBalances.end()){
                                 receiverAllocation.nBalance += amountTuple.second;
-                                mapAssetBalances.emplace(receiverTupleStr, receiverAllocation.nBalance); 
+                                mapAssetBalances.emplace(std::move(receiverTupleStr), std::move(receiverAllocation.nBalance)); 
                             }
                             else{
                                 mapBalanceReceiver->second += amountTuple.second;
@@ -1372,11 +1372,18 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						}
 						// adjust sender balance
 						theAsset.nBalance -= amountTuple.second;
+                        passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1, receiverAddress);
                         {
-                            LOCK(cs_assetallocation);                 
-                            mapAssetAllocations.emplace(receiverAllocationTuple.ToString(), receiverAllocation);
+                            LOCK(cs_assetallocation);  
+                            auto it = mapAssetAllocations.find(receiverTupleStr);
+                            if( it != mapAssetAllocations.end() ) {
+                                it->second = std::move(receiverAllocation);
+                            }
+                            else {
+                               mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+                            }                                        
                         }
-						passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1, receiverAddress);
+						
 					}
 				}
 			}
@@ -1408,7 +1415,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 					InputRanges &input = theAssetAllocation.listSendingAllocationInputs[i];
 					CAssetAllocation receiverAllocation;
 					const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.vchAsset, input.first);
-                    
+                    const string& receiverTupleStr = receiverAllocationTuple.ToString();
 					// ensure entire allocation range being subtracted exists on sender (full inclusion check)
 					if (!doesRangeContain(dbAsset.listAllocationInputs, input.second))
 					{
@@ -1425,11 +1432,10 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						}
                         {
                             LOCK(cs_assetallocation); 
-                            const string& receiverTupleStr = receiverAllocationTuple.ToString();
                             AssetBalanceMap::iterator mapBalanceReceiver = mapAssetBalances.find(receiverTupleStr);
                             if(mapBalanceReceiver == mapAssetBalances.end()){
                                 receiverAllocation.nBalance += rangeTotals[i];
-                                mapAssetBalances.emplace(receiverTupleStr, receiverAllocation.nBalance); 
+                                mapAssetBalances.emplace(std::move(receiverTupleStr), std::move(receiverAllocation.nBalance)); 
                             }
                             else{
                                 mapBalanceReceiver->second += rangeTotals[i];
@@ -1458,12 +1464,19 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						subtractRanges(dbAsset.listAllocationInputs, input.second, outputSubtract);
 						theAsset.listAllocationInputs = outputSubtract;
 						theAsset.nBalance -= rangeTotals[i];
-                        
-                        {
-                            LOCK(cs_assetallocation);                           
-                            mapAssetAllocations.emplace(receiverAllocationTuple.ToString(), receiverAllocation);
-                        }
                         passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, dbAsset, dbAsset.nBalance - nTotal, rangeTotals[i], user1, receiverAddress);
+                        {
+                            LOCK(cs_assetallocation);   
+                            auto it = mapAssetAllocations.find(receiverTupleStr);
+                            if( it != mapAssetAllocations.end() ) {
+                                it->second = std::move(receiverAllocation);
+                            }
+                            else {
+                               mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+                            }                                                     
+                            
+                        }
+                        
 					}
 				}
 			}

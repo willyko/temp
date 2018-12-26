@@ -70,10 +70,12 @@ public:
 		return (vchAsset.empty() && vchAddress.empty());
 	}
 };
+typedef std::unordered_map<std::string, CAmount> AssetBalanceMap;
+typedef std::unordered_map<uint256, int64_t,SaltedTxidHasher> ArrivalTimesMap;
+std::unordered_map<std::string, ArrivalTimesMap> arrivalTimesMap;
 typedef std::pair<std::vector<uint8_t>, std::vector<CRange> > InputRanges;
 typedef std::vector<InputRanges> RangeInputArrayTuples;
 typedef std::vector<std::pair<std::vector<uint8_t>, CAmount > > RangeAmountTuples;
-typedef std::map<uint256, int64_t> ArrivalTimesMap;
 typedef std::map<std::string, std::string> AssetAllocationIndexItem;
 typedef std::map<int, AssetAllocationIndexItem> AssetAllocationIndexItemMap;
 extern AssetAllocationIndexItemMap AssetAllocationIndex;
@@ -82,7 +84,7 @@ static const int MAX_MEMO_LENGTH = 128;
 static const int ONE_YEAR_IN_BLOCKS = 525600;
 static const int ONE_HOUR_IN_BLOCKS = 60;
 static const int ONE_MONTH_IN_BLOCKS = 43800;
-static sorted_vector<CAssetAllocationTuple> assetAllocationConflicts;
+static sorted_vector<std::string> assetAllocationConflicts;
 static CCriticalSection cs_assetallocation;
 static CCriticalSection cs_assetallocationindex;
 enum {
@@ -176,96 +178,15 @@ public:
 	void Serialize(std::vector<unsigned char>& vchData);
 };
 
-
+typedef std::unordered_map<std::string, CAssetAllocation> AssetAllocationMap;
 class CAssetAllocationDB : public CDBWrapper {
 public:
 	CAssetAllocationDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocations", nCacheSize, fMemory, fWipe, false, true) {}
-
-    bool WriteAssetAllocation(const CAssetAllocation& assetallocation, const CAmount& nSenderBalance, const CAmount& nAmount, const CAsset& asset, const int64_t& arrivalTime, const std::string& strSender, const std::string& strReceiver, const bool& fJustCheck, const bool &bMiner=false) {
-		const CAssetAllocationTuple allocationTuple(assetallocation.vchAsset, assetallocation.vchAddress);
-		bool writeState = false;
-		{
-			writeState = Write(make_pair(std::string("assetallocationi"), allocationTuple), assetallocation);
-			if (!fJustCheck){
-                if(bMiner)
-                    writeState = writeState && WriteLastAssetAllocationMiner(allocationTuple);
-				writeState = writeState && WriteLastAssetAllocation(allocationTuple, assetallocation);
-            }
-			else  {
-				if (arrivalTime < INT64_MAX) {
-					ArrivalTimesMap arrivalTimes;
-					ReadISArrivalTimes(allocationTuple, arrivalTimes);
-					arrivalTimes.emplace(assetallocation.txHash, arrivalTime);
-					writeState = writeState && Write(make_pair(std::string("assetallocationa"), allocationTuple), arrivalTimes);
-				}
-			}
-		}
-		if(writeState && !strReceiver.empty())
-			WriteAssetAllocationIndex(assetallocation, asset, nSenderBalance, nAmount, strSender, strReceiver);
-        return writeState;
-    }
-	bool EraseAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, bool cleanup = false) {
-		bool eraseState = Erase(make_pair(std::string("assetallocationi"), assetAllocationTuple));
-		if (eraseState) {
-			Erase(make_pair(std::string("assetp"), assetAllocationTuple));
-			EraseISArrivalTimes(assetAllocationTuple);
-		}
-		return eraseState;
-	}
+    
     bool ReadAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, CAssetAllocation& assetallocation) {
         return Read(make_pair(std::string("assetallocationi"), assetAllocationTuple), assetallocation);
     }
-	bool ReadLastAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, CAssetAllocation& assetallocation) {
-		return Read(make_pair(std::string("assetallocationp"), assetAllocationTuple), assetallocation);
-	}
-    bool EraseLastAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple) {
-        if(ExistsLastAssetAllocation(assetAllocationTuple))
-            return Erase(make_pair(std::string("assetallocationp"), assetAllocationTuple));
-        return true;
-    }    
-    bool ExistsLastAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple) {
-        return Exists(make_pair(std::string("assetallocationp"), assetAllocationTuple));
-    }      
-    bool WriteLastAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, const CAssetAllocation& assetallocation) {
-        return Write(make_pair(std::string("assetallocationp"), assetAllocationTuple), assetallocation);
-    }
-    bool ReadLastAssetAllocationMiner(const CAssetAllocationTuple& assetAllocationTuple, CAssetAllocation& assetallocation) {
-        return Read(make_pair(std::string("assetallocationpm"), assetAllocationTuple), assetallocation);
-    }
-    bool WriteLastAssetAllocationMiner(const CAssetAllocationTuple& assetAllocationTuple) {
-        // the last allocation (last pow) must exist and the last miner state shouldn't exist (only save it the first time to avoid subsequent updates from overwriting this data)
-        if(ExistsLastAssetAllocation(assetAllocationTuple) && !ExistsLastAssetAllocationMiner(assetAllocationTuple)){
-            CAssetAllocation assetallocation;
-            if(ReadLastAssetAllocation(assetAllocationTuple, assetallocation))
-                return Write(make_pair(std::string("assetallocationpm"), assetAllocationTuple), assetallocation);
-        }
-        return true;
-    }
-    bool ExistsLastAssetAllocationMiner(const CAssetAllocationTuple& assetAllocationTuple) {
-        return Exists(make_pair(std::string("assetallocationpm"), assetAllocationTuple));
-    }
-    bool EraseLastAssetAllocationMiner(const CAssetAllocationTuple& assetAllocationTuple) {
-        if(ExistsLastAssetAllocationMiner(assetAllocationTuple))
-            return Erase(make_pair(std::string("assetallocationpm"), assetAllocationTuple));
-        return true;
-    }    
-    bool ReadISArrivalTimes(const CAssetAllocationTuple& assetAllocationTuple, ArrivalTimesMap& arrivalTimes) {
-        return Read(make_pair(std::string("assetallocationa"), assetAllocationTuple), arrivalTimes);
-    }    
-	bool EraseISArrivalTime(const CAssetAllocationTuple& assetAllocationTuple, const uint256& txid) {
-		ArrivalTimesMap arrivalTimes;
-		ReadISArrivalTimes(assetAllocationTuple, arrivalTimes);
-		ArrivalTimesMap::const_iterator it = arrivalTimes.find(txid);
-		if (it != arrivalTimes.end())
-			arrivalTimes.erase(it);
-		if (arrivalTimes.size() > 0)
-			return Write(make_pair(std::string("assetallocationa"), assetAllocationTuple), arrivalTimes);
-		else
-			return Erase(make_pair(std::string("assetallocationa"), assetAllocationTuple));
-	}
-	bool EraseISArrivalTimes(const CAssetAllocationTuple& assetAllocationTuple) {
-		return Erase(make_pair(std::string("assetallocationa"), assetAllocationTuple));
-	}
+    bool Flush(const AssetAllocationMap &mapAssetAllocations);
 	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
@@ -283,7 +204,7 @@ public:
 	}
 	bool ScanAssetAllocationIndex(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
-bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, sorted_vector<CAssetAllocationTuple> &revertedAssetAllocations, std::string &errorMessage, bool bSanityCheck = false, bool bMiner = false);
+bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, std::string &errorMessage, bool bSanityCheck = false, bool bMiner = false);
 bool GetAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple,CAssetAllocation& txPos);
 bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& asset, const bool bGetInputs, UniValue& oName);
 bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver, bool &isMine, UniValue& oAssetAllocation);

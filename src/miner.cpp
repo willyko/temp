@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
+﻿// Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2018 The Syscoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -33,7 +33,7 @@
 #include <masternode-sync.h>
 #include <services/graph.h>
 #include <services/assetallocation.h>
-
+extern AssetBalanceMap mapAssetBalances;
 // Unconfirmed transactions in the memory pool often depend on other
 // transactions in the memory pool. When we select transactions from the
 // pool, we select by highest fee rate of a transaction combined with all
@@ -192,11 +192,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     {
         throw std::runtime_error("OrderBasedOnArrivalTime failed!");
     }
-    std::vector<CTransactionRef> vtxCopy = pblock->vtx;
+
     // SYSCOIN remove bad burn transactions prior to accepting block                      
     CCoinsViewCache viewOld(pcoinsTip.get());
-    std::vector<uint256> txsToRemove;   
-    // this will end up changing the databases (including previous states) so we need to revert after this so that the block creation won't mess up as it will try to revert and replay the block again        
+    std::vector<uint256> txsToRemove;         
     CValidationState stateInputs;
     if (!CheckSyscoinInputs(*pblock->vtx[0], stateInputs, viewOld, false, nHeight, *pblock, false, true, txsToRemove) && !txsToRemove.empty())
     {
@@ -211,12 +210,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             }       
         }
         if(!txsToRemove.empty())
-        LogPrintf("check sys error removing %d txs\n", txsToRemove.size());
-    }  
-    // go back to previous state before the last call so we can replay safely upon new block  
-    if(!RevertAssetAllocationMiner(vtxCopy))
-        throw std::runtime_error("RevertAssetAllocationMiner failed!"); 
-        
+            LogPrintf("check sys error removing %d txs\n", txsToRemove.size());
+    }
+    
+
     if(!txsToRemove.empty()){
         return CreateNewBlock(scriptPubKeyIn, fMineWitnessTx);
     }

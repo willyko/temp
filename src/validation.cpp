@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
+﻿// Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2018 The Syscoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -64,7 +64,7 @@ bool fLogThreadpool = false;
 tp::ThreadPool *threadpool = NULL;
 std::vector<CInv> vInvToSend;
 bool fLoaded = false;
-
+extern AssetBalanceMap mapAssetBalances;
 #if defined(NDEBUG)
 # error "Syscoin cannot be compiled without assertions."
 #endif
@@ -491,18 +491,14 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
 {
     // Ensure that we don't fail on verifydb which loads recent UTXO and will fail if the input is already spent, 
     // but during runtime fLoaded should be true so it should check UTXO in correct state
-    if (!fLoaded){
-    LogPrintf("CheckSyscoinInputs floaded false\n");
+    if (!fLoaded)
         return true;     
-        }
     static int64_t nFlushIndexBlocks = 0;
     std::string statusRpc = "";
-    if (fJustCheck && (IsInitialBlockDownload() || RPCIsInWarmup(&statusRpc))){
-     LogPrintf("CheckSyscoinInputs warnmup of ibd\n");
+    if (fJustCheck && (IsInitialBlockDownload() || RPCIsInWarmup(&statusRpc)))
         return true;
-        }
+    AssetAllocationMap mapAssetAllocations;
     std::vector<std::vector<unsigned char> > vvchArgs;
-    sorted_vector<CAssetAllocationTuple> revertedAssetAllocations;
     int op;
     if (nHeight == 0)
         nHeight = chainActive.Height()+1;   
@@ -515,12 +511,12 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
         if (DecodeAssetAllocationTx(tx, op, vvchArgs))
         {
             errorMessage.clear();
-            good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, revertedAssetAllocations, errorMessage, bSanity);
+            good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations,errorMessage, bSanity);
         }
         else if (DecodeAssetTx(tx, op, vvchArgs))
         {
             errorMessage.clear();
-            good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, revertedAssetAllocations, errorMessage, bSanity);
+            good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations, errorMessage, bSanity);
         }
   
         
@@ -530,6 +526,13 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
         return true;
     }
     else if (!block.vtx.empty()) {
+        // clear zdag balances on PoW
+        if(!fJustCheck && !bSanity){
+            {
+                LOCK(cs_assetallocation);
+                mapAssetBalances.clear();
+            }
+        }
         CBlock sortedBlock;
         sortedBlock.vtx = block.vtx;
         Graph graph;
@@ -546,7 +549,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
                 }
             }
         }
-
+        
         for (unsigned int i = 0; i < sortedBlock.vtx.size(); i++)
         {
 
@@ -561,7 +564,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
                 if(op == OP_ASSET_COLLECT_INTEREST && bMiner)
                     continue;
                 errorMessage.clear();
-                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, revertedAssetAllocations, errorMessage, bSanity, bMiner);
+                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations, errorMessage, bSanity, bMiner);
                 if (!good || !errorMessage.empty()) {
                     // burns need to be verified as valid or not included in chain due to SPV proof on SYSX
                     if(op == OP_ASSET_ALLOCATION_BURN && !fJustCheck){
@@ -578,7 +581,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
             else if (DecodeAssetTx(tx, op, vvchArgs) && !bMiner)
             {
                 errorMessage.clear();
-                good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, revertedAssetAllocations, errorMessage, bSanity);
+                good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations, errorMessage, bSanity);
                 if (!bSanity && !errorMessage.empty())
                     LogPrint(BCLog::SYS, "%s\n", errorMessage.c_str());
             }
@@ -586,14 +589,18 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
             if (!good)
             {
                 break;
+            } 
+        }
+        if(!bSanity && !fJustCheck){
+            if(!bMiner && !passetallocationdb->Flush(mapAssetAllocations)){
+                good = false;
+                LogPrint(BCLog::SYS, "Error flushing to asset allocations db\n");
             }
-
-        }
-        if(!bMiner){
-            nFlushIndexBlocks++;
-            if ((nFlushIndexBlocks % 200) == 0 && !FlushSyscoinDBs())
-                return state.DoS(0, false, REJECT_INVALID, "Failed to flush syscoin databases");
-        }
+            {
+                LOCK(cs_assetallocation);
+                mapAssetBalances.clear();
+            }
+        }        
         if (bSanity && (!good || !errorMessage.empty()))
             return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
@@ -878,7 +885,6 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             if (coin.IsCoinBase()) {
                 fSpendsCoinbase = true;
                 bMultiThreaded = false;
-                break;
             }
             // SYSCOIN
             else if(txin.scriptWitness.IsNull()){

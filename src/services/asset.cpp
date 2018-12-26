@@ -31,6 +31,7 @@ unsigned int MAX_UPDATES_PER_BLOCK = 10;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
+extern AssetBalanceMap mapAssetBalances;
 using namespace std::chrono;
 using namespace std;
 bool FindSyscoinScriptOp(const CScript& script, int& op) {
@@ -196,25 +197,6 @@ bool CAsset::UnserializeFromTx(const CTransaction &tx) {
     return true;
 }
 bool FlushSyscoinDBs() {
-	{
-		if (passetdb != nullptr)
-		{
-			if (!passetdb->Flush()) {
-				LogPrintf("Failed to write to asset database!");
-				return false;
-			}
-		}
-	}
-	{
-		LOCK(cs_assetallocation);
-		if (passetallocationdb != nullptr)
-		{
-			if (!passetallocationdb->Flush()) {
-				LogPrintf("Failed to write to asset allocation database!");
-				return false;
-			}
-		}
-	}
 	{
 		LOCK(cs_assetallocationindex);
 		if (passetallocationtransactionsdb != nullptr)
@@ -414,11 +396,11 @@ CAmount GetFee(const size_t nBytes) {
     CWallet* const pwallet = GetDefaultWallet();
 	FeeCalculation feeCalc;
 	CFeeRate feeRate = ::feeEstimator.estimateSmartFee(1, &feeCalc, true);
-	CAmount minFee;
+	CAmount minFee=0;
 	if (feeRate != CFeeRate(0)) {
 		minFee = feeRate.GetFeePerK()*nBytes / 1000;
 	}
-	else if(pwallet){
+	else if(pwallet != nullptr){
 		minFee = GetRequiredFee(*pwallet, nBytes);
 	}
 	return minFee;
@@ -1061,7 +1043,7 @@ bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
 	return true;
 }
 bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const vector<vector<unsigned char> > &vvchArgs,
-        bool fJustCheck, int nHeight, sorted_vector<CAssetAllocationTuple> &revertedAssetAllocations, string &errorMessage, bool bSanityCheck) {
+        bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, string &errorMessage, bool bSanityCheck) {
 	if (passetdb == nullptr)
 		return false;
 	if (tx.IsCoinBase() && !fJustCheck && !bSanityCheck)
@@ -1318,7 +1300,6 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		}
 
 		if (op == OP_ASSET_SEND) {
-			LOCK(cs_assetallocation);
 			if (dbAsset.vchAddress != theAssetAllocation.vchAddress || !FindAssetOwnerInTx(inputs, tx, user1))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot send this asset. Asset owner must sign off on this change");
@@ -1350,6 +1331,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				}
 				for (auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
 					if (!bSanityCheck) {
+                        
 						CAssetAllocation receiverAllocation;
 						const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.vchAsset, amountTuple.first);
 						// don't need to check for existance of allocation because it may not exist, may be creating it here for the first time for receiver
@@ -1361,6 +1343,19 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 							receiverAllocation.nHeight = nHeight;
 							receiverAllocation.fInterestRate = dbAsset.fInterestRate;
 						}
+                        {
+                            LOCK(cs_assetallocation);
+                            const string& receiverTupleStr = receiverAllocationTuple.ToString();
+                            AssetBalanceMap::iterator mapBalanceReceiver = mapAssetBalances.find(receiverTupleStr);
+                            if(mapBalanceReceiver == mapAssetBalances.end()){
+                                receiverAllocation.nBalance += amountTuple.second;
+                                mapAssetBalances.emplace(receiverTupleStr, receiverAllocation.nBalance); 
+                            }
+                            else{
+                                mapBalanceReceiver->second += amountTuple.second;
+                                receiverAllocation.nBalance = mapBalanceReceiver->second;
+                            }
+                        }                          
 						receiverAllocation.txHash = txHash;
 						if (theAsset.fInterestRate > 0) {
 							AccumulateInterestSinceLastClaim(receiverAllocation, nHeight);
@@ -1368,7 +1363,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						receiverAllocation.fInterestRate = theAsset.fInterestRate;
 						receiverAllocation.nHeight = nHeight;
 						receiverAllocation.vchMemo = theAssetAllocation.vchMemo;
-						receiverAllocation.nBalance += amountTuple.second;
+	
 						const string& receiverAddress = bech32::Encode(Params().Bech32HRP(),receiverAllocation.vchAddress);
 						if (!dbAsset.vchBlacklist.empty() && std::find(dbAsset.vchBlacklist.begin(), dbAsset.vchBlacklist.end(), receiverAllocation.vchAddress) != dbAsset.vchBlacklist.end())
 						{
@@ -1377,11 +1372,11 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						}
 						// adjust sender balance
 						theAsset.nBalance -= amountTuple.second;
-						if (!passetallocationdb->WriteAssetAllocation(receiverAllocation, dbAsset.nBalance - nTotal, amountTuple.second, dbAsset, INT64_MAX, user1, receiverAddress, fJustCheck))
-						{
-							errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2034 - " + _("Failed to write to asset allocation DB");
-							return error(errorMessage.c_str());
-						}
+                        {
+                            LOCK(cs_assetallocation);                 
+                            mapAssetAllocations.emplace(receiverAllocationTuple.ToString(), receiverAllocation);
+                        }
+						passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1, receiverAddress);
 					}
 				}
 			}
@@ -1412,8 +1407,8 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				for (unsigned int i = 0; i < theAssetAllocation.listSendingAllocationInputs.size(); i++) {
 					InputRanges &input = theAssetAllocation.listSendingAllocationInputs[i];
 					CAssetAllocation receiverAllocation;
-
 					const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.vchAsset, input.first);
+                    
 					// ensure entire allocation range being subtracted exists on sender (full inclusion check)
 					if (!doesRangeContain(dbAsset.listAllocationInputs, input.second))
 					{
@@ -1428,7 +1423,19 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 							receiverAllocation.nHeight = nHeight;
 							receiverAllocation.fInterestRate = dbAsset.fInterestRate;
 						}
-
+                        {
+                            LOCK(cs_assetallocation); 
+                            const string& receiverTupleStr = receiverAllocationTuple.ToString();
+                            AssetBalanceMap::iterator mapBalanceReceiver = mapAssetBalances.find(receiverTupleStr);
+                            if(mapBalanceReceiver == mapAssetBalances.end()){
+                                receiverAllocation.nBalance += rangeTotals[i];
+                                mapAssetBalances.emplace(receiverTupleStr, receiverAllocation.nBalance); 
+                            }
+                            else{
+                                mapBalanceReceiver->second += rangeTotals[i];
+                                receiverAllocation.nBalance = mapBalanceReceiver->second;
+                            } 
+                        }
 						receiverAllocation.txHash = txHash;
 						receiverAllocation.fInterestRate = theAsset.fInterestRate;
 						receiverAllocation.nHeight = nHeight;
@@ -1438,7 +1445,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						receiverAllocation.listAllocationInputs.insert(std::end(receiverAllocation.listAllocationInputs), std::begin(input.second), std::end(input.second));
 						mergeRanges(receiverAllocation.listAllocationInputs, outputMerge);
 						receiverAllocation.listAllocationInputs = outputMerge;
-						receiverAllocation.nBalance += rangeTotals[i];
+						
 
 						const string& receiverAddress = bech32::Encode(Params().Bech32HRP(),receiverAllocation.vchAddress);
 						if (!dbAsset.vchBlacklist.empty() && std::find(dbAsset.vchBlacklist.begin(), dbAsset.vchBlacklist.end(), receiverAllocation.vchAddress) != dbAsset.vchBlacklist.end())
@@ -1451,11 +1458,12 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 						subtractRanges(dbAsset.listAllocationInputs, input.second, outputSubtract);
 						theAsset.listAllocationInputs = outputSubtract;
 						theAsset.nBalance -= rangeTotals[i];
-						if (!passetallocationdb->WriteAssetAllocation(receiverAllocation, dbAsset.nBalance - nTotal, rangeTotals[i], dbAsset, INT64_MAX, user1, receiverAddress, fJustCheck))
-						{
-							errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2039 - " + _("Failed to write to asset allocation DB");
-							return error(errorMessage.c_str());
-						}
+                        
+                        {
+                            LOCK(cs_assetallocation);                           
+                            mapAssetAllocations.emplace(receiverAllocationTuple.ToString(), receiverAllocation);
+                        }
+                        passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, dbAsset, dbAsset.nBalance - nTotal, rangeTotals[i], user1, receiverAddress);
 					}
 				}
 			}

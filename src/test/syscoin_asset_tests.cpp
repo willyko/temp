@@ -340,8 +340,8 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     GenerateBlocks(numAssets);  
     // PHASE 1:  GENERATE UNFUNDED ADDRESSES FOR RECIPIENTS TO ASSETALLOCATIONSEND
     printf("Throughput test: Total transaction count: %d, Receivers Per Asset Allocation Transfer %d, Total Number of Assets needed %d\n\n", numberOfTransactionToSend, numberOfAssetSendsPerBlock, numAssets);
-    printf("creating %d unfunded addresses...\n", min(numAssets, 250));
-    for(int i =0;i<min(numAssets, 250);i++){
+    printf("creating %d unfunded addresses...\n", numberOfAssetSendsPerBlock);
+    for(int i =0;i<numberOfAssetSendsPerBlock;i++){
         BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
         unfundedAccounts.emplace_back(r.get_str());
     }
@@ -583,7 +583,7 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_multiple)
     GenerateBlocks(5, "node1");
     GenerateBlocks(5, "node2");
        
-    string assetguid = AssetNew("node1", "asset1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
+    string assetguid = AssetNew("node1", "asset1a", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
     
     AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress + "\\\",\\\"amount\\\":1.0}]\"", "memoassetburn");
  

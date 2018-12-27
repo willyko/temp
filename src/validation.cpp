@@ -64,7 +64,7 @@ bool fLogThreadpool = false;
 tp::ThreadPool *threadpool = NULL;
 std::vector<CInv> vInvToSend;
 bool fLoaded = false;
-extern AssetBalanceMap mapAssetBalances;
+extern AssetBalanceMap mempoolMapAssetBalances;
 #if defined(NDEBUG)
 # error "Syscoin cannot be compiled without assertions."
 #endif
@@ -498,6 +498,8 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
     if (fJustCheck && (IsInitialBlockDownload() || RPCIsInWarmup(&statusRpc)))
         return true;
     AssetAllocationMap mapAssetAllocations;
+    AssetMap mapAssets;
+    AssetBalanceMap blockMapAssetBalances;
     std::vector<std::vector<unsigned char> > vvchArgs;
     int op;
     if (nHeight == 0)
@@ -507,16 +509,16 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
     if (block.vtx.empty()) {
         if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
             return true;
-   
+
         if (DecodeAssetAllocationTx(tx, op, vvchArgs))
         {
             errorMessage.clear();
-            good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations,errorMessage, bSanity);
+            good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations,blockMapAssetBalances,errorMessage, bSanity);
         }
         else if (DecodeAssetTx(tx, op, vvchArgs))
         {
             errorMessage.clear();
-            good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations, errorMessage, bSanity);
+            good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssets, mapAssetAllocations,blockMapAssetBalances, errorMessage, bSanity);
         }
   
         
@@ -526,13 +528,6 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
         return true;
     }
     else if (!block.vtx.empty()) {
-        // clear zdag balances on PoW
-        if(!fJustCheck && !bSanity){
-            {
-                LOCK(cs_assetallocation);
-                mapAssetBalances.clear();
-            }
-        }
         CBlock sortedBlock;
         sortedBlock.vtx = block.vtx;
         Graph graph;
@@ -564,7 +559,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
                 if(op == OP_ASSET_COLLECT_INTEREST && bMiner)
                     continue;
                 errorMessage.clear();
-                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations, errorMessage, bSanity, bMiner);
+                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations, blockMapAssetBalances, errorMessage, bSanity, bMiner);
                 if (!good || !errorMessage.empty()) {
                     // burns need to be verified as valid or not included in chain due to SPV proof on SYSX
                     if(op == OP_ASSET_ALLOCATION_BURN && !fJustCheck){
@@ -581,7 +576,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
             else if (DecodeAssetTx(tx, op, vvchArgs) && !bMiner)
             {
                 errorMessage.clear();
-                good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations, errorMessage, bSanity);
+                good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssets, mapAssetAllocations, blockMapAssetBalances, errorMessage, bSanity);
                 if (!bSanity && !errorMessage.empty())
                     LogPrint(BCLog::SYS, "%s\n", errorMessage.c_str());
             }
@@ -592,14 +587,13 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
             } 
         }
         if(!bSanity && !fJustCheck){
-            if(!bMiner && !passetallocationdb->Flush(mapAssetAllocations)){
+            if(!bMiner && (!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets))){
                 good = false;
-                LogPrint(BCLog::SYS, "Error flushing to asset allocations db\n");
+                LogPrint(BCLog::SYS, "Error flushing to asset dbs\n");
             }
-            {
-                LOCK(cs_assetallocation);
-                mapAssetBalances.clear();
-            }
+            mapAssetAllocations.clear();
+            blockMapAssetBalances.clear();
+            mempoolMapAssetBalances.clear();
         }        
         if (bSanity && (!good || !errorMessage.empty()))
             return state.DoS(100, false, REJECT_INVALID, errorMessage);

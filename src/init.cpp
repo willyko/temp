@@ -65,6 +65,7 @@
 // SYSCOIN services
 #include <services/asset.h>
 #include <services/assetallocation.h>
+extern AssetBalanceMap mempoolMapAssetBalances;
 #include <thread_pool/thread_pool.hpp>
 #include <key_io.h>
 #include <wallet/wallet.h>
@@ -287,6 +288,8 @@ void PrepareShutdown()
     // up with our current chain to avoid any strange pruning edge cases and make
     // next startup faster by avoiding rescan.
     // SYSCOIN
+    mempoolMapAssetBalances.clear();
+    arrivalTimesMap.clear();
     FlushSyscoinDBs();
     passetdb.reset();
     passetallocationdb.reset();

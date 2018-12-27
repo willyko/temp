@@ -53,8 +53,6 @@ bool FlushSyscoinDBs();
 bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::string& ownerAddressToMatch);
 CWallet* GetDefaultWallet();
 CAmount GetFee(const size_t nBytes);
-bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, std::string &errorMessage, bool bSanityCheck=false);
-bool DecodeAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch);
 bool DecodeAndParseAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char& type);
 bool DecodeAssetScript(const CScript& script, int& op, std::vector<std::vector<unsigned char> > &vvch);
 bool IsAssetOp(int op);
@@ -180,26 +178,17 @@ public:
 	void Serialize(std::vector<unsigned char>& vchData);
 };
 
-
+typedef std::unordered_map<std::string, CAsset> AssetMap;
 class CAssetDB : public CDBWrapper {
 public:
     CAssetDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assets", nCacheSize, fMemory, fWipe) {}
-
-    bool WriteAsset(const CAsset& asset, const int &op) {
-		bool writeState = false;
-		writeState = Write(make_pair(std::string("asseti"), asset.vchAsset), asset);
-		if(writeState)
-			WriteAssetIndex(asset, op);
-        return writeState;
-    }
-	bool EraseAsset(const std::vector<unsigned char>& vchAsset, bool cleanup = false) {
-		return Erase(make_pair(std::string("asseti"), vchAsset));
-	}
+   
     bool ReadAsset(const std::vector<unsigned char>& vchAsset, CAsset& asset) {
         return Read(make_pair(std::string("asseti"), vchAsset), asset);
     }
 	void WriteAssetIndex(const CAsset& asset, const int &op);
 	bool ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
+    bool Flush(const AssetMap &mapAssets);
 };
 bool GetAsset(const std::vector<unsigned char> &vchAsset,CAsset& txPos);
 bool BuildAssetJson(const CAsset& asset, const bool bGetInputs, UniValue& oName);
@@ -208,6 +197,8 @@ UniValue ValueFromAssetAmount(const CAmount& amount, int precision, bool isInput
 CAmount AssetAmountFromValue(UniValue& value, int precision, bool isInputRange);
 CAmount AssetAmountFromValueNonNeg(const UniValue& value, int precision, bool isInputRange);
 bool AssetRange(const CAmount& amountIn, int precision, bool isInputRange);
+bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, std::string &errorMessage, bool bSanityCheck=false);
+bool DecodeAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch);
 extern std::unique_ptr<CAssetDB> passetdb;
 extern std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 extern std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;

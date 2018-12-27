@@ -322,7 +322,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // user modifiable variables
 	
     // for every asset you add numberOfAssetSendsPerBlock tx's effectively
-    int numAssets = 500;
+    int numAssets = 2000;
     BOOST_CHECK(numAssets >= 1);
 
     int numberOfAssetSendsPerBlock = 250;
@@ -395,6 +395,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
         vecAssets.push_back(guid);
     }  
     GenerateBlocks(5);
+    printf("sending assets with assetsend...\n");
     // PHASE 5:  SEND ASSETS TO NEW ALLOCATIONS
     for(int i =0;i<numAssets;i++){
         BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetsend " + vecAssets[i] + " \"[{\\\"ownerto\\\":\\\"" + vecFundedAddresses[i] + "\\\",\\\"amount\\\":250}]\" '' ''"));

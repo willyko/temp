@@ -1040,7 +1040,10 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 		BOOST_CHECK_EQUAL(find_value(firstAssetTx, "confirmed").get_bool(), true);
 	}
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + name + " " + fromaddress + " false"));
-	balance = find_value(r.get_obj(), "balance");
+    if(usezdag)
+	    balance = find_value(r.get_obj(), "balance_zdag");
+    else
+        balance = find_value(r.get_obj(), "balance");
 	if (newfromamount > 0)
 		BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision, binputranges), newfromamount);
 	return txid;

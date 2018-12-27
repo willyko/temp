@@ -1349,7 +1349,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
                             AssetBalanceMap::iterator mapBalanceReceiver = mapAssetBalances.find(receiverTupleStr);
                             if(mapBalanceReceiver == mapAssetBalances.end()){
                                 receiverAllocation.nBalance += amountTuple.second;
-                                mapAssetBalances.emplace(std::move(receiverTupleStr), std::move(receiverAllocation.nBalance)); 
+                                mapAssetBalances.emplace(std::move(receiverTupleStr), receiverAllocation.nBalance); 
                             }
                             else{
                                 mapBalanceReceiver->second += amountTuple.second;
@@ -1435,7 +1435,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
                             AssetBalanceMap::iterator mapBalanceReceiver = mapAssetBalances.find(receiverTupleStr);
                             if(mapBalanceReceiver == mapAssetBalances.end()){
                                 receiverAllocation.nBalance += rangeTotals[i];
-                                mapAssetBalances.emplace(std::move(receiverTupleStr), std::move(receiverAllocation.nBalance)); 
+                                mapAssetBalances.emplace(std::move(receiverTupleStr), receiverAllocation.nBalance); 
                             }
                             else{
                                 mapBalanceReceiver->second += rangeTotals[i];

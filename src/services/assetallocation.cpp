@@ -212,25 +212,28 @@ bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptO
 bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove,  const uint256 &txHash, const bool &bMiner=false) {
 
     if(!bMiner){
+        const string& receiverStr = assetAllocationToRemove.ToString();
         LOCK(cs_assetallocation);
     	// remove the conflict once we revert since it is assumed to be resolved on POW
-    	ArrivalTimesMap &arrivalTimes = arrivalTimesMap[assetAllocationToRemove.ToString()];
-        arrivalTimes.erase(txHash);
-    	bool removeConflict = true;
+    	ArrivalTimesMap &arrivalTimes = arrivalTimesMap[receiverStr];
+        
+    	bool removeAllConflicts = true;
     	// remove only if all arrival times are either expired (30 mins) or no more zdag transactions left for this sender
     	for(auto& arrivalTime: arrivalTimes){
     		if((chainActive.Tip()->GetMedianTimePast() - arrivalTime.second) <= 1800000){
-    			removeConflict = false;
+    			removeAllConflicts = false;
     			break;
     		}
     	}
-    	if(removeConflict){
-            arrivalTimesMap.erase(assetAllocationToRemove.ToString());
-            sorted_vector<string>::const_iterator it = assetAllocationConflicts.find(assetAllocationToRemove.ToString());
+    	if(removeAllConflicts){
+            arrivalTimesMap.erase(receiverStr);
+            sorted_vector<string>::const_iterator it = assetAllocationConflicts.find(receiverStr);
             if (it != assetAllocationConflicts.end()) {
                 assetAllocationConflicts.V.erase(const_iterator_cast(assetAllocationConflicts.V, it));
             }   
     	}
+        else
+            arrivalTimes.erase(txHash);
     }
 	
 
@@ -883,7 +886,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                             AssetBalanceMap::iterator mapBalanceSender = mapAssetBalances.find(senderTupleStr);
                             if(mapBalanceSender == mapAssetBalances.end()){
                                 theAssetAllocation.nBalance -= rangeTotals[i]; 
-                                mapAssetBalances.emplace(enderTupleStr, theAssetAllocation.nBalance); 
+                                mapAssetBalances.emplace(senderTupleStr, theAssetAllocation.nBalance); 
                             }  
                             else{
                                 mapBalanceSender->second -= rangeTotals[i];
@@ -932,7 +935,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 		// set the assetallocation's txn-dependent 
 		if(fJustCheck && op == OP_ASSET_ALLOCATION_SEND){
             LOCK(cs_assetallocation);
-            ArrivalTimesMap &arrivalTimes = arrivalTimesMap[assetAllocationTuple.ToString()];
+            ArrivalTimesMap &arrivalTimes = arrivalTimesMap[senderTupleStr];
             arrivalTimes[txHash] = GetTimeMillis();
         }
         else if(!fJustCheck){

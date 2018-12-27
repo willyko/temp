@@ -322,7 +322,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // user modifiable variables
 	
     // for every asset you add numberOfAssetSendsPerBlock tx's effectively
-    int numAssets = 10;
+    int numAssets = 500;
     BOOST_CHECK(numAssets >= 1);
 
     int numberOfAssetSendsPerBlock = 250;
@@ -337,7 +337,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     vector<string> unfundedAccounts;
     vector<string> rawSignedAssetAllocationSends;
     vector<string> vecFundedAddresses;
-    GenerateBlocks(numAssets);  
+    GenerateBlocks((numAssets+1)/250);  
     // PHASE 1:  GENERATE UNFUNDED ADDRESSES FOR RECIPIENTS TO ASSETALLOCATIONSEND
     printf("Throughput test: Total transaction count: %d, Receivers Per Asset Allocation Transfer %d, Total Number of Assets needed %d\n\n", numberOfTransactionToSend, numberOfAssetSendsPerBlock, numAssets);
     printf("creating %d unfunded addresses...\n", numberOfAssetSendsPerBlock);
@@ -351,12 +351,24 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
     string fundedAccount = r.get_str();
     printf("creating %d funded accounts for using with assetsend/assetallocationsend in subsequent steps...\n", numAssets*250);
-    
+    string sendManyString = "";
     for(int i =0;i<numAssets;i++){
         BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
         string fundedAccount = r.get_str();
-        r = CallRPC("node1", "sendtoaddress " + fundedAccount + " 1", true, false);
+        if(sendManyString != "") 
+            sendManyString += ",";
+        sendManyString += "\"" + fundedAccount + "\":1";
+        if(((i+1)%250)==0){
+            printf("Sending funds to batch of 250 funded accounts, approx. %d batches remaining\n", (numAssets-i)/250);
+            std::string strSendMany = "sendmany \"\" {" + sendManyString + "}";
+            CallExtRPC("node1", "sendmany", "\"\",{" + sendManyString + "}");
+            sendManyString = "";
+        }
         vecFundedAddresses.push_back(fundedAccount);
+    }
+    if(!sendManyString.empty()){
+        std::string strSendMany = "sendmany \"\" {" + sendManyString + "}";
+        CallExtRPC("node1", "sendmany", "\"\",{" + sendManyString + "}");
     }
     GenerateBlocks(5);  
     
@@ -370,6 +382,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // create assets needed
     printf("creating %d sender assets...\n", numAssets);
     for(int i =0;i<numAssets;i++){
+    printf("num asset %d\n", i);
         BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew tpstest " + vecFundedAddresses[i] + " '' '' 8 false 250 250 0 63 ''"));
         UniValue arr = r.get_array();
         string guid = arr[1].get_str();

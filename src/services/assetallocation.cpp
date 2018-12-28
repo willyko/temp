@@ -1338,11 +1338,6 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 		try {
 			if (pcursor->GetKey(key) && key.first == "aai") {
 				pcursor->GetValue(txPos);
-				if (!GetAsset(txPos.assetAllocationTuple.nAsset, theAsset))
-				{
-					pcursor->Next();
-					continue;
-				}
 				if (!strTxid.empty() && strTxid != txPos.txHash.GetHex())
 				{
 					pcursor->Next();
@@ -1436,7 +1431,7 @@ UniValue listassetallocations(const JSONRPCRequest& request) {
 	if (request.fHelp || 3 < params.size())
 		throw runtime_error("listassetallocations [count] [from] [{options}]\n"
 			"scan through all asset allocations.\n"
-			"[count]          (numeric, optional, unbounded=0, default=10) The number of results to return, 0 to return all.\n"
+			"[count]          (numeric, optional, default=10) The number of results to return.\n"
 			"[from]           (numeric, optional, default=0) The number of results to skip.\n"
 			"[options]        (array, optional) A json object with options to filter results\n"
 			"    {\n"
@@ -1462,7 +1457,7 @@ UniValue listassetallocations(const JSONRPCRequest& request) {
 	if (params.size() > 0) {
 		count = params[0].get_int();
 		if (count == 0) {
-			count = INT_MAX;
+			count = 10;
 		} else
 		if (count < 0) {
 			throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1510 - " + _("'count' must be 0 or greater"));

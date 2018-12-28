@@ -1877,7 +1877,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 	boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
 	pcursor->SeekToFirst();
 	CAsset txPos;
-	pair<string, vector<unsigned char> > key;
+	pair<string, int > key;
 	int index = 0;
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();
@@ -1927,7 +1927,7 @@ UniValue listassets(const JSONRPCRequest& request) {
 	if (request.fHelp || 3 < params.size())
 		throw runtime_error("listassets [count] [from] [{options}]\n"
 			"scan through all assets.\n"
-			"[count]          (numeric, optional, unbounded=0, default=10) The number of results to return, 0 to return all.\n"
+			"[count]          (numeric, optional, default=10) The number of results to return.\n"
 			"[from]           (numeric, optional, default=0) The number of results to skip.\n"
 			"[options]        (object, optional) A json object with options to filter results\n"
 			"    {\n"
@@ -1952,7 +1952,7 @@ UniValue listassets(const JSONRPCRequest& request) {
 	if (params.size() > 0) {
 		count = params[0].get_int();
 		if (count == 0) {
-			count = INT_MAX;
+			count = 10;
 		} else
 		if (count < 0) {
 			throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("'count' must be 0 or greater"));

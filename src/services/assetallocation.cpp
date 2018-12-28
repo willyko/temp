@@ -1303,7 +1303,7 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations){
 bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
 	vector<vector<uint8_t> > vchAddresses;
-	int nAsset;
+	int32_t nAsset;
 	if (!oOptions.isNull()) {
 		const UniValue &txid = find_value(oOptions, "txid");
 		if (txid.isStr()) {
@@ -1311,7 +1311,7 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 		}
 		const UniValue &assetObj = find_value(oOptions, "asset");
 		if(assetObj.isNum()) {
-			nAsset = assetObj.get_int();
+			nAsset = boost::lexical_cast<int32_t>(assetObj.get_int());
 		}
 
 		const UniValue &owners = find_value(oOptions, "receivers");

@@ -155,10 +155,10 @@ typedef std::unordered_map<int, CAsset> AssetMap;
 class CAssetDB : public CDBWrapper {
 public:
     CAssetDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assets", nCacheSize, fMemory, fWipe) {}
-    bool EraseAsset(const int& nAsset, bool cleanup = false) {
+    bool EraseAsset(const int32_t& nAsset, bool cleanup = false) {
         return Erase(make_pair(std::string("ai"), nAsset));
     }   
-    bool ReadAsset(const int& nAsset, CAsset& asset) {
+    bool ReadAsset(const int32_t& nAsset, CAsset& asset) {
         return Read(make_pair(std::string("ai"), nAsset), asset);
     }
 	void WriteAssetIndex(const CAsset& asset, const int &op);

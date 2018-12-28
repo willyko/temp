@@ -1851,7 +1851,7 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
 	vector<vector<uint8_t> > vchAddresses;
-    int nAsset;
+    int32_t nAsset;
 	if (!oOptions.isNull()) {
 		const UniValue &txid = find_value(oOptions, "txid");
 		if (txid.isStr()) {
@@ -1859,7 +1859,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 		}
 		const UniValue &assetObj = find_value(oOptions, "asset");
 		if (assetObj.isNum()) {
-			nAsset = assetObj.get_int();
+			nAsset = boost::lexical_cast<int32_t>(assetObj.get_int());
 		}
 
 		const UniValue &owners = find_value(oOptions, "owner");
@@ -1877,7 +1877,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 	boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
 	pcursor->SeekToFirst();
 	CAsset txPos;
-	pair<string, int > key;
+	pair<string, int32_t > key;
 	int index = 0;
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();

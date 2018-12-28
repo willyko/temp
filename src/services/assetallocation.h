@@ -8,7 +8,6 @@
 #include "rpc/server.h"
 #include "dbwrapper.h"
 #include "primitives/transaction.h"
-#include <services/ranges.h>
 #include <unordered_map>
 #include "services/graph.h"
 class CTransaction;
@@ -26,55 +25,53 @@ std::string assetAllocationFromOp(int op);
 bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
 class CAssetAllocationTuple {
 public:
-	std::vector<unsigned char> vchAsset;
+	int32_t nAsset;
 	std::vector<uint8_t> vchAddress;
 	ADD_SERIALIZE_METHODS;
 
 	template <typename Stream, typename Operation>
 	inline void SerializationOp(Stream& s, Operation ser_action) {
-		READWRITE(vchAsset);
+		READWRITE(nAsset);
 		READWRITE(vchAddress);
 	}
-	CAssetAllocationTuple(const std::vector<unsigned char> &asset, const std::vector<uint8_t> &vchAddress_) {
-		vchAsset = asset;
+	CAssetAllocationTuple(const int32_t &asset, const std::vector<uint8_t> &vchAddress_) {
+		nAsset = asset;
 		vchAddress = vchAddress_;
 	}
-	CAssetAllocationTuple(const std::vector<unsigned char> &asset) {
-		vchAsset = asset;
+	CAssetAllocationTuple(const int32_t &asset) {
+		nAsset = asset;
 		vchAddress.clear();
 	}
 	CAssetAllocationTuple() {
 		SetNull();
 	}
 	inline CAssetAllocationTuple operator=(const CAssetAllocationTuple& other) {
-		this->vchAsset = other.vchAsset;
+		this->nAsset = other.nAsset;
 		this->vchAddress = other.vchAddress;
 		return *this;
 	}
 	inline bool operator==(const CAssetAllocationTuple& other) const {
-		return this->vchAsset == other.vchAsset && this->vchAddress == other.vchAddress;
+		return this->nAsset == other.nAsset && this->vchAddress == other.vchAddress;
 	}
 	inline bool operator!=(const CAssetAllocationTuple& other) const {
-		return (this->vchAsset != other.vchAsset || this->vchAddress != other.vchAddress);
+		return (this->nAsset != other.nAsset || this->vchAddress != other.vchAddress);
 	}
 	inline bool operator< (const CAssetAllocationTuple& right) const
 	{
 		return ToString() < right.ToString();
 	}
 	inline void SetNull() {
-		vchAsset.clear();
+		nAsset = 0;
 		vchAddress.clear();
 	}
 	std::string ToString() const;
-	inline bool IsNull() {
-		return (vchAsset.empty() && vchAddress.empty());
+	inline bool IsNull() const {
+		return (nAsset == 0 && vchAddress.empty());
 	}
 };
 typedef std::unordered_map<std::string, CAmount> AssetBalanceMap;
 typedef std::unordered_map<uint256, int64_t,SaltedTxidHasher> ArrivalTimesMap;
 std::unordered_map<std::string, ArrivalTimesMap> arrivalTimesMap;
-typedef std::pair<std::vector<uint8_t>, std::vector<CRange> > InputRanges;
-typedef std::vector<InputRanges> RangeInputArrayTuples;
 typedef std::vector<std::pair<std::vector<uint8_t>, CAmount > > RangeAmountTuples;
 typedef std::map<std::string, std::string> AssetAllocationIndexItem;
 typedef std::map<int, AssetAllocationIndexItem> AssetAllocationIndexItemMap;
@@ -96,37 +93,16 @@ enum {
 
 class CAssetAllocation {
 public:
-	std::vector<unsigned char> vchAsset;
-	std::vector<uint8_t> vchAddress;
+	CAssetAllocationTuple assetAllocationTuple;
 	uint256 txHash;
-	unsigned int nHeight;
-	unsigned int nLastInterestClaimHeight;
-	// if allocations are tracked by individual inputs
-	std::vector<CRange> listAllocationInputs;
-	RangeInputArrayTuples listSendingAllocationInputs;
 	RangeAmountTuples listSendingAllocationAmounts;
 	CAmount nBalance;
-	double nAccumulatedBalanceSinceLastInterestClaim;
-	float fAccumulatedInterestSinceLastInterestClaim;
-	float fInterestRate;
-	std::vector<unsigned char> vchMemo;
-	std::vector<unsigned char> vchExtra;
 	template <typename Stream, typename Operation>
 	inline void SerializationOp(Stream& s, Operation ser_action) {
-		READWRITE(vchAsset);
-		READWRITE(vchAddress);
+		READWRITE(assetAllocationTuple);
 		READWRITE(txHash);
-		READWRITE(VARINT(nHeight));
-		READWRITE(VARINT(nLastInterestClaimHeight));
-		READWRITE(listAllocationInputs);
-		READWRITE(listSendingAllocationInputs);
 		READWRITE(listSendingAllocationAmounts);
 		READWRITE(nBalance);
-		READWRITE(nAccumulatedBalanceSinceLastInterestClaim);
-		READWRITE(fAccumulatedInterestSinceLastInterestClaim);
-		READWRITE(fInterestRate);
-		READWRITE(vchMemo);
-		READWRITE(vchExtra);
 	}
 	CAssetAllocation() {
 		SetNull();
@@ -137,42 +113,29 @@ public:
 	}
 	inline void ClearAssetAllocation()
 	{
-		vchMemo.clear();
-		listAllocationInputs.clear();
-		listSendingAllocationInputs.clear();
+		assetAllocationTuple.SetNull();
 		listSendingAllocationAmounts.clear();
-		vchAddress.clear();
-		vchAsset.clear();
 	}
 	ADD_SERIALIZE_METHODS;
 
 	inline friend bool operator==(const CAssetAllocation &a, const CAssetAllocation &b) {
-		return (a.vchAsset == b.vchAsset && a.vchAddress == b.vchAddress
+		return (a.assetAllocationTuple == b.assetAllocationTuple
 			);
 	}
 
 	inline CAssetAllocation operator=(const CAssetAllocation &b) {
-		vchAsset = b.vchAsset;
-		vchAddress = b.vchAddress;
+		assetAllocationTuple = b.assetAllocationTuple;
 		txHash = b.txHash;
-		nHeight = b.nHeight;
-		nLastInterestClaimHeight = b.nLastInterestClaimHeight;
-		listAllocationInputs = b.listAllocationInputs;
-		listSendingAllocationInputs = b.listSendingAllocationInputs;
 		listSendingAllocationAmounts = b.listSendingAllocationAmounts;
 		nBalance = b.nBalance;
-		nAccumulatedBalanceSinceLastInterestClaim = b.nAccumulatedBalanceSinceLastInterestClaim;
-		fAccumulatedInterestSinceLastInterestClaim = b.fAccumulatedInterestSinceLastInterestClaim;
-		vchMemo = b.vchMemo;
-		fInterestRate = b.fInterestRate;
 		return *this;
 	}
 
 	inline friend bool operator!=(const CAssetAllocation &a, const CAssetAllocation &b) {
 		return !(a == b);
 	}
-	inline void SetNull() { vchExtra.clear(); fInterestRate = 0; fAccumulatedInterestSinceLastInterestClaim = 0; nAccumulatedBalanceSinceLastInterestClaim = 0; vchMemo.clear(); nLastInterestClaimHeight = 0; nBalance = 0; listSendingAllocationAmounts.clear();  listSendingAllocationInputs.clear(); listAllocationInputs.clear(); vchAsset.clear(); vchAddress.clear(); nHeight = 0; txHash.SetNull(); }
-	inline bool IsNull() const { return (vchAsset.empty()); }
+	inline void SetNull() { nBalance = 0; listSendingAllocationAmounts.clear(); assetAllocationTuple.SetNull(); txHash.SetNull(); }
+	inline bool IsNull() const { return (assetAllocationTuple.IsNull()); }
 	bool UnserializeFromTx(const CTransaction &tx);
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash);
 	void Serialize(std::vector<unsigned char>& vchData);
@@ -184,10 +147,10 @@ public:
 	CAssetAllocationDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocations", nCacheSize, fMemory, fWipe, false, true) {}
     
     bool ReadAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, CAssetAllocation& assetallocation) {
-        return Read(make_pair(std::string("assetallocationi"), assetAllocationTuple), assetallocation);
+        return Read(make_pair(std::string("aai"), assetAllocationTuple), assetallocation);
     }
     bool Flush(const AssetAllocationMap &mapAssetAllocations);
-	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver);
+	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {
@@ -206,8 +169,6 @@ public:
 };
 bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, std::string &errorMessage, bool bSanityCheck = false, bool bMiner = false);
 bool GetAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple,CAssetAllocation& txPos);
-bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& asset, const bool bGetInputs, UniValue& oName);
+bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& asset, UniValue& oName);
 bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver, bool &isMine, UniValue& oAssetAllocation);
-bool AccumulateInterestSinceLastClaim(CAssetAllocation & assetAllocation, const int& nHeight);
-bool RevertAssetAllocationMiner(const std::vector<CTransactionRef>& blockVtx);
 #endif // ASSETALLOCATION_H

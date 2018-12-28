@@ -1849,7 +1849,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     
                     CAssetAllocation assetallocation(tx);
                     if (!assetallocation.IsNull()) {
-                        const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.vchAddress);
+                        const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.assetAllocationTuple.vchAddress);
                         CCoinsViewCache inputs(pcoinsTip.get());
   
                         if (FindAssetOwnerInTx(inputs, tx, strAddress))
@@ -1857,32 +1857,17 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         if(ownerName.empty())
                             continue;
                         CAsset dbAsset;
-                        GetAsset(assetallocation.vchAsset, dbAsset);
-                        strResponse = strResponseEnglish + " " + stringFromVch(dbAsset.vchSymbol);
+                        GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
+                        strResponse = strResponseEnglish;
                         if (!assetallocation.listSendingAllocationAmounts.empty()) {
                             for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                 UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                 // update to owner
                                 oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), amountTuple.first));
-                                oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision, dbAsset.bUseInputRanges));
+                                oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                 oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                             }
 
-                        }
-                        else if (!assetallocation.listSendingAllocationInputs.empty()) {
-                            for (auto& inputTuple : assetallocation.listSendingAllocationInputs) {
-                                UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-                                UniValue oAssetAllocationInputsArray(UniValue::VARR);
-                                oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), inputTuple.first));
-                                for (auto& inputRange : inputTuple.second) {
-                                    UniValue oInput(UniValue::VOBJ);
-                                    oInput.pushKV("start", (int)inputRange.start);
-                                    oInput.pushKV("end", (int)inputRange.end);
-                                    oAssetAllocationInputsArray.push_back(oInput);
-                                }
-                                oAssetAllocationReceiversObj.pushKV("inputs", oAssetAllocationInputsArray);
-                                oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
-                            }
                         }
                     }
                 }
@@ -1953,37 +1938,22 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         CAssetAllocation assetallocation(tx);
                         if (!assetallocation.IsNull()) {
                             CCoinsViewCache inputs(pcoinsTip.get());
-                            const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.vchAddress);
+                            const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.assetAllocationTuple.vchAddress);
                             if (FindAssetOwnerInTx(inputs, tx, strAddress))
                                 ownerName = strAddress;
                             if (ownerName.empty())
                                 continue;
                             CAsset dbAsset;
-                            GetAsset(assetallocation.vchAsset, dbAsset);
+                            GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
                             if (!assetallocation.listSendingAllocationAmounts.empty()) {
                                 for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                     // update to owner
                                     oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), amountTuple.first));
-                                    oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision, dbAsset.bUseInputRanges));
+                                    oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                                 }
 
-                            }
-                            else if (!assetallocation.listSendingAllocationInputs.empty()) {
-                                for (auto& inputTuple : assetallocation.listSendingAllocationInputs) {
-                                    UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-                                    UniValue oAssetAllocationInputsArray(UniValue::VARR);
-                                    oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), inputTuple.first));
-                                    for (auto& inputRange : inputTuple.second) {
-                                        UniValue oInput(UniValue::VOBJ);
-                                        oInput.pushKV("start", (int)inputRange.start);
-                                        oInput.pushKV("end", (int)inputRange.end);
-                                        oAssetAllocationInputsArray.push_back(oInput);
-                                    }
-                                    oAssetAllocationReceiversObj.pushKV("inputs", oAssetAllocationInputsArray);
-                                    oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
-                                }
                             }
                         }
                     }

@@ -279,7 +279,6 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet", "listassets",      &listassets, {} },
     { "wallet", "assetallocationsend",          &assetallocationsend, {}},
     { "wallet", "assetallocationburn",          &assetallocationburn, {} },
-    { "wallet", "assetallocationcollectinterest",          &assetallocationcollectinterest, {}},
     { "wallet", "assetallocationinfo",          &assetallocationinfo, {}},
     { "wallet", "assetallocationsenderstatus",          &assetallocationsenderstatus, {}},
     { "wallet", "listassetallocationtransactions",          &listassetallocationtransactions, {} },

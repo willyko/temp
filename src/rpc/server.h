@@ -204,7 +204,6 @@ extern UniValue assetinfo(const JSONRPCRequest& request);
 extern UniValue listassets(const JSONRPCRequest& request);
 extern UniValue assetallocationsend(const JSONRPCRequest& request);
 extern UniValue assetallocationburn(const JSONRPCRequest& request);
-extern UniValue assetallocationcollectinterest(const JSONRPCRequest& request);
 extern UniValue assetallocationinfo(const JSONRPCRequest& request);
 extern UniValue assetallocationsenderstatus(const JSONRPCRequest& request);
 extern UniValue listassetallocationtransactions(const JSONRPCRequest& request);

@@ -90,7 +90,6 @@ bin_PROGRAMS += syscoinbench
 .PHONY: FORCE check-symbols check-security
 # syscoin core #
 SYSCOIN_CORE_H = \
-  ranges.h \
   graph.h \
   asset.h \
   assetallocation.h \
@@ -247,7 +246,6 @@ libsyscoin_util_a-clientversion.$(OBJEXT): obj/build.h
 libsyscoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(SYSCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
 libsyscoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libsyscoin_server_a_SOURCES = \
-  services/ranges.cpp \
   services/graph.cpp \
   services/asset.cpp \
   services/assetallocation.cpp \

@@ -26,10 +26,6 @@ public:
     template<typename Stream>
     void Serialize(Stream &s) const {
         ::Serialize(s, VARINT(txout->nHeight * 2 + (txout->fCoinBase ? 1u : 0u)));
-        if (txout->nHeight > 0) {
-            // Required to maintain compatibility with older undo format.
-            ::Serialize(s, (unsigned char)0);
-        }
         ::Serialize(s, CTxOutCompressor(REF(txout->out)));
     }
 
@@ -47,13 +43,6 @@ public:
         ::Unserialize(s, VARINT(nCode));
         txout->nHeight = nCode / 2;
         txout->fCoinBase = nCode & 1;
-        if (txout->nHeight > 0) {
-            // Old versions stored the version number for the last spend of
-            // a transaction's outputs. Non-final spends were indicated with
-            // height = 0.
-            unsigned int nVersionDummy;
-            ::Unserialize(s, VARINT(nVersionDummy));
-        }
         ::Unserialize(s, CTxOutCompressor(REF(txout->out)));
     }
 

@@ -24,7 +24,6 @@
 #include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper()
-#include "services/ranges.h"
 #include <bech32.h>
 static int node1LastBlock = 0;
 static int node2LastBlock = 0;
@@ -588,170 +587,17 @@ void GetOtherNodes(const string& node, string& otherNode1, string& otherNode2)
 	}
 
 }
-void CheckRangeMerge(const string& originalRanges, const string& newRanges, const string& expectedOutputRanges)
-{
-	vector<string> originalRangeTokens;
-	boost::split(originalRangeTokens, originalRanges, boost::is_any_of(" "));
-	if (originalRangeTokens.empty())
-		originalRangeTokens.push_back(originalRanges);
 
-	vector<CRange> vecRanges;
-	for (auto &token : originalRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecRanges.push_back(range);
-	}
-
-
-	vector<string> newRangeTokens;
-	boost::split(newRangeTokens, newRanges, boost::is_any_of(" "));
-	if (newRangeTokens.empty())
-		newRangeTokens.push_back(newRanges);
-	vector<CRange> vecNewRanges;
-	for (auto &token : newRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecNewRanges.push_back(range);
-	}
-
-	vecRanges.insert(std::end(vecRanges), std::begin(vecNewRanges), std::end(vecNewRanges));
-
-	vector<CRange> mergedRanges;
-	mergeRanges(vecRanges, mergedRanges);
-
-	vector<string> expectedOutputRangeTokens;
-	boost::split(expectedOutputRangeTokens, expectedOutputRanges, boost::is_any_of(" "));
-	if (expectedOutputRangeTokens.empty())
-		expectedOutputRangeTokens.push_back(expectedOutputRanges);
-
-	vector<CRange> vecExpectedOutputRanges;
-	for (auto &token : expectedOutputRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecExpectedOutputRanges.push_back(range);
-	}
-
-	BOOST_CHECK_EQUAL(mergedRanges.size(), vecExpectedOutputRanges.size());
-	for (size_t i = 0; i < mergedRanges.size(); i++) {
-		BOOST_CHECK(mergedRanges[i] == vecExpectedOutputRanges[i]);
-	}
-}
-void CheckRangeSubtract(const string& originalRanges, const string& subtractRange, const string& expectedOutputRanges)
-{
-	vector<string> originalRangeTokens;
-	boost::split(originalRangeTokens, originalRanges, boost::is_any_of(" "));
-	if (originalRangeTokens.empty())
-		originalRangeTokens.push_back(originalRanges);
-
-	vector<CRange> vecRanges;
-	for (auto &token : originalRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecRanges.push_back(range);
-	}
-
-
-	vector<string> subtractRangeTokens;
-	boost::split(subtractRangeTokens, subtractRange, boost::is_any_of(" "));
-	if (subtractRangeTokens.empty())
-		subtractRangeTokens.push_back(subtractRange);
-
-	vector<CRange> vecSubtractRanges;
-	for (auto &token : subtractRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecSubtractRanges.push_back(range);
-	}
-
-	vector<CRange> mergedRanges;
-	subtractRanges(vecRanges, vecSubtractRanges, mergedRanges);
-
-	vector<string> expectedOutputRangeTokens;
-	boost::split(expectedOutputRangeTokens, expectedOutputRanges, boost::is_any_of(" "));
-	if (expectedOutputRangeTokens.empty())
-		expectedOutputRangeTokens.push_back(expectedOutputRanges);
-
-	vector<CRange> vecExpectedOutputRanges;
-	for (auto &token : expectedOutputRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecExpectedOutputRanges.push_back(range);
-	}
-
-	BOOST_CHECK_EQUAL(mergedRanges.size(), vecExpectedOutputRanges.size());
-	for (size_t i = 0; i < mergedRanges.size(); i++) {
-		BOOST_CHECK(mergedRanges[i] == vecExpectedOutputRanges[i]);
-	}
-}
-bool DoesRangeContain(const string& parentRange, const string& childRange) {
-	vector<string> parentRangeTokens;
-	boost::split(parentRangeTokens, parentRange, boost::is_any_of(" "));
-	if (parentRangeTokens.empty())
-		parentRangeTokens.push_back(parentRange);
-
-	vector<CRange> vecParentRanges;
-	for (auto &token : parentRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecParentRanges.push_back(range);
-	}
-
-	vector<string> childRangeTokens;
-	boost::split(childRangeTokens, childRange, boost::is_any_of(" "));
-	if (childRangeTokens.empty())
-		childRangeTokens.push_back(childRange);
-
-	vector<CRange> vecChildRanges;
-	for (auto &token : childRangeTokens) {
-		BOOST_CHECK(token.size() > 2);
-		token = token.substr(1, token.size() - 2);
-		vector<string> ranges;
-		boost::split(ranges, token, boost::is_any_of(","));
-		BOOST_CHECK_EQUAL(ranges.size(), 2);
-		CRange range(boost::lexical_cast<int>(ranges[0]), boost::lexical_cast<int>(ranges[1]));
-		vecChildRanges.push_back(range);
-	}
-
-	return doesRangeContain(vecParentRanges, vecChildRanges);
-}
-string AssetNew(const string& node, const string& name, const string& address, const string& pubdata, const string& contract, const string& precision, const string& useinputranges, const string& supply, const string& maxsupply, const string& interestrate, const string& updateflags, const string& witness)
+string AssetNew(const string& node, const string& address, const string& pubdata, const string& contract, const string& precision, const string& supply, const string& maxsupply, const string& updateflags, const string& witness)
 {
 	string otherNode1, otherNode2;
 	GetOtherNodes(node, otherNode1, otherNode2);
 	UniValue r;
     
-	// "assetnew [name] [address] [public] [contract] [precision=8] [use_inputranges] [supply] [max_supply] [interest_rate] [update_flags] [witness]\n"
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetnew " + name + " " + address + " " + pubdata + " " + contract + " " + precision + " " + useinputranges + " " + supply + " " + maxsupply + " " + interestrate + " " + updateflags + " " + witness));
+	// "assetnew [owner] [public value] [contract] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetnew " + address + " " + pubdata + " " + contract + " " + precision + " " + supply + " " + maxsupply + " " + updateflags + " " + witness));
 	UniValue arr = r.get_array();
-    string guid = arr[1].get_str();
+    string guid = boost::lexical_cast<string>(arr[1].get_int());
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + address));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
@@ -760,13 +606,10 @@ string AssetNew(const string& node, const string& name, const string& address, c
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 	
 	GenerateBlocks(5, node);
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid ));
 	int nprecision = atoi(precision);
-	bool binputrange = useinputranges == "true" ? true : false;
-	string nameupper = name;
-	boost::algorithm::to_upper(nameupper);
-	BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == guid);
-	BOOST_CHECK(find_value(r.get_obj(), "symbol").get_str() == nameupper);
+
+	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == address);
 	BOOST_CHECK(find_value(r.get_obj(), "publicvalue").get_str() == pubdata);
 	UniValue balance = find_value(r.get_obj(), "balance");
@@ -776,10 +619,9 @@ string AssetNew(const string& node, const string& name, const string& address, c
 	supplytmp.setStr(supply);
 	UniValue maxsupplytmp(UniValue::VSTR);
 	maxsupplytmp.setStr(maxsupply);
-	BOOST_CHECK(AssetAmountFromValue(balance, nprecision, binputrange) == AssetAmountFromValue(supplytmp, nprecision, binputrange));
-	BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision, binputrange) == AssetAmountFromValue(supplytmp, nprecision, binputrange));
-	BOOST_CHECK_EQUAL(AssetAmountFromValue(maxsupplyu, nprecision, binputrange), AssetAmountFromValue(maxsupplytmp, nprecision, binputrange));
-	BOOST_CHECK_EQUAL(((int)(find_value(r.get_obj(), "interest_rate").get_real() * 1000 + 0.5)), ((int)(boost::lexical_cast<float>(interestrate) * 1000)));
+	BOOST_CHECK(AssetAmountFromValue(balance, nprecision) == AssetAmountFromValue(supplytmp, nprecision));
+	BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == AssetAmountFromValue(supplytmp, nprecision));
+	BOOST_CHECK_EQUAL(AssetAmountFromValue(maxsupplyu, nprecision), AssetAmountFromValue(maxsupplytmp, nprecision));
 	int update_flags = find_value(r.get_obj(), "update_flags").get_int();
 	int paramUpdateFlags = atoi(updateflags);
 	BOOST_CHECK(update_flags == paramUpdateFlags);
@@ -788,73 +630,66 @@ string AssetNew(const string& node, const string& name, const string& address, c
 	GenerateBlocks(5, node);
 	if (!otherNode1.empty())
 	{
-		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + guid + " false"));
-		BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == guid);
-		BOOST_CHECK(find_value(r.get_obj(), "symbol").get_str() == nameupper);
+		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + guid ));
+		BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 		BOOST_CHECK(find_value(r.get_obj(), "publicvalue").get_str() == pubdata);
 		UniValue balance = find_value(r.get_obj(), "balance");
 		UniValue totalsupply = find_value(r.get_obj(), "total_supply");
 		UniValue maxsupplyu = find_value(r.get_obj(), "max_supply");
-		BOOST_CHECK(AssetAmountFromValue(balance, nprecision, binputrange) == AssetAmountFromValue(supplytmp, nprecision, binputrange));
-		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision, binputrange) == AssetAmountFromValue(supplytmp, nprecision, binputrange));
-		BOOST_CHECK_EQUAL(AssetAmountFromValue(maxsupplyu, nprecision, binputrange), AssetAmountFromValue(maxsupplytmp, nprecision, binputrange));
-		BOOST_CHECK_EQUAL(((int)(find_value(r.get_obj(), "interest_rate").get_real() * 1000 + 0.5)), ((int)(boost::lexical_cast<float>(interestrate) * 1000)));
+		BOOST_CHECK(AssetAmountFromValue(balance, nprecision) == AssetAmountFromValue(supplytmp, nprecision));
+		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == AssetAmountFromValue(supplytmp, nprecision));
+		BOOST_CHECK_EQUAL(AssetAmountFromValue(maxsupplyu, nprecision), AssetAmountFromValue(maxsupplytmp, nprecision));
         int update_flags = find_value(r.get_obj(), "update_flags").get_int();
         int paramUpdateFlags = atoi(updateflags);
         BOOST_CHECK(update_flags == paramUpdateFlags);
 	}
 	if (!otherNode2.empty())
 	{
-		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "assetinfo " + guid + " false"));
-		BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == guid);
-		BOOST_CHECK(find_value(r.get_obj(), "symbol").get_str() == nameupper);
+		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "assetinfo " + guid));
+		BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 		BOOST_CHECK(find_value(r.get_obj(), "publicvalue").get_str() == pubdata);
 		UniValue balance = find_value(r.get_obj(), "balance");
 		UniValue totalsupply = find_value(r.get_obj(), "total_supply");
 		UniValue maxsupplyu = find_value(r.get_obj(), "max_supply");
-		BOOST_CHECK(AssetAmountFromValue(balance, nprecision, binputrange) == AssetAmountFromValue(supplytmp, nprecision, binputrange));
-		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision, binputrange) == AssetAmountFromValue(supplytmp, nprecision, binputrange));
-		BOOST_CHECK_EQUAL(AssetAmountFromValue(maxsupplyu, nprecision, binputrange), AssetAmountFromValue(maxsupplytmp, nprecision, binputrange));
-		BOOST_CHECK_EQUAL(((int)(find_value(r.get_obj(), "interest_rate").get_real() * 1000 + 0.5)), ((int)(boost::lexical_cast<float>(interestrate) * 1000)));
+		BOOST_CHECK(AssetAmountFromValue(balance, nprecision) == AssetAmountFromValue(supplytmp, nprecision));
+		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == AssetAmountFromValue(supplytmp, nprecision));
+		BOOST_CHECK_EQUAL(AssetAmountFromValue(maxsupplyu, nprecision), AssetAmountFromValue(maxsupplytmp, nprecision));
+
         int update_flags = find_value(r.get_obj(), "update_flags").get_int();
         int paramUpdateFlags = atoi(updateflags);
         BOOST_CHECK(update_flags == paramUpdateFlags);
 	}
 	return guid;
 }
-void AssetUpdate(const string& node, const string& name, const string& pubdata, const string& supply, const string& interest, const string& blacklist, const string& updateflags, const string& witness)
+void AssetUpdate(const string& node, const string& guid, const string& pubdata, const string& supply, const string& updateflags, const string& witness)
 {
 	string otherNode1, otherNode2;
 	GetOtherNodes(node, otherNode1, otherNode2);
 	UniValue r;
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
 	string oldaddress = find_value(r.get_obj(), "owner").get_str();
 	string oldpubdata = find_value(r.get_obj(), "publicvalue").get_str();
 	string oldsupply = find_value(r.get_obj(), "total_supply").get_str();
-	string oldsymbol = find_value(r.get_obj(), "symbol").get_str();
-	bool binputranges = find_value(r.get_obj(), "use_input_ranges").get_bool();
 	int nprecision = find_value(r.get_obj(), "precision").get_int();
 	UniValue totalsupply = find_value(r.get_obj(), "total_supply");
 
-	CAmount oldsupplyamount = AssetAmountFromValue(totalsupply, nprecision, binputranges);
+	CAmount oldsupplyamount = AssetAmountFromValue(totalsupply, nprecision);
 	CAmount supplyamount = 0;
 	if (supply != "''") {
 		UniValue supplytmp(UniValue::VSTR);
 		supplytmp.setStr(supply);
-		supplyamount = AssetAmountFromValue(supplytmp, nprecision, binputranges);
+		supplyamount = AssetAmountFromValue(supplytmp, nprecision);
 	}
 	CAmount newamount = oldsupplyamount + supplyamount;
-
-	string oldinterest = boost::lexical_cast<string>(find_value(r.get_obj(), "interest_rate").get_real());
-
+   
 	string newpubdata = pubdata == "''" ? oldpubdata : pubdata;
 	string newsupply = supply == "''" ? "0" : supply;
-	string newinterest = interest == "''" ? oldinterest : interest;
 
-	// "assetupdate [asset] [public] [contract] [category=assets] [supply] [interest_rate] [blacklist] [update_flags] [witness]\n"
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetupdate " + name + " " + newpubdata + " '' " +  newsupply + " " + newinterest + " " + blacklist + " " + updateflags + " " +witness));
+
+	// "assetupdate [asset] [public] [contract] [supply] [update_flags] [witness]\n"
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetupdate " + guid + " " + newpubdata + " '' " +  newsupply + " " + updateflags + " " +witness));
 	// increase supply to new amount if we passed in a supply value
-	newsupply = supply == "''" ? oldsupply : ValueFromAssetAmount(newamount, nprecision, binputranges).write();
+	newsupply = supply == "''" ? oldsupply : ValueFromAssetAmount(newamount, nprecision).write();
     UniValue arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + oldaddress));
     arr = r.get_array();
@@ -864,52 +699,46 @@ void AssetUpdate(const string& node, const string& name, const string& pubdata, 
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 
 	GenerateBlocks(5, node);
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
 
-	BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == name);
-	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "symbol").get_str(), oldsymbol);
+	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == oldaddress);
-	BOOST_CHECK_EQUAL(((int)(find_value(r.get_obj(), "interest_rate").get_real() * 1000 + 0.5)), ((int)(boost::lexical_cast<float>(newinterest) * 1000)));
 	totalsupply = find_value(r.get_obj(), "total_supply");
-	BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision, binputranges) == newamount);
+	BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == newamount);
 	GenerateBlocks(5, node);
 	if (!otherNode1.empty())
 	{
-		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + name + " false"));
-		BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == name);
-		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "symbol").get_str(), oldsymbol);
+		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + guid ));
+		BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 		BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == oldaddress);
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "publicvalue").get_str(), newpubdata);
-		BOOST_CHECK_EQUAL(((int)(find_value(r.get_obj(), "interest_rate").get_real() * 1000 + 0.5)), ((int)(boost::lexical_cast<float>(newinterest) * 1000)));
+	
 		totalsupply = find_value(r.get_obj(), "total_supply");
-		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision, binputranges) == newamount);
+		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == newamount);
 
 	}
 	if (!otherNode2.empty())
 	{
-		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "assetinfo " + name + " false"));
-		BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == name);
-		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "symbol").get_str(), oldsymbol);
+		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "assetinfo " + guid));
+		BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 		BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == oldaddress);
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "publicvalue").get_str(), newpubdata);
-		BOOST_CHECK_EQUAL(((int)(find_value(r.get_obj(), "interest_rate").get_real() * 1000 + 0.5)), ((int)(boost::lexical_cast<float>(newinterest) * 1000)));
 		totalsupply = find_value(r.get_obj(), "total_supply");
-		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision, binputranges) == newamount);
+		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == newamount);
 
 	}
 
 }
-void AssetTransfer(const string& node, const string &tonode, const string& name, const string& toaddress, const string& witness)
+void AssetTransfer(const string& node, const string &tonode, const string& guid, const string& toaddress, const string& witness)
 {
 	UniValue r;
 
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid ));
 	string oldaddress = find_value(r.get_obj(), "owner").get_str();
-	string oldsymbol = find_value(r.get_obj(), "symbol").get_str();
 
 
 	// "assettransfer [asset] [address] [witness]\n"
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assettransfer " + name + " " + toaddress + " " + witness));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assettransfer " + guid + " " + toaddress + " " + witness));
     UniValue arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + oldaddress));
     arr = r.get_array();
@@ -919,38 +748,21 @@ void AssetTransfer(const string& node, const string &tonode, const string& name,
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 
 	GenerateBlocks(5, node);
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
 
 
-	BOOST_CHECK(find_value(r.get_obj(), "_id").get_str() == name);
-	BOOST_CHECK(find_value(r.get_obj(), "symbol").get_str() == oldsymbol);
+	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 	GenerateBlocks(5, node);
 
-	BOOST_CHECK_NO_THROW(r = CallRPC(tonode, "assetinfo " + name + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(tonode, "assetinfo " + guid));
 	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == toaddress);
 
 
 }
-void AssetClaimInterest(const string& node, const string& name, const string& address, const string& witness) {
-	string otherNode1, otherNode2;
-	GetOtherNodes(node, otherNode1, otherNode2);
-	UniValue r;
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationcollectinterest " + name + " " + address + " " + witness));
-    UniValue arr = r.get_array();
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + address));
-    arr = r.get_array();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
-	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
-	GenerateBlocks(1);
-
-}
-string AssetAllocationTransfer(const bool usezdag, const string& node, const string& name, const string& fromaddress, const string& inputs, const string& memo, const string& witness) {
+string AssetAllocationTransfer(const bool usezdag, const string& node, const string& guid, const string& fromaddress, const string& inputs, const string& witness) {
 
 	UniValue r;
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
-	bool binputranges = find_value(r.get_obj(), "use_input_ranges").get_bool();
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
 	int nprecision = find_value(r.get_obj(), "precision").get_int();
 
 	CAssetAllocation theAssetAllocation;
@@ -967,32 +779,13 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 	for (unsigned int idx = 0; idx < receivers.size(); idx++) {
 		const UniValue& receiver = receivers[idx];
 		BOOST_CHECK(receiver.isObject());
-
-
+      
 		UniValue receiverObj = receiver.get_obj();
 		vector<uint8_t> vchAddressTo = bech32::Decode(find_value(receiverObj, "ownerto").get_str()).second;
-
-		UniValue inputRangeObj = find_value(receiverObj, "ranges");
+        
 		UniValue amountObj = find_value(receiverObj, "amount");
-		if (inputRangeObj.isArray()) {
-			UniValue inputRanges = inputRangeObj.get_array();
-			vector<CRange> vectorOfRanges;
-			for (unsigned int rangeIndex = 0; rangeIndex < inputRanges.size(); rangeIndex++) {
-				const UniValue& inputRangeObj = inputRanges[rangeIndex];
-				BOOST_CHECK(inputRangeObj.isObject());
-				UniValue startRangeObj = find_value(inputRangeObj, "start");
-				UniValue endRangeObj = find_value(inputRangeObj, "end");
-				BOOST_CHECK(startRangeObj.isNum());
-				BOOST_CHECK(endRangeObj.isNum());
-				vectorOfRanges.push_back(CRange(startRangeObj.get_int(), endRangeObj.get_int()));
-			}
-			const unsigned int rangeTotal = validateRangesAndGetCount(vectorOfRanges);
-			BOOST_CHECK(rangeTotal > 0);
-			inputamount += rangeTotal;
-			theAssetAllocation.listSendingAllocationInputs.push_back(make_pair(vchAddressTo, vectorOfRanges));
-		}
-		else if (amountObj.isNum()) {
-			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision, binputranges);
+		if (amountObj.isNum()) {
+			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision);
 			inputamount += amount;
 			BOOST_CHECK(amount > 0);
 			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchAddressTo, amount));
@@ -1004,12 +797,16 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 	string otherNode1, otherNode2;
 	GetOtherNodes(node, otherNode1, otherNode2);
 
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + name + " " + fromaddress + " false"));
-	UniValue balance = find_value(r.get_obj(), "balance");
-	CAmount newfromamount = AssetAmountFromValue(balance, nprecision, binputranges) - inputamount;
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " " + fromaddress));
+	UniValue balance;
+    if(usezdag)
+        balance = find_value(r.get_obj(), "balance_zdag");
+    else
+        balance = find_value(r.get_obj(), "balance");
+	CAmount newfromamount = AssetAmountFromValue(balance, nprecision) - inputamount;
 
-	// "assetallocationsend [asset] [ownerfrom] ( [{\"ownerto\":\"address\",\"amount\":amount},...] or [{\"ownerto\":\"address\",\"ranges\":[{\"start\":index,\"end\":index},...]},...] ) [memo] [witness]\n"
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationsend " + name + " " + fromaddress + " " + inputs + " " + memo + " " + witness));
+	// "assetallocationsend [asset] [ownerfrom] ( [{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationsend " + guid + " " + fromaddress + " " + inputs + " " + witness));
     UniValue arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + fromaddress));
     arr = r.get_array();
@@ -1022,8 +819,6 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "txtype").get_str(), "assetallocationsend");
 	if (!theAssetAllocation.listSendingAllocationAmounts.empty())
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "allocations").get_array().size(), theAssetAllocation.listSendingAllocationAmounts.size());
-	else if (!theAssetAllocation.listSendingAllocationInputs.empty())
-		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "allocations").get_array().size(), theAssetAllocation.listSendingAllocationInputs.size());
 
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 	string txid = find_value(r.get_obj(), "txid").get_str();
@@ -1037,28 +832,27 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 		UniValue assetTxArray = r.get_array();
 		UniValue firstAssetTx = assetTxArray[0].get_obj();
 		BOOST_CHECK_EQUAL(find_value(firstAssetTx, "txid").get_str(), txid);
-		BOOST_CHECK_EQUAL(find_value(firstAssetTx, "confirmed").get_bool(), true);
 	}
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + name + " " + fromaddress + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " " + fromaddress));
     if(usezdag)
 	    balance = find_value(r.get_obj(), "balance_zdag");
     else
         balance = find_value(r.get_obj(), "balance");
 	if (newfromamount > 0)
-		BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision, binputranges), newfromamount);
+		BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision), newfromamount);
 	return txid;
 }
 void BurnAssetAllocation(const string& node, const string &guid, const string &address,const string &amount, bool confirm){
     UniValue r;
     try{
-        r = CallRPC(node, "assetallocationinfo " + guid + " burn false");
+        r = CallRPC(node, "assetallocationinfo " + guid + " burn");
     }
     catch(runtime_error&err){
     }
     CAmount beforeBalance = 0;
     if(r.isObject()){
         UniValue balanceB = find_value(r.get_obj(), "balance");
-        beforeBalance = AssetAmountFromValue(balanceB, 8, false);
+        beforeBalance = AssetAmountFromValue(balanceB, 8);
     }
     
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationburn " + guid + " " + address + " " + amount));
@@ -1070,16 +864,15 @@ void BurnAssetAllocation(const string& node, const string &guid, const string &a
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hexStr, true, false));
     if(confirm){
     	GenerateBlocks(5, "node1");
-    	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " burn false"));
+    	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " burn"));
     	UniValue balance = find_value(r.get_obj(), "balance");
-    	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8, false), beforeBalance+(0.5 * COIN));
+    	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), beforeBalance+(0.5 * COIN));
     }
 }
-string AssetSend(const string& node, const string& name, const string& inputs, const string& memo, const string& witness, bool completetx)
+string AssetSend(const string& node, const string& guid, const string& inputs, const string& memo, const string& witness, bool completetx)
 {
 	UniValue r;
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
-	bool binputranges = find_value(r.get_obj(), "use_input_ranges").get_bool();
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
 	int nprecision = find_value(r.get_obj(), "precision").get_int();
     string fromAddress = find_value(r.get_obj(), "owner").get_str();
     
@@ -1100,28 +893,10 @@ string AssetSend(const string& node, const string& name, const string& inputs, c
 
 		UniValue receiverObj = receiver.get_obj();
 		vector<uint8_t> vchAddressTo = bech32::Decode(find_value(receiverObj, "ownerto").get_str()).second;
-
-		UniValue inputRangeObj = find_value(receiverObj, "ranges");
+        
 		UniValue amountObj = find_value(receiverObj, "amount");
-		if (inputRangeObj.isArray()) {
-			UniValue inputRanges = inputRangeObj.get_array();
-			vector<CRange> vectorOfRanges;
-			for (unsigned int rangeIndex = 0; rangeIndex < inputRanges.size(); rangeIndex++) {
-				const UniValue& inputRangeObj = inputRanges[rangeIndex];
-				BOOST_CHECK(inputRangeObj.isObject());
-				UniValue startRangeObj = find_value(inputRangeObj, "start");
-				UniValue endRangeObj = find_value(inputRangeObj, "end");
-				BOOST_CHECK(startRangeObj.isNum());
-				BOOST_CHECK(endRangeObj.isNum());
-				vectorOfRanges.push_back(CRange(startRangeObj.get_int(), endRangeObj.get_int()));
-			}
-			const unsigned int rangeTotal = validateRangesAndGetCount(vectorOfRanges);
-			BOOST_CHECK(rangeTotal > 0);
-			inputamount += rangeTotal;
-			theAssetAllocation.listSendingAllocationInputs.push_back(make_pair(vchAddressTo, vectorOfRanges));
-		}
-		else if (amountObj.isNum()) {
-			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision, binputranges);
+        if (amountObj.isNum()) {
+			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision);
 			inputamount += amount;
 			BOOST_CHECK(amount > 0);
 			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchAddressTo, amount));
@@ -1132,13 +907,13 @@ string AssetSend(const string& node, const string& name, const string& inputs, c
 
 	string otherNode1, otherNode2;
 	GetOtherNodes(node, otherNode1, otherNode2);
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid ));
 	string fromsupply = find_value(r.get_obj(), "total_supply").get_str();
 	UniValue balance = find_value(r.get_obj(), "balance");
-	CAmount newfromamount = AssetAmountFromValue(balance, nprecision, binputranges) - inputamount;
+	CAmount newfromamount = AssetAmountFromValue(balance, nprecision) - inputamount;
 
-	// "assetsend [asset] ( [{\"ownerto\":\"address\",\"amount\":amount},...] or [{\"ownerto\":\"address\",\"ranges\":[{\"start\":index,\"end\":index},...]},...] ) [memo] [witness]\n"
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetsend " + name + " " + inputs + " " + memo + " " + witness));
+	// "assetsend [asset] ( [{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetsend " + guid + " " + inputs + " " + witness));
     UniValue arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + fromAddress));
     arr = r.get_array();
@@ -1149,29 +924,29 @@ string AssetSend(const string& node, const string& name, const string& inputs, c
 		BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 
 		GenerateBlocks(1, node);
-		BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + name + " false"));
+		BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid ));
 
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "total_supply").get_str(), fromsupply);
 		balance = find_value(r.get_obj(), "balance");
 		if (newfromamount > 0)
-			BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision, binputranges), newfromamount);
+			BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision), newfromamount);
 
 		if (!otherNode1.empty())
 		{
-			BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + name + " false"));
+			BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + guid ));
 			BOOST_CHECK_EQUAL(find_value(r.get_obj(), "total_supply").get_str(), fromsupply);
 			balance = find_value(r.get_obj(), "balance");
 			if (newfromamount > 0)
-				BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision, binputranges), newfromamount);
+				BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision), newfromamount);
 
 		}
 		if (!otherNode2.empty())
 		{
-			BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "assetinfo " + name + " false"));
+			BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "assetinfo " + guid ));
 			BOOST_CHECK_EQUAL(find_value(r.get_obj(), "total_supply").get_str(), fromsupply);
 			balance = find_value(r.get_obj(), "balance");
 			if (newfromamount > 0)
-				BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision, binputranges), newfromamount);
+				BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision), newfromamount);
 
 		}
 	}
@@ -1179,8 +954,6 @@ string AssetSend(const string& node, const string& name, const string& inputs, c
 	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "txtype").get_str(), "assetsend");
 	if (!theAssetAllocation.listSendingAllocationAmounts.empty())
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "allocations").get_array().size(), theAssetAllocation.listSendingAllocationAmounts.size());
-	else if (!theAssetAllocation.listSendingAllocationInputs.empty())
-		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "allocations").get_array().size(), theAssetAllocation.listSendingAllocationInputs.size());
 	return hex_str;
 
 }

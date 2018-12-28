@@ -12,7 +12,6 @@
 #include <boost/test/unit_test.hpp>
 #include <boost/lexical_cast.hpp>
 #include <iterator>
-#include "services/ranges.h"
 #include <key.h>
 using namespace std;
 BOOST_GLOBAL_FIXTURE( SyscoinTestingSetup );
@@ -26,19 +25,19 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_address_sync)
 	string newaddress = GetNewFundedAddress("node1");
     BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
     string newaddressreceiver = r.get_str();
-	string guid = AssetNew("node1", "cad", newaddress, "data", "''", "8", "false", "10000", "1000000", "0.05");
+	string guid = AssetNew("node1", newaddress, "data", "''", "8", "10000", "1000000");
 
-	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddressreceiver + "\\\",\\\"amount\\\":5000}]\"", "memoassetinterest");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddressreceiver + " false"));
+	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddressreceiver + "\\\",\\\"amount\\\":5000}]\"");
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddressreceiver ));
 	UniValue balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "assetallocationinfo " + guid + " " + newaddressreceiver + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "assetallocationinfo " + guid + " " + newaddressreceiver ));
 	balance = find_value(r.get_obj(), "balance");
 	StopNode("node2");
 	StartNode("node2");
 	GenerateBlocks(5, "node2");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddressreceiver + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddressreceiver ));
 	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "assetallocationinfo " + guid + " " + newaddressreceiver + " false"));
+	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "assetallocationinfo " + guid + " " + newaddressreceiver ));
 	balance = find_value(r.get_obj(), "balance");
 
 }
@@ -56,26 +55,26 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
     BOOST_CHECK_NO_THROW(r = CallExtRPC("node1", "getnewaddress"));
     string newaddress2 = r.get_str();
         
-	string guid = AssetNew("node1", "usd", newaddress1, "data","''", "8", "false", "1", "100000");
+	string guid = AssetNew("node1", newaddress1, "data","''", "8", "1", "100000");
 
-	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddress1 + "\\\",\\\"amount\\\":1}]\"", "assetallocationsend");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress1 + " false"));
+	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddress1 + "\\\",\\\"amount\\\":1}]\"");
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress1 ));
 	UniValue balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8, false), 1 * COIN);
+	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 1 * COIN);
 
-	string txid0 = AssetAllocationTransfer(false, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.11}]\"", "allocationsendmemo");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2 + " false"));
+	string txid0 = AssetAllocationTransfer(false, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.11}]\"");
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2 ));
 	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8, false), 0.11 * COIN);
+	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 0.11 * COIN);
 
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + guid + " " + newaddress1 + " " + txid0));
 	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_NOT_FOUND);
 
 	// send using zdag
-	string txid1 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.12}]\"", "allocationsendmemo");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8, false), 0.23 * COIN);
+	string txid1 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.12}]\"");
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2));
+	balance = find_value(r.get_obj(), "balance_zdag");
+	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 0.23 * COIN);
 
 	// non zdag cannot be found since it was already mined, but ends up briefly in conflict state because sender is conflicted
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + guid + " " + newaddress1 + " " + txid0));
@@ -92,10 +91,10 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
 	// wait for 1 second as required by unit test
 	MilliSleep(1000);
 	// second send
-	string txid2 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.13}]\"", "allocationsendmemo");
-	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2 + " false"));
-	balance = find_value(r.get_obj(), "balance");
-	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8, false), 0.36 * COIN);
+	string txid2 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.13}]\"");
+	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2 ));
+	balance = find_value(r.get_obj(), "balance_zdag");
+	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 0.36 * COIN);
 
 	// sender is conflicted so txid0 is conflicted by extension even if its not found
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationsenderstatus " + guid + " " + newaddress1 + " " + txid0));

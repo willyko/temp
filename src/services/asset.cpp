@@ -656,7 +656,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
 	
 
 
-	if (tx.nVersion == SYSCOIN_TX_VERSION_ASSET /*&& !fTPSTestEnabled*/) {
+	if (tx.nVersion == SYSCOIN_TX_VERSION_ASSET && !fTPSTestEnabled) {
         CValidationState state;
 		// call this twice, with fJustCheck and !fJustCheck both with bSanity enabled so it doesn't actually write out to the databases just does the checks
 		if (!CheckSyscoinInputs(tx, state, view, true, 0, CBlock(), true))

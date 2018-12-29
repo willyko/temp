@@ -825,6 +825,8 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 	if (usezdag) {
 		MilliSleep(100);
 	}
+    else
+        GenerateBlocks(1, node);
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " " + fromaddress));
     if(usezdag)
 	    balance = find_value(r.get_obj(), "balance_zdag");

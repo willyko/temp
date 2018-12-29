@@ -1041,7 +1041,6 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 	}
     
 
-	string retError = "";
 	if(fJustCheck)
 	{
 		if (op != OP_ASSET_SEND) {
@@ -1137,10 +1136,10 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		}
 		const string &vchOwner = op == OP_ASSET_SEND ? bech32::Encode(Params().Bech32HRP(),theAssetAllocation.assetAllocationTuple.vchAddress) : bech32::Encode(Params().Bech32HRP(),theAsset.vchAddress);
 		const string &user1 = dbAsset.IsNull()? vchOwner : bech32::Encode(Params().Bech32HRP(),dbAsset.vchAddress);
-		string user2 = "";
-		string user3 = "";
+
+	
 		if (op == OP_ASSET_TRANSFER) {
-			user2 = vchOwner;
+		
             if (!FindAssetOwnerInTx(inputs, tx, user1))
             {
                 errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot transfer this asset. Asset owner must sign off on this change");
@@ -1154,7 +1153,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot update this asset. Asset owner must sign off on this change");
 				return error(errorMessage.c_str());
 			}
-			CAmount increaseBalanceByAmount = theAsset.nBalance;
+			const CAmount &increaseBalanceByAmount = theAsset.nBalance;
 			if (increaseBalanceByAmount > 0 && !(dbAsset.nUpdateFlags & ASSET_UPDATE_SUPPLY))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update supply");

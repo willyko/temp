@@ -38,13 +38,13 @@ std::string stringFromVchUint8(const std::vector<uint8_t> &vch);
 std::string stringFromValue(const UniValue& value);
 void CreateRecipient(const CScript& scriptPubKey, CRecipient& recipient);
 void CreateAssetRecipient(const CScript& scriptPubKey, CRecipient& recipient);
-void CreateFeeRecipient(CScript& scriptPubKey, const std::vector<unsigned char>& data, CRecipient& recipient);
+void CreateFeeRecipient(CScript& scriptPubKey, CRecipient& recipient);
 unsigned int addressunspent(const std::string& strAddressFrom, COutPoint& outpoint);
 int GetSyscoinDataOutput(const CTransaction& tx);
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char &type);
-bool GetSyscoinData(const CTransaction &tx, std::vector<unsigned char> &vchData, std::vector<unsigned char> &vchHash, int& nOut, int &op);
-bool GetSyscoinData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData, std::vector<unsigned char> &vchHash, int &op);
-void SysTxToJSON(const int op, const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash, UniValue &entry, const char& type);
+bool GetSyscoinData(const CTransaction &tx, std::vector<unsigned char> &vchData, int& nOut, int &op);
+bool GetSyscoinData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData,  int &op);
+void SysTxToJSON(const int op, const std::vector<unsigned char> &vchData,  UniValue &entry, const char& type);
 std::string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, std::string& responseEnglish, const char &type, std::string& responseGUID);
 bool IsOutpointMature(const COutPoint& outpoint);
 UniValue syscointxfund_helper(const std::string &vchWitness, std::vector<CRecipient> &vecSend);
@@ -58,7 +58,7 @@ bool IsAssetOp(int op);
 int GenerateSyscoinGuid();
 bool IsSyscoinScript(const CScript& scriptPubKey, int &op, std::vector<std::vector<unsigned char> > &vvchArgs);
 bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut);
-void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash, UniValue &entry);
+void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
 std::string assetFromOp(int op);
 bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
 /** Upper bound for mantissa.
@@ -146,7 +146,7 @@ public:
 	inline void SetNull() { vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); vchAddress.clear(); vchPubData.clear(); }
     inline bool IsNull() const { return (nAsset == 0); }
     bool UnserializeFromTx(const CTransaction &tx);
-	bool UnserializeFromData(const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash);
+	bool UnserializeFromData(const std::vector<unsigned char> &vchData);
 	void Serialize(std::vector<unsigned char>& vchData);
 };
 static const std::string assetKey = "AI";

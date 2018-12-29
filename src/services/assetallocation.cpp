@@ -50,19 +50,10 @@ string assetAllocationFromOp(int op) {
         return "<unknown assetallocation op>";
     }
 }
-bool CAssetAllocation::UnserializeFromData(const vector<unsigned char> &vchData, const vector<unsigned char> &vchHash) {
+bool CAssetAllocation::UnserializeFromData(const vector<unsigned char> &vchData) {
     try {
         CDataStream dsAsset(vchData, SER_NETWORK, PROTOCOL_VERSION);
         dsAsset >> *this;
-		vector<unsigned char> vchSerializedData;
-		Serialize(vchSerializedData);
-		const uint256 &calculatedHash = Hash(vchSerializedData.begin(), vchSerializedData.end());
-		const vector<unsigned char> &vchRand = vector<unsigned char>(calculatedHash.begin(), calculatedHash.end());
-		if (vchRand != vchHash) {
-			SetNull();
-			return false;
-		}
-
     } catch (std::exception &e) {
 		SetNull();
         return false;
@@ -71,14 +62,13 @@ bool CAssetAllocation::UnserializeFromData(const vector<unsigned char> &vchData,
 }
 bool CAssetAllocation::UnserializeFromTx(const CTransaction &tx) {
 	vector<unsigned char> vchData;
-	vector<unsigned char> vchHash;
 	int nOut, op;
-	if (!GetSyscoinData(tx, vchData, vchHash, nOut, op) || op != OP_SYSCOIN_ASSET_ALLOCATION)
+	if (!GetSyscoinData(tx, vchData, nOut, op) || op != OP_SYSCOIN_ASSET_ALLOCATION)
 	{
 		SetNull();
 		return false;
 	}
-	if(!UnserializeFromData(vchData, vchHash))
+	if(!UnserializeFromData(vchData))
 	{	
 		return false;
 	}
@@ -212,7 +202,7 @@ bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove, 
     if(!bMiner){
         const string& receiverStr = assetAllocationToRemove.ToString();
         {
-            LOCK(cs_assetallocation);
+            LOCK(cs_assetallocationarrival);
         	// remove the conflict once we revert since it is assumed to be resolved on POW
         	ArrivalTimesMap &arrivalTimes = arrivalTimesMap[receiverStr];
             
@@ -260,9 +250,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 	// unserialize assetallocation from txn, check for valid
 	CAssetAllocation theAssetAllocation;
 	vector<unsigned char> vchData;
-	vector<unsigned char> vchHash;
 	int nDataOut, tmpOp;
-	if(!GetSyscoinData(tx, vchData, vchHash, nDataOut, tmpOp) || tmpOp != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData, vchHash))
+	if(!GetSyscoinData(tx, vchData, nDataOut, tmpOp) || tmpOp != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData))
 	{
 		errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Cannot unserialize data inside of this transaction relating to an assetallocation");
 		return error(errorMessage.c_str());
@@ -270,16 +259,12 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 
 	if(fJustCheck)
 	{
-		if((op != OP_ASSET_ALLOCATION_BURN && vvchArgs.size() != 1) || (op == OP_ASSET_ALLOCATION_BURN && vvchArgs.size() != 4))
+		if(op == OP_ASSET_ALLOCATION_BURN && vvchArgs.size() != 3)
 		{
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1002 - " + _("Asset arguments incorrect size");
 			return error(errorMessage.c_str());
 		}		
-		if(vchHash != vvchArgs[0])
-		{
-			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1003 - " + _("Hash provided doesn't match the calculated hash of the data");
-			return error(errorMessage.c_str());
-		}		
+		
 	}
 	string retError = "";
 	if(fJustCheck)
@@ -334,7 +319,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot send this asset. Asset allocation owner must sign off on this change");
 			return error(errorMessage.c_str());
 		}
-		if(assetAllocationTuple.nAsset != boost::lexical_cast<int>(stringFromVch(vvchArgs[1])))
+		if(assetAllocationTuple.nAsset != boost::lexical_cast<int>(stringFromVch(vvchArgs[0])))
 		{
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Invalid asset details entered in the script output");
 			return error(errorMessage.c_str());
@@ -344,7 +329,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1011 - " + _("Failed to read from asset DB");
 			return error(errorMessage.c_str());
 		}
-		if(dbAsset.vchContract.empty() || dbAsset.vchContract != vvchArgs[3])
+		if(dbAsset.vchContract.empty() || dbAsset.vchContract != vvchArgs[2])
 		{
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Invalid contract entered in the script output or Syscoin Asset does not have the ethereum contract configured");
 			return error(errorMessage.c_str());
@@ -355,7 +340,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1020 - " + _("Burning amount must be positive");
             return error(errorMessage.c_str());
         } 
-        if(AssetAmountFromValueNonNeg(stringFromVch(vvchArgs[2]), dbAsset.nPrecision) != amountTuple.second)
+        if(AssetAmountFromValueNonNeg(stringFromVch(vvchArgs[1]), dbAsset.nPrecision) != amountTuple.second)
         {
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Invalid amount entered in the script output");
             return error(errorMessage.c_str());
@@ -471,7 +456,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                 
             
 		}else if (!bSanityCheck) {
-            LOCK(cs_assetallocation);
+            LOCK(cs_assetallocationarrival);
 			// add conflicting sender if using ZDAG
 			assetAllocationConflicts.insert(senderTupleStr);
 		}
@@ -552,13 +537,13 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			if(bSanityCheck)
 				errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1021 - " + _("Sender balance is insufficient");
 			if (fJustCheck && !bSanityCheck) {
-                LOCK(cs_assetallocation);
+                LOCK(cs_assetallocationarrival);
 				// add conflicting sender
 				assetAllocationConflicts.insert(senderTupleStr);
 			}
 		}
 		else if (fJustCheck) {
-            LOCK(cs_assetallocation);
+            LOCK(cs_assetallocationarrival);
 			// if sender was is flagged as conflicting, add all receivers to conflict list
 			if (assetAllocationConflicts.find(senderTupleStr) != assetAllocationConflicts.end())
 			{			
@@ -578,7 +563,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 
 				if (fJustCheck) {
 					if (bAddAllReceiversToConflictList || bBalanceOverrun) {
-                        LOCK(cs_assetallocation);
+                        LOCK(cs_assetallocationarrival);
 						assetAllocationConflicts.insert(receiverTupleStr);
 					}
 				}
@@ -655,7 +640,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 	if (!bBalanceOverrun && !bSanityCheck) {
 		// set the assetallocation's txn-dependent 
 		if(fJustCheck && op == OP_ASSET_ALLOCATION_SEND){
-            LOCK(cs_assetallocation);
+            LOCK(cs_assetallocationarrival);
             ArrivalTimesMap &arrivalTimes = arrivalTimesMap[senderTupleStr];
             arrivalTimes[txHash] = GetTimeMillis();
         
@@ -830,16 +815,11 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
     string burnAddr = "burn";
 	theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchFromStringUint8("burn"), amount));
 
-	vector<unsigned char> data;
-	theAssetAllocation.Serialize(data);
-	uint256 hash = Hash(data.begin(), data.end());
-
-	vector<unsigned char> vchHashAsset = vector<unsigned char>(hash.begin(), hash.end());
-	if (!theAssetAllocation.UnserializeFromData(data, vchHashAsset))
-		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1505 - " + _("Could not unserialize asset allocation data"));
+    vector<unsigned char> data;
+    theAssetAllocation.Serialize(data);
 
 	CScript scriptPubKey;
-	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_BURN) << vchHashAsset << vchFromString(boost::lexical_cast<string>(nAsset)) << vchFromString(ValueFromAssetAmount(amount,theAsset.nPrecision).getValStr()) << theAsset.vchContract << OP_2DROP << OP_2DROP << OP_2DROP << OP_DROP;
+	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_BURN) << vchFromString(boost::lexical_cast<string>(nAsset)) << vchFromString(ValueFromAssetAmount(amount,theAsset.nPrecision).getValStr()) << theAsset.vchContract << OP_2DROP << OP_2DROP << OP_2DROP;
 	scriptPubKey += scriptPubKeyFromOrig;
 	// send the asset pay txn
 	vector<CRecipient> vecSend;
@@ -850,7 +830,7 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	CScript scriptData;
 	scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << data;
 	CRecipient fee;
-	CreateFeeRecipient(scriptData, data, fee);
+	CreateFeeRecipient(scriptData, fee);
 	vecSend.push_back(fee);
 
 	return syscointxfund_helper("", vecSend);
@@ -931,7 +911,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
     
 	CScript scriptPubKey;
     {
-        LOCK(cs_assetallocation);
+        LOCK(cs_assetallocationarrival);
     	// check to see if a transaction for this asset/address tuple has arrived before minimum latency period
     	const ArrivalTimesMap &arrivalTimes = arrivalTimesMap[assetAllocationTuple.ToString()];
     	const int64_t & nNow = GetTimeMillis();
@@ -947,13 +927,9 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
     }
 
 	vector<unsigned char> data;
-	theAssetAllocation.Serialize(data);
-	uint256 hash = Hash(data.begin(), data.end());
+	theAssetAllocation.Serialize(data);   
 
-	vector<unsigned char> vchHashAsset = vector<unsigned char>(hash.begin(), hash.end());
-	if (!theAssetAllocation.UnserializeFromData(data, vchHashAsset))
-		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1505 - " + _("Could not unserialize asset allocation data"));
-	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_SEND) << vchHashAsset << OP_2DROP << OP_DROP;
+	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_SEND) << OP_2DROP;
 	scriptPubKey += scriptPubKeyFromOrig;
 	// send the asset pay txn
 	vector<CRecipient> vecSend;
@@ -964,7 +940,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 	CScript scriptData;
 	scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << data;
 	CRecipient fee;
-	CreateFeeRecipient(scriptData, data, fee);
+	CreateFeeRecipient(scriptData, fee);
 	vecSend.push_back(fee);
 
 	return syscointxfund_helper(strWitness, vecSend);
@@ -1092,7 +1068,7 @@ UniValue assetallocationsenderstatus(const JSONRPCRequest& request) {
 		txid.SetHex(params[2].get_str());
 	UniValue oAssetAllocationStatus(UniValue::VOBJ);
     LOCK2(cs_main, mempool.cs);
-    LOCK(cs_assetallocation);
+    LOCK(cs_assetallocationarrival);
     
     const int64_t & nNow = GetTimeMillis();
 	const CAssetAllocationTuple assetAllocationTupleSender(nAsset, bech32::Decode(strAddressSender).second);
@@ -1178,11 +1154,11 @@ bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, co
 	oAssetAllocation.pushKV("amount", ValueFromAssetAmount(nAmountDisplay, asset.nPrecision));
 	return true;
 }
-void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash, UniValue &entry)
+void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry)
 {
 	string opName = assetAllocationFromOp(op);
 	CAssetAllocation assetallocation;
-	if(!assetallocation.UnserializeFromData(vchData, vchHash))
+	if(!assetallocation.UnserializeFromData(vchData))
 		return;
 	CAsset dbAsset;
 	GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);

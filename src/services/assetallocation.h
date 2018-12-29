@@ -20,7 +20,7 @@ bool DecodeAssetAllocationTx(const CTransaction& tx, int& op, std::vector<std::v
 bool DecodeAndParseAssetAllocationTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char& type);
 bool DecodeAssetAllocationScript(const CScript& script, int& op, std::vector<std::vector<unsigned char> > &vvch);
 bool IsAssetAllocationOp(int op);
-void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash, UniValue &entry);
+void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
 std::string assetAllocationFromOp(int op);
 bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
 class CAssetAllocationTuple {
@@ -83,6 +83,7 @@ static const int ONE_HOUR_IN_BLOCKS = 60;
 static const int ONE_MONTH_IN_BLOCKS = 43800;
 static sorted_vector<std::string> assetAllocationConflicts;
 static CCriticalSection cs_assetallocation;
+static CCriticalSection cs_assetallocationarrival;
 static CCriticalSection cs_assetallocationindex;
 enum {
 	ZDAG_NOT_FOUND = -1,
@@ -137,7 +138,7 @@ public:
 	inline void SetNull() { nBalance = 0; listSendingAllocationAmounts.clear(); assetAllocationTuple.SetNull(); txHash.SetNull(); }
 	inline bool IsNull() const { return (assetAllocationTuple.IsNull()); }
 	bool UnserializeFromTx(const CTransaction &tx);
-	bool UnserializeFromData(const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash);
+	bool UnserializeFromData(const std::vector<unsigned char> &vchData);
 	void Serialize(std::vector<unsigned char>& vchData);
 };
 static const std::string assetAllocationKey = "AAI";

@@ -23,7 +23,7 @@ bool OrderBasedOnArrivalTime(const int &nHeight, std::vector<CTransactionRef>& b
 		{
 			if (DecodeAssetAllocationTx(tx, op, vvchArgs) && op == OP_ASSET_ALLOCATION_SEND)
 			{
-				LOCK(cs_assetallocation);
+				LOCK(cs_assetallocationarrival);
 				
 				CAssetAllocation assetallocation(tx);
 				ArrivalTimesMap &arrivalTimes = arrivalTimesMap[assetallocation.assetAllocationTuple.ToString()];

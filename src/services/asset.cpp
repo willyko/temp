@@ -102,16 +102,16 @@ string stringFromVch(const vector<unsigned char> &vch) {
 	}
 	return res;
 }
-bool GetSyscoinData(const CTransaction &tx, vector<unsigned char> &vchData, vector<unsigned char> &vchHash, int& nOut, int &op)
+bool GetSyscoinData(const CTransaction &tx, vector<unsigned char> &vchData, int& nOut, int &op)
 {
 	nOut = GetSyscoinDataOutput(tx);
 	if (nOut == -1)
 		return false;
 
 	const CScript &scriptPubKey = tx.vout[nOut].scriptPubKey;
-	return GetSyscoinData(scriptPubKey, vchData, vchHash, op);
+	return GetSyscoinData(scriptPubKey, vchData, op);
 }
-bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData, vector<unsigned char> &vchHash, int &op)
+bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData, int &op)
 {
 	op = 0;
 	CScript::const_iterator pc = scriptPubKey.begin();
@@ -126,8 +126,6 @@ bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData,
 		return false;
 	op = CScript::DecodeOP_N(opcode);
 	if (!scriptPubKey.GetOp(pc, opcode, vchData))
-		return false;
-	if (!scriptPubKey.GetOp(pc, opcode, vchHash))
 		return false;
 	return true;
 }
@@ -153,18 +151,10 @@ string assetFromOp(int op) {
         return "<unknown asset op>";
     }
 }
-bool CAsset::UnserializeFromData(const vector<unsigned char> &vchData, const vector<unsigned char> &vchHash) {
+bool CAsset::UnserializeFromData(const vector<unsigned char> &vchData) {
     try {
 		CDataStream dsAsset(vchData, SER_NETWORK, PROTOCOL_VERSION);
 		dsAsset >> *this;
-		vector<unsigned char> vchSerializedData;
-		Serialize(vchSerializedData);
-		const uint256 &calculatedHash = Hash(vchSerializedData.begin(), vchSerializedData.end());
-		const vector<unsigned char> &vchRand = vector<unsigned char>(calculatedHash.begin(), calculatedHash.end());
-		if (vchRand != vchHash) {
-			SetNull();
-			return false;
-		}
     } catch (std::exception &e) {
 		SetNull();
         return false;
@@ -173,14 +163,13 @@ bool CAsset::UnserializeFromData(const vector<unsigned char> &vchData, const vec
 }
 bool CAsset::UnserializeFromTx(const CTransaction &tx) {
 	vector<unsigned char> vchData;
-	vector<unsigned char> vchHash;
 	int nOut, op;
-	if (!GetSyscoinData(tx, vchData, vchHash, nOut, op) || op != OP_SYSCOIN_ASSET)
+	if (!GetSyscoinData(tx, vchData, nOut, op) || op != OP_SYSCOIN_ASSET)
 	{
 		SetNull();
 		return false;
 	}
-	if(!UnserializeFromData(vchData, vchHash))
+	if(!UnserializeFromData(vchData))
 	{	
 		return false;
 	}
@@ -238,12 +227,8 @@ void CreateRecipient(const CScript& scriptPubKey, CRecipient& recipient)
 	size_t nSize = GetSerializeSize(txout, SER_DISK, 0) + 148u;
 	recipient.nAmount = GetFee(nSize);
 }
-void CreateFeeRecipient(CScript& scriptPubKey, const vector<unsigned char>& data, CRecipient& recipient)
+void CreateFeeRecipient(CScript& scriptPubKey, CRecipient& recipient)
 {
-	// add hash to data output (must match hash in inputs check with the tx scriptpubkey hash)
-	uint256 hash = Hash(data.begin(), data.end());
-	vector<unsigned char> vchHashRand = vector<unsigned char>(hash.begin(), hash.end());
-	scriptPubKey << vchHashRand;
 	CRecipient recp = { scriptPubKey, 0, false };
 	recipient = recp;
 }
@@ -741,22 +726,22 @@ UniValue syscoindecoderawtransaction(const JSONRPCRequest& request) {
 	int nOut;
 	int op;
 	vector<vector<unsigned char> > vvch;
-	vector<unsigned char> vchHash;
+
 	int type;
 	char ctype;
-	GetSyscoinData(rawTx, vchData, vchHash, nOut, type);
+	GetSyscoinData(rawTx, vchData, nOut, type);
 	UniValue output(UniValue::VOBJ);
 	if (DecodeAndParseSyscoinTx(rawTx, op, vvch, ctype))
-		SysTxToJSON(op, vchData, vchHash, output, ctype);
+		SysTxToJSON(op, vchData, output, ctype);
 
 	return output;
 }
-void SysTxToJSON(const int op, const vector<unsigned char> &vchData, const vector<unsigned char> &vchHash, UniValue &entry, const char& type)
+void SysTxToJSON(const int op, const vector<unsigned char> &vchData, UniValue &entry, const char& type)
 {
 	if (type == OP_SYSCOIN_ASSET)
-		AssetTxToJSON(op, vchData, vchHash, entry);
+		AssetTxToJSON(op, vchData, entry);
 	else if (type == OP_SYSCOIN_ASSET_ALLOCATION)
-		AssetAllocationTxToJSON(op, vchData, vchHash, entry);
+		AssetAllocationTxToJSON(op, vchData, entry);
 }
 int GenerateSyscoinGuid()
 {
@@ -1047,30 +1032,14 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 	CAsset theAsset;
 	CAssetAllocation theAssetAllocation;
 	vector<unsigned char> vchData;
-	vector<unsigned char> vchHash;
+
 	int nDataOut, tmpOp;
-	if(!GetSyscoinData(tx, vchData, vchHash, nDataOut, tmpOp) || (op != OP_ASSET_SEND && (tmpOp != OP_SYSCOIN_ASSET || !theAsset.UnserializeFromData(vchData, vchHash))) || (op == OP_ASSET_SEND && (tmpOp != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData, vchHash))))
+	if(!GetSyscoinData(tx, vchData, nDataOut, tmpOp) || (op != OP_ASSET_SEND && (tmpOp != OP_SYSCOIN_ASSET || !theAsset.UnserializeFromData(vchData))) || (op == OP_ASSET_SEND && (tmpOp != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData))))
 	{
 		errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR ERRCODE: 2000 - " + _("Cannot unserialize data inside of this transaction relating to an asset");
 		return error(errorMessage.c_str());
 	}
-
-	if(fJustCheck)
-	{
-		if(vvchArgs.size() != 1)
-		{
-			errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2001 - " + _("Asset arguments incorrect size");
-			return error(errorMessage.c_str());
-		}
-
-					
-		if(vchHash != vvchArgs[0])
-		{
-			errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2002 - " + _("Hash provided doesn't match the calculated hash of the data");
-			return error(errorMessage.c_str());
-		}
-			
-	}
+    
 
 	string retError = "";
 	if(fJustCheck)
@@ -1398,11 +1367,8 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	newAsset.nUpdateFlags = nUpdateFlags;
 	vector<unsigned char> data;
 	newAsset.Serialize(data);
-    uint256 hash = Hash(data.begin(), data.end());
- 	
-    vector<unsigned char> vchHashAsset = vector<unsigned char>(hash.begin(), hash.end());
 
-    scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_ACTIVATE) << vchHashAsset << OP_2DROP << OP_DROP;
+    scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_ACTIVATE) << OP_2DROP;
     scriptPubKey += scriptPubKeyFromOrig;
 
 	// use the script pub key to create the vecsend which sendmoney takes and puts it into vout
@@ -1415,7 +1381,7 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	CScript scriptData;
 	scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << data;
 	CRecipient fee;
-	CreateFeeRecipient(scriptData, data, fee);
+	CreateFeeRecipient(scriptData, fee);
 	vecSend.push_back(fee);
 	UniValue res = syscointxfund_helper(vchWitness, vecSend);
 	res.push_back(newAsset.nAsset);
@@ -1491,10 +1457,8 @@ UniValue assetupdate(const JSONRPCRequest& request) {
 
 	vector<unsigned char> data;
 	theAsset.Serialize(data);
-    uint256 hash = Hash(data.begin(), data.end());
- 	
-    vector<unsigned char> vchHashAsset = vector<unsigned char>(hash.begin(), hash.end());
-    scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_UPDATE) << vchHashAsset << OP_2DROP << OP_DROP;
+
+    scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_UPDATE) << OP_2DROP;
     scriptPubKey += scriptPubKeyFromOrig;
 
 	vector<CRecipient> vecSend;
@@ -1506,7 +1470,7 @@ UniValue assetupdate(const JSONRPCRequest& request) {
 	CScript scriptData;
 	scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << data;
 	CRecipient fee;
-	CreateFeeRecipient(scriptData, data, fee);
+	CreateFeeRecipient(scriptData, fee);
 	vecSend.push_back(fee);
 	return syscointxfund_helper(vchWitness, vecSend);
 }
@@ -1560,10 +1524,8 @@ UniValue assettransfer(const JSONRPCRequest& request) {
 
 	vector<unsigned char> data;
 	theAsset.Serialize(data);
-    uint256 hash = Hash(data.begin(), data.end());
- 	
-    vector<unsigned char> vchHashAsset = vector<unsigned char>(hash.begin(), hash.end());
-    scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_TRANSFER) << vchHashAsset << OP_2DROP << OP_DROP;
+
+    scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_TRANSFER) << OP_2DROP;
 	scriptPubKey += scriptPubKeyOrig;
     // send the asset pay txn
 	vector<CRecipient> vecSend;
@@ -1575,7 +1537,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
 	CScript scriptData;
 	scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << data;
 	CRecipient fee;
-	CreateFeeRecipient(scriptData, data, fee);
+	CreateFeeRecipient(scriptData, fee);
 	vecSend.push_back(fee);
 	return syscointxfund_helper(vchWitness, vecSend);
 }
@@ -1651,9 +1613,8 @@ UniValue assetsend(const JSONRPCRequest& request) {
 
     vector<unsigned char> data;
     theAssetAllocation.Serialize(data);
-	uint256 hash = Hash(data.begin(), data.end());
-    vector<unsigned char> vchHashAsset = vector<unsigned char>(hash.begin(), hash.end());  
-	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_SEND) << vchHashAsset << OP_2DROP << OP_DROP;
+
+	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET) << CScript::EncodeOP_N(OP_ASSET_SEND) << OP_2DROP;
 	scriptPubKey += scriptPubKeyFromOrig;
 	// send the asset pay txn
 	vector<CRecipient> vecSend;
@@ -1664,7 +1625,7 @@ UniValue assetsend(const JSONRPCRequest& request) {
 	CScript scriptData;
 	scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << data;
 	CRecipient fee;
-	CreateFeeRecipient(scriptData, data, fee);
+	CreateFeeRecipient(scriptData, fee);
 	vecSend.push_back(fee);
 
 	return syscointxfund_helper(vchWitness, vecSend);
@@ -1711,11 +1672,11 @@ bool BuildAssetIndexerJson(const CAsset& asset, UniValue& oAsset)
 	oAsset.pushKV("precision", (int)asset.nPrecision);
 	return true;
 }
-void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash, UniValue &entry)
+void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry)
 {
 	string opName = assetFromOp(op);
 	CAsset asset;
-	if(!asset.UnserializeFromData(vchData, vchHash))
+	if(!asset.UnserializeFromData(vchData))
 		return;
 
 	CAsset dbAsset;
@@ -1741,7 +1702,7 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, cons
 		entry.pushKV("balance", ValueFromAssetAmount(asset.nBalance, dbAsset.nPrecision));
 
 	CAssetAllocation assetallocation;
-	if (assetallocation.UnserializeFromData(vchData, vchHash)) {
+	if (assetallocation.UnserializeFromData(vchData)) {
 		UniValue oAssetAllocationReceiversArray(UniValue::VARR);
 		if (!assetallocation.listSendingAllocationAmounts.empty()) {
 			for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {

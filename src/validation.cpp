@@ -1968,7 +1968,7 @@ bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsVi
 
                 // Verify signature
                 if(pvChecksConcurrent){
-                    CScriptCheckConcurrent checkConcurrent(coin.out, tx, i, flags, cacheSigStore, txdata); 
+                    CScriptCheckConcurrent checkConcurrent(coin.out, std::move(tx), i, flags, cacheSigStore, std::move(txdata)); 
                     pvChecksConcurrent->push_back(CScriptCheckConcurrent());
                     checkConcurrent.swap(pvChecksConcurrent->back());
                 }

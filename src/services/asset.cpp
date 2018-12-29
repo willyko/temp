@@ -60,18 +60,10 @@ bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut
 
 int GetSyscoinDataOutput(const CTransaction& tx) {
 	for (unsigned int i = 0; i<tx.vout.size(); i++) {
-		if (IsSyscoinDataOutput(tx.vout[i]))
+		if (tx.vout[i].scriptPubKey.IsUnspendable())
 			return i;
 	}
 	return -1;
-}
-bool IsSyscoinDataOutput(const CTxOut& out) {
-	txnouttype whichType;
-	if (!IsStandard(out.scriptPubKey, whichType))
-		return false;
-	if (whichType == TX_NULL_DATA)
-		return true;
-	return false;
 }
 
 string stringFromValue(const UniValue& value) {
@@ -1233,7 +1225,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 			
 			// check balance is sufficient on sender
 			CAmount nTotal = 0;
-			for (auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
+			for (const auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
 				nTotal += amountTuple.second;
 				if (amountTuple.second <= 0)
 				{
@@ -1245,7 +1237,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2033 - " + _("Sender balance is insufficient");
 				return error(errorMessage.c_str());
 			}
-			for (auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
+			for (const auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
 				if (!bSanityCheck) {
                     
 					CAssetAllocation receiverAllocation;
@@ -1268,17 +1260,12 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
                     } 
                                             
 					receiverAllocation.txHash = txHash;
-					const string& receiverAddress = bech32::Encode(Params().Bech32HRP(),receiverAllocation.assetAllocationTuple.vchAddress);
 					// adjust sender balance
 					theAsset.nBalance -= amountTuple.second;
-                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, nHeight, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1, receiverAddress);
-                    auto it = mapAssetAllocations.find(receiverTupleStr);
-                    if( it != mapAssetAllocations.end() ) {
-                        it->second = std::move(receiverAllocation);
-                    }
-                    else {
-                       mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
-                    }                                        
+                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, nHeight, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1);
+                    auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+                    if (!rv.second)
+                        rv.first->second = std::move(receiverAllocation);                                  
 				}
 			}
 		}
@@ -1335,13 +1322,11 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		// write asset, if asset send, only write on pow since asset -> asset allocation is not 0-conf compatible
 		if (!bSanityCheck) {
             passetdb->WriteAssetIndex(theAsset, op); 
-            auto it = mapAssets.find(theAsset.nAsset);
-            if( it != mapAssets.end() ) {
-                it->second = std::move(theAsset);
-            }
-            else {
-                mapAssets.emplace(std::move(theAsset.nAsset), std::move(theAsset));
-            }
+            auto rv = mapAssets.emplace(std::move(theAsset.nAsset), std::move(theAsset));
+            if (!rv.second)
+                rv.first->second = std::move(theAsset);
+
+       
 			// debug
 			
 			LogPrint(BCLog::SYS,"CONNECTED ASSET: op=%s symbol=%d hash=%s height=%d fJustCheck=%d\n",
@@ -1843,7 +1828,7 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
     CDBBatch batch(*this);
     for (const auto &key : mapAssets) {
         const CAsset &asset = key.second;
-        batch.Write(make_pair(std::string("ai"), asset.nAsset), asset);
+        batch.Write(make_pair(assetKey, asset.nAsset), asset);
     }
     LogPrint(BCLog::SYS, "Flushing %d assets\n", mapAssets.size());
     return WriteBatch(batch);
@@ -1882,7 +1867,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();
 		try {
-			if (pcursor->GetKey(key) && key.first == "ai") {
+			if (pcursor->GetKey(key) && key.first == assetKey) {
 				pcursor->GetValue(txPos);
 				if (!strTxid.empty() && strTxid != txPos.txHash.GetHex())
 				{

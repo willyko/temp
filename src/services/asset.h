@@ -41,7 +41,6 @@ void CreateAssetRecipient(const CScript& scriptPubKey, CRecipient& recipient);
 void CreateFeeRecipient(CScript& scriptPubKey, const std::vector<unsigned char>& data, CRecipient& recipient);
 unsigned int addressunspent(const std::string& strAddressFrom, COutPoint& outpoint);
 int GetSyscoinDataOutput(const CTransaction& tx);
-bool IsSyscoinDataOutput(const CTxOut& out);
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char &type);
 bool GetSyscoinData(const CTransaction &tx, std::vector<unsigned char> &vchData, std::vector<unsigned char> &vchHash, int& nOut, int &op);
 bool GetSyscoinData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData, std::vector<unsigned char> &vchHash, int &op);
@@ -150,16 +149,16 @@ public:
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash);
 	void Serialize(std::vector<unsigned char>& vchData);
 };
-
+static const std::string assetKey = "AI";
 typedef std::unordered_map<int, CAsset> AssetMap;
 class CAssetDB : public CDBWrapper {
 public:
     CAssetDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assets", nCacheSize, fMemory, fWipe) {}
     bool EraseAsset(const int32_t& nAsset, bool cleanup = false) {
-        return Erase(make_pair(std::string("ai"), nAsset));
+        return Erase(make_pair(assetKey, nAsset));
     }   
     bool ReadAsset(const int32_t& nAsset, CAsset& asset) {
-        return Read(make_pair(std::string("ai"), nAsset), asset);
+        return Read(make_pair(assetKey, nAsset), asset);
     }
 	void WriteAssetIndex(const CAsset& asset, const int &op);
 	bool ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes);

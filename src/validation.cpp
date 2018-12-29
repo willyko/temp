@@ -637,6 +637,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
     std::string statusRpc = "";
     if (fJustCheck && (IsInitialBlockDownload() || RPCIsInWarmup(&statusRpc)))
         return true;
+ 
     AssetAllocationMap mapAssetAllocations;
     AssetMap mapAssets;
     AssetBalanceMap blockMapAssetBalances;
@@ -665,9 +666,11 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
 
         if (!good || !errorMessage.empty())
             return state.DoS(100, false, REJECT_INVALID, errorMessage);
+      
         return true;
     }
     else if (!block.vtx.empty()) {
+
         CBlock sortedBlock;
         sortedBlock.vtx = block.vtx;
         Graph graph;
@@ -726,6 +729,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
                 break;
             } 
         }
+
         if(!bSanity && !fJustCheck){
             if(!bMiner && (!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets))){
                 good = false;

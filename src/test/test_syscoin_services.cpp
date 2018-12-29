@@ -113,7 +113,7 @@ void StartNode(const string &dataDir, bool regTest, const string& extraArgs)
 		boost::filesystem::remove(boost::filesystem::system_complete(dataDir + "/wallet.dat"));
 	}
 	boost::filesystem::path fpath = boost::filesystem::system_complete("../syscoind");
-	string nodePath = fpath.string() + string(" -unittest -assetallocationindex -tpstest -daemon -server  -datadir=") + dataDir;
+	string nodePath = fpath.string() + string(" -unittest -tpstest -daemon -server -debug=0 -datadir=") + dataDir;
 	if (regTest)
 		nodePath += string(" -regtest");
 	if (!extraArgs.empty())

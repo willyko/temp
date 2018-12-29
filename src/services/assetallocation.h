@@ -140,17 +140,17 @@ public:
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData, const std::vector<unsigned char> &vchHash);
 	void Serialize(std::vector<unsigned char>& vchData);
 };
-
+static const std::string assetAllocationKey = "AAI";
 typedef std::unordered_map<std::string, CAssetAllocation> AssetAllocationMap;
 class CAssetAllocationDB : public CDBWrapper {
 public:
 	CAssetAllocationDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocations", nCacheSize, fMemory, fWipe, false, true) {}
     
     bool ReadAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, CAssetAllocation& assetallocation) {
-        return Read(make_pair(std::string("aai"), assetAllocationTuple), assetallocation);
+        return Read(make_pair(assetAllocationKey, assetAllocationTuple), assetallocation);
     }
     bool Flush(const AssetAllocationMap &mapAssetAllocations);
-	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver);
+	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {

@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // user modifiable variables
 	
     // for every asset you add numberOfAssetSendsPerBlock tx's effectively
-    int numAssets = 2000;
+    int numAssets = 500;
     BOOST_CHECK(numAssets >= 1);
 
     int numberOfAssetSendsPerBlock = 250;
@@ -106,6 +106,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
             std::string strSendMany = "sendmany \"\" {" + sendManyString + "}";
             CallExtRPC("node1", "sendmany", "\"\",{" + sendManyString + "}");
             sendManyString = "";
+     
         }
         vecFundedAddresses.push_back(fundedAccount);
     }
@@ -125,7 +126,6 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // create assets needed
     printf("creating %d sender assets...\n", numAssets);
     for(int i =0;i<numAssets;i++){
-    printf("num asset %d\n", i);
         BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetnew " + vecFundedAddresses[i] + " '' '' 8 250 250 31 ''"));
         UniValue arr = r.get_array();
         string guid = boost::lexical_cast<string>(arr[1].get_int());
@@ -260,7 +260,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 	}
 	// average the start time - received time by the number of responses received (usually number of responses should match number of transactions sent beginning of test)
 	totalTime /= tpsresponsereceivers.size();
-    
+ 
     
     // PHASE 12:  DISPLAY RESULTS
     
@@ -270,7 +270,10 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 	for (auto &receiver : receivers)
 		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "false"));
     int64_t end = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    GenerateBlocks(2);
+    const int64_t &startblock = GetTimeMicros();
+    GenerateBlocks(2, receivers[0]);
+    const int64_t &endblock = GetTimeMicros();
+    printf("elapsed time in block creation: %lld\n", endblock-startblock);
     printf("elapsed time in seconds: %lld\n", end-start);
 }
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin)

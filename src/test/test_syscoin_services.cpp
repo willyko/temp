@@ -825,14 +825,6 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 	if (usezdag) {
 		MilliSleep(100);
 	}
-	else {
-		GenerateBlocks(1, node);
-		BOOST_CHECK_NO_THROW(r = CallRPC(node, "listassetallocationtransactions"));
-		BOOST_CHECK(r.isArray());
-		UniValue assetTxArray = r.get_array();
-		UniValue firstAssetTx = assetTxArray[0].get_obj();
-		BOOST_CHECK_EQUAL(find_value(firstAssetTx, "txid").get_str(), txid);
-	}
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " " + fromaddress));
     if(usezdag)
 	    balance = find_value(r.get_obj(), "balance_zdag");

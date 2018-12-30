@@ -1122,10 +1122,6 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		}
 	}
 	if (!fJustCheck) {
-		string strResponseEnglish = "";
-		string strResponseGUID = "";
-		CTransaction txTmp;
-		GetSyscoinTransactionDescription(txTmp, op, strResponseEnglish, OP_SYSCOIN_ASSET, strResponseGUID);
 		CAsset dbAsset;
 		if (!GetAsset(op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.nAsset : theAsset.nAsset, dbAsset))
 		{
@@ -1153,17 +1149,15 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot update this asset. Asset owner must sign off on this change");
 				return error(errorMessage.c_str());
 			}
-			const CAmount &increaseBalanceByAmount = theAsset.nBalance;
-			if (increaseBalanceByAmount > 0 && !(dbAsset.nUpdateFlags & ASSET_UPDATE_SUPPLY))
+			if (theAsset.nBalance > 0 && !(dbAsset.nUpdateFlags & ASSET_UPDATE_SUPPLY))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update supply");
 				return error(errorMessage.c_str());
 			}
-			theAsset.nBalance = dbAsset.nBalance;
-			
-			theAsset.nBalance += increaseBalanceByAmount;
-			// increase total supply
-			theAsset.nTotalSupply += increaseBalanceByAmount;
+            // increase total supply
+            theAsset.nTotalSupply += theAsset.nBalance;
+			theAsset.nBalance += dbAsset.nBalance;
+
 			if (!AssetRange(theAsset.nTotalSupply, dbAsset.nPrecision))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2029 - " + _("Total supply out of money range");

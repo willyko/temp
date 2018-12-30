@@ -297,10 +297,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 	const string &user1 = bech32::Encode(Params().Bech32HRP(),theAssetAllocation.assetAllocationTuple.vchAddress);
 	const CAssetAllocationTuple &assetAllocationTuple = theAssetAllocation.assetAllocationTuple;
     const string & senderTupleStr = assetAllocationTuple.ToString();
-	string strResponseEnglish = "";
-	string strResponseGUID = "";
-	CTransaction txTmp;
-	GetSyscoinTransactionDescription(txTmp, op, strResponseEnglish, OP_SYSCOIN_ASSET_ALLOCATION, strResponseGUID);
+
 	CAssetAllocation dbAssetAllocation;
 	CAsset dbAsset;
 	bool bReset = false;

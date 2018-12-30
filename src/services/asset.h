@@ -153,7 +153,7 @@ public:
 	void Serialize(std::vector<unsigned char>& vchData);
 };
 static const std::string assetKey = "AI";
-static const std::string lastAssetKey = "AI";
+static const std::string lastAssetKey = "LAI";
 typedef std::unordered_map<int, CAsset> AssetMap;
 class CAssetDB : public CDBWrapper {
 public:

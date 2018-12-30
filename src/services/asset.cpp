@@ -1806,7 +1806,7 @@ bool CAssetDB::Flush(const AssetMap &mapLastAssets, const AssetMap &mapAssets){
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
 	vector<vector<uint8_t> > vchAddresses;
-    int32_t nAsset;
+    int32_t nAsset = 0;
 	if (!oOptions.isNull()) {
 		const UniValue &txid = find_value(oOptions, "txid");
 		if (txid.isStr()) {
@@ -1837,14 +1837,9 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();
 		try {
-			if (pcursor->GetKey(key) && key.first == assetKey) {
+			if (pcursor->GetKey(key) && key.first == assetKey && (nAsset == 0 || key.second == nAsset)) {
 				pcursor->GetValue(txPos);
 				if (!strTxid.empty() && strTxid != txPos.txHash.GetHex())
-				{
-					pcursor->Next();
-					continue;
-				}
-				if (nAsset > 0 && nAsset != txPos.nAsset)
 				{
 					pcursor->Next();
 					continue;

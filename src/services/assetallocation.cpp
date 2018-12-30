@@ -1256,7 +1256,7 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations){
 bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
 	vector<vector<uint8_t> > vchAddresses;
-	int32_t nAsset;
+	int32_t nAsset = 0;
 	if (!oOptions.isNull()) {
 		const UniValue &assetObj = find_value(oOptions, "asset");
 		if(assetObj.isNum()) {
@@ -1285,13 +1285,8 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();
 		try {
-			if (pcursor->GetKey(key) && key.first == assetAllocationKey) {
+			if (pcursor->GetKey(key) && key.first == assetAllocationKey && (nAsset == 0 || nAsset != key.second.nAsset)) {
 				pcursor->GetValue(txPos);
-				if (nAsset > 0 && nAsset != txPos.assetAllocationTuple.nAsset)
-				{
-					pcursor->Next();
-					continue;
-				}
 				if (!vchAddresses.empty() && std::find(vchAddresses.begin(), vchAddresses.end(), txPos.assetAllocationTuple.vchAddress) == vchAddresses.end())
 				{
 					pcursor->Next();

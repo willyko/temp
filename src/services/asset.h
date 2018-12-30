@@ -153,6 +153,7 @@ public:
 	void Serialize(std::vector<unsigned char>& vchData);
 };
 static const std::string assetKey = "AI";
+static const std::string lastAssetKey = "AI";
 typedef std::unordered_map<int, CAsset> AssetMap;
 class CAssetDB : public CDBWrapper {
 public:
@@ -163,9 +164,16 @@ public:
     bool ReadAsset(const int32_t& nAsset, CAsset& asset) {
         return Read(make_pair(assetKey, nAsset), asset);
     }
+    bool ReadLastAsset(const int32_t& nAsset, CAsset& asset) {
+        return Read(make_pair(lastAssetKey, nAsset), asset);
+    }  
+    bool EraseLastAsset(const int32_t& nAsset, bool cleanup = false) {
+        return Erase(make_pair(lastAssetKey, nAsset));
+    }  
 	void WriteAssetIndex(const CAsset& asset, const int &op);
 	bool ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
     bool Flush(const AssetMap &mapAssets);
+    bool Flush(const AssetMap &mapLastAssets, const AssetMap &mapAssets);
 };
 bool GetAsset(const int &nAsset,CAsset& txPos);
 bool BuildAssetJson(const CAsset& asset, UniValue& oName);
@@ -174,7 +182,7 @@ UniValue ValueFromAssetAmount(const CAmount& amount, int precision);
 CAmount AssetAmountFromValue(UniValue& value, int precision);
 CAmount AssetAmountFromValueNonNeg(const UniValue& value, int precision);
 bool AssetRange(const CAmount& amountIn, int precision);
-bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, std::string &errorMessage, bool bSanityCheck=false);
+bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetMap& mapLastAssets, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, std::string &errorMessage, bool bSanityCheck=false);
 bool DecodeAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch);
 extern std::unique_ptr<CAssetDB> passetdb;
 extern std::unique_ptr<CAssetAllocationDB> passetallocationdb;

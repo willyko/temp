@@ -1014,7 +1014,7 @@ bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
 	return true;
 }
 bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const vector<vector<unsigned char> > &vvchArgs,
-        bool fJustCheck, int nHeight, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck) {
+        bool fJustCheck, int nHeight, AssetMap& mapLastAssets, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck) {
 	if (passetdb == nullptr)
 		return false;
 	const uint256& txHash = tx.GetHash();
@@ -1276,7 +1276,6 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 			}
 			// starting supply is the supplied balance upon init
 			theAsset.nTotalSupply = theAsset.nBalance;
-			// with input ranges precision is forced to 0
 		}
 		// set the asset's txn-dependent values
         theAsset.nHeight = nHeight;
@@ -1287,10 +1286,12 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
             auto rv = mapAssets.emplace(std::move(theAsset.nAsset), std::move(theAsset));
             if (!rv.second)
                 rv.first->second = std::move(theAsset);
-
-       
-			// debug
-			
+            if(op != OP_ASSET_ACTIVATE){
+                auto rv1 = mapLastAssets.emplace(std::move(theAsset.nAsset), std::move(dbAsset));
+                if (!rv1.second)
+                    rv1.first->second = std::move(dbAsset); 
+            }     
+		
 			LogPrint(BCLog::SYS,"CONNECTED ASSET: op=%s symbol=%d hash=%s height=%d fJustCheck=%d\n",
 					assetFromOp(op).c_str(),
 					theAsset.nAsset,
@@ -1785,6 +1786,21 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
         batch.Write(make_pair(assetKey, asset.nAsset), asset);
     }
     LogPrint(BCLog::SYS, "Flushing %d assets\n", mapAssets.size());
+    return WriteBatch(batch);
+}
+bool CAssetDB::Flush(const AssetMap &mapLastAssets, const AssetMap &mapAssets){
+    if(mapLastAssets.empty() && mapAssets.empty())
+        return true;
+    CDBBatch batch(*this);
+    for (const auto &key : mapLastAssets) {
+        const CAsset &asset = key.second;
+        batch.Write(make_pair(lastAssetKey, asset.nAsset), asset);
+    }
+    for (const auto &key : mapAssets) {
+        const CAsset &asset = key.second;
+        batch.Write(make_pair(assetKey, asset.nAsset), asset);
+    }
+    LogPrint(BCLog::SYS, "Flushing %d assets and %d previous assets\n", mapAssets.size(), mapLastAssets.size());
     return WriteBatch(batch);
 }
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {

@@ -712,27 +712,20 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
     else if (!block.vtx.empty()) {
 
         CBlock sortedBlock;
-        sortedBlock.vtx = block.vtx;
         Graph graph;
         std::vector<vertex_descriptor> vertices;
         IndexMap mapTxIndex;
-        if (CreateGraphFromVTX(sortedBlock.vtx, graph, vertices, mapTxIndex)) {
+        if (CreateGraphFromVTX(block.vtx, graph, vertices, mapTxIndex)) {
             std::vector<int> conflictedIndexes;
-            GraphRemoveCycles(sortedBlock.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
-            if (!sortedBlock.vtx.empty()) {
-                if (!DAGTopologicalSort(sortedBlock.vtx, conflictedIndexes, graph, mapTxIndex)) {
-                    if (!bSanity)
-                        LogPrint(BCLog::SYS,"CheckSyscoinInputs: Toposort failed\n");
-                    sortedBlock.vtx = block.vtx;
-                }
-            }
+            GraphRemoveCycles(block.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
+            DAGTopologicalSort(block.vtx, sortedBlock.vtx, conflictedIndexes, graph, mapTxIndex);
         }
-        
-        for (unsigned int i = 0; i < sortedBlock.vtx.size(); i++)
+        const CBlock& processBlock = sortedBlock.vtx.empty()? block: sortedBlock;
+        for (unsigned int i = 0; i < processBlock.vtx.size(); i++)
         {
 
             good = true;
-            const CTransaction &tx = *sortedBlock.vtx[i];
+            const CTransaction &tx = *(processBlock.vtx[i]);
             if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET || tx.IsCoinBase())
                 continue;
                      
@@ -2219,22 +2212,18 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     }
     // SYSCOIN
     CBlock sortedBlock;
-    sortedBlock.vtx = block.vtx;
     Graph graph;
     std::vector<vertex_descriptor> vertices;
     IndexMap mapTxIndex;
-    if (CreateGraphFromVTX(sortedBlock.vtx, graph, vertices, mapTxIndex)) {
+    if (CreateGraphFromVTX(block.vtx, graph, vertices, mapTxIndex)) {
         std::vector<int> conflictedIndexes;
-        GraphRemoveCycles(sortedBlock.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
-        if (!sortedBlock.vtx.empty()) {
-            if (!DAGTopologicalSort(sortedBlock.vtx, conflictedIndexes, graph, mapTxIndex)) {
-                sortedBlock.vtx = block.vtx;
-            }
-        }
+        GraphRemoveCycles(block.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
+        DAGTopologicalSort(block.vtx, sortedBlock.vtx, conflictedIndexes, graph, mapTxIndex);
     }  
+    const CBlock& processBlock = sortedBlock.vtx.empty()? block: sortedBlock;
     // undo transactions in reverse order
-    for (int i = sortedBlock.vtx.size() - 1; i >= 0; i--) {
-        const CTransaction &tx = *(sortedBlock.vtx[i]);
+    for (int i = processBlock.vtx.size() - 1; i >= 0; i--) {
+        const CTransaction &tx = *(processBlock.vtx[i]);
         if(!DisconnectSyscoinTransaction(tx, pindex, view))
             fClean = false;
     }      

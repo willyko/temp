@@ -118,8 +118,7 @@ void GraphRemoveCycles(const std::vector<CTransactionRef>& blockVtx, std::vector
 	// block gives us the transactions in order by time so we want to ensure we preserve it
 	std::sort(conflictedIndexes.begin(), conflictedIndexes.end());
 }
-bool DAGTopologicalSort(std::vector<CTransactionRef>& blockVtx, const std::vector<int> &conflictedIndexes, const Graph& graph, const IndexMap &mapTxIndex) {
-	std::vector<CTransactionRef> newVtx;
+bool DAGTopologicalSort(const std::vector<CTransactionRef>& blockVtx, std::vector<CTransactionRef>& newVtx, const std::vector<int> &conflictedIndexes, const Graph& graph, const IndexMap &mapTxIndex) {
 	container c;
 	try
 	{
@@ -129,9 +128,7 @@ bool DAGTopologicalSort(std::vector<CTransactionRef>& blockVtx, const std::vecto
 		LogPrint(BCLog::SYS, "DAGTopologicalSort: Not a DAG: %s\n", e.what());
 		return false;
 	}
-	// add coinbase
-	newVtx.emplace_back(blockVtx[0]);
-
+   
 	// add sys tx's to newVtx in reverse sorted order
 	reverse(c.begin(), c.end());
 	for (auto& nVertex : c) {
@@ -154,24 +151,21 @@ bool DAGTopologicalSort(std::vector<CTransactionRef>& blockVtx, const std::vecto
 			continue;
 		newVtx.emplace_back(blockVtx[nIndex]);
 	}
-	
+
 	// add non-sys and other sys tx's to end of newVtx
 	std::vector<vector<unsigned char> > vvchArgs;
 	int op;
 	for (unsigned int vOut = 1; vOut< blockVtx.size(); vOut++) {
 		const CTransactionRef& txRef = blockVtx[vOut];
 		const CTransaction& tx = *txRef;
+        if(tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
+            continue;
+
 		if (!DecodeAssetAllocationTx(tx, op, vvchArgs) || op != OP_ASSET_ALLOCATION_SEND)
 		{
+        LogPrintf("non aa added\n");
 			newVtx.emplace_back(txRef);
 		}
 	}
-	if (blockVtx.size() != newVtx.size())
-	{
-		LogPrint(BCLog::SYS, "DAGTopologicalSort: sorted block transaction count does not match unsorted block transaction count!\n");
-		return false;
-	}
-	// set newVtx to block's vtx so block can process as normal
-	blockVtx = newVtx;
 	return true;
 }

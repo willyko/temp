@@ -50,7 +50,6 @@ struct ChainTxData;
 struct LockPoints;
 // SYSCOIN
 extern std::vector<CInv> vInvToSend;
-extern bool fLoaded;
 /** Default for -whitelistrelay. */
 static const bool DEFAULT_WHITELISTRELAY = true;
 /** Default for -whitelistforcerelay. */

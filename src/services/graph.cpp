@@ -6,7 +6,7 @@
 using namespace boost;
 using namespace std;
 typedef typename std::vector<int> container;
-bool OrderBasedOnArrivalTime(const int &nHeight, std::vector<CTransactionRef>& blockVtx) {
+bool OrderBasedOnArrivalTime(std::vector<CTransactionRef>& blockVtx) {
 	std::vector<vector<unsigned char> > vvchArgs;
 	std::vector<CTransactionRef> orderedVtx;
 	int op;
@@ -51,7 +51,7 @@ bool OrderBasedOnArrivalTime(const int &nHeight, std::vector<CTransactionRef>& b
 	blockVtx = orderedVtx;
 	return true;
 }
-bool CreateGraphFromVTX(const int &nHeight, const std::vector<CTransactionRef>& blockVtx, Graph &graph, std::vector<vertex_descriptor> &vertices, IndexMap &mapTxIndex) {
+bool CreateGraphFromVTX(const std::vector<CTransactionRef>& blockVtx, Graph &graph, std::vector<vertex_descriptor> &vertices, IndexMap &mapTxIndex) {
 	AddressMap mapAddressIndex;
 	std::vector<vector<unsigned char> > vvchArgs;
 	int op;

@@ -504,9 +504,9 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
     }
     else if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
         return true;
-        
+
     AssetAllocationMap mapAssetAllocations;
-    AssetMap mapAssets;      
+    AssetMap mapAssets; 
     if (DecodeAssetAllocationTx(tx, op, vvchArgs))
     {
         CAssetAllocation theAssetAllocation(tx);
@@ -522,12 +522,14 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
         }
         for(const auto& amountTuple:theAssetAllocation.listSendingAllocationAmounts){
             const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
+           
             const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
             CAssetAllocation receiverAllocation;
             if (!GetAssetAllocation(receiverAllocationTuple, receiverAllocation)) {
                 LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get receiver allocation %s\n",receiverTupleStr);
                 return false;               
             }
+
             // reverse allocations
             receiverAllocation.nBalance -= amountTuple.second;
             senderAllocation.nBalance += amountTuple.second; 
@@ -579,6 +581,16 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
                 // reverse allocation
                 receiverAllocation.nBalance -= amountTuple.second;
                 dbAsset.nBalance += amountTuple.second; 
+                if(receiverAllocation.nBalance < 0) {
+                    LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance in assetsend of %s is negative: %lld\n",receiverTupleStr, receiverAllocation.nBalance);
+                    return false;
+                }
+                else if(receiverAllocation.nBalance == 0){
+                    if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
+                        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
+                        return false;
+                    }
+                }                
                 auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
                 if (!rv.second)
                     rv.first->second = std::move(receiverAllocation);                                     
@@ -599,53 +611,66 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
             }
         }
         if(bUpdateAsset){
-            CAsset theAsset(tx);
-            if(theAsset.IsNull()){
-                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset\n");
-                return false;
+            CAsset theAsset;
+            int32_t nAsset;
+            if(op == OP_ASSET_SEND){
+                nAsset = dbAsset.nAsset;
+            }
+            else{
+                theAsset = CAsset(tx);
+                if(theAsset.IsNull()){
+                    LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset\n");
+                    return false;
+                }
+                nAsset = theAsset.nAsset;
             }
             // replace asset with last stored asset from minimum 10 blocks ago
-            if (passetdb->ReadLastAsset(theAsset.nAsset, dbAsset)) {
-                auto rv = mapAssets.emplace(std::move(dbAsset.nAsset), std::move(dbAsset));
-                if (!rv.second)
-                    rv.first->second = std::move(dbAsset);  
-                if(!passetdb->EraseLastAsset(theAsset.nAsset))
+            if (passetdb->ReadLastAsset(nAsset, dbAsset)) {
+                if(!passetdb->EraseLastAsset(nAsset))
                 {
                     LogPrint(BCLog::SYS, "Error erasing last asset\n");
                     return false;
-                }      
+                }   
+                auto rv = mapAssets.emplace(std::move(nAsset), std::move(dbAsset));
+                if (!rv.second)
+                    rv.first->second = std::move(dbAsset);  
             } 
             // backup plan #1, if its an asset update and we minted supply we will be able to reverse the money allocation but nothing else
             else if (op == OP_ASSET_UPDATE){
-                if (!GetAsset(theAsset.nAsset, dbAsset)) {
-                    LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAsset.nAsset);
+                if (!GetAsset(nAsset, dbAsset)) {
+                    LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",nAsset);
                     return false;               
                 }            
                 if(theAsset.nBalance > 0){
+                    LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Warning! Reversing sender asset money/supply amounts only because last asset not found %d\n",nAsset); 
                     // reverse asset minting by the issuer
                     dbAsset.nBalance -= theAsset.nBalance;
                     dbAsset.nTotalSupply -= theAsset.nBalance;
-                    auto rv = mapAssets.emplace(std::move(dbAsset.nAsset), std::move(dbAsset));
+                    if(dbAsset.nBalance < 0 || dbAsset.nTotalSupply < 0) {
+                        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Asset cannot be negative: Balance %lld, Supply: %lld\n",dbAsset.nBalance, dbAsset.nTotalSupply);
+                        return false;
+                    }                   
+                    auto rv = mapAssets.emplace(std::move(nAsset), std::move(dbAsset));
                     if (!rv.second)
                         rv.first->second = std::move(dbAsset);                        
                 }            
             }
             // backup plan #2, if its an asset send we will be able to reverse the money allocation but nothing else
             else if(op == OP_ASSET_SEND){
-                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Warning! Reversing sender asset money amounts only because last asset not found %d\n",theAsset.nAsset); 
-                auto rv = mapAssets.emplace(std::move(dbAsset.nAsset), std::move(dbAsset));
+                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Warning! Reversing sender asset money amounts only because last asset not found %d\n",nAsset); 
+                auto rv = mapAssets.emplace(std::move(nAsset), std::move(dbAsset));
                 if (!rv.second)
                     rv.first->second = std::move(dbAsset);                 
             }
             else
-                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get last asset %d\n",theAsset.nAsset); 
+                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get last asset %d\n",nAsset); 
             
         }       
-    } 
-    if(!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets)){
-        LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
-        return false;
     }
+    if(!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets)){
+       LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
+       return false;
+    }    
     return true;       
 }
 // SYSCOIN
@@ -691,7 +716,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
         Graph graph;
         std::vector<vertex_descriptor> vertices;
         IndexMap mapTxIndex;
-        if (CreateGraphFromVTX(nHeight, sortedBlock.vtx, graph, vertices, mapTxIndex)) {
+        if (CreateGraphFromVTX(sortedBlock.vtx, graph, vertices, mapTxIndex)) {
             std::vector<int> conflictedIndexes;
             GraphRemoveCycles(sortedBlock.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
             if (!sortedBlock.vtx.empty()) {
@@ -1683,9 +1708,9 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams, C
         nTotalRewardWithMasternodes = 533000000 * COIN;
         return nTotalRewardWithMasternodes;
     }
-    const int &interval = fUnitTest ? consensusParams.nSubsidyHalvingInterval * 100 : consensusParams.nSubsidyHalvingInterval;
+
     CAmount nSubsidy = 38.5 * COIN;
-    int reductions = nHeight / interval;
+    int reductions = nHeight / consensusParams.nSubsidyHalvingInterval;
     if (reductions >= 50) {
         nTotalRewardWithMasternodes = 0;
         return nTotalRewardWithMasternodes;
@@ -2156,8 +2181,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     if (blockUndo.vtxundo.size() + 1 != block.vtx.size()) {
         error("DisconnectBlock(): block and undo data inconsistent");
         return DISCONNECT_FAILED;
-    }
-
+    } 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = *(block.vtx[i]);
@@ -2177,9 +2201,6 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                 }
             }
         }
-        // SYSCOIN
-        if(!DisconnectSyscoinTransaction(tx, pindex, view))
-            fClean = false;
         // restore inputs
         if (i > 0) { // not coinbases
             CTxUndo &txundo = blockUndo.vtxundo[i-1];
@@ -2196,6 +2217,27 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
             // At this point, all of txundo.vprevout should have been moved out.
         }
     }
+    // SYSCOIN
+    CBlock sortedBlock;
+    sortedBlock.vtx = block.vtx;
+    Graph graph;
+    std::vector<vertex_descriptor> vertices;
+    IndexMap mapTxIndex;
+    if (CreateGraphFromVTX(sortedBlock.vtx, graph, vertices, mapTxIndex)) {
+        std::vector<int> conflictedIndexes;
+        GraphRemoveCycles(sortedBlock.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
+        if (!sortedBlock.vtx.empty()) {
+            if (!DAGTopologicalSort(sortedBlock.vtx, conflictedIndexes, graph, mapTxIndex)) {
+                sortedBlock.vtx = block.vtx;
+            }
+        }
+    }  
+    // undo transactions in reverse order
+    for (int i = sortedBlock.vtx.size() - 1; i >= 0; i--) {
+        const CTransaction &tx = *(sortedBlock.vtx[i]);
+        if(!DisconnectSyscoinTransaction(tx, pindex, view))
+            fClean = false;
+    }      
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
@@ -2443,7 +2485,11 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
         }
     }
 
-
+    // SYSCOIN
+    if (!CheckSyscoinInputs(*block.vtx[0], state, view, fJustCheck, pindex->nHeight, block))
+        return error("ConnectBlock(): CheckSyscoinInputs on block %s failed\n",
+            block.GetHash().ToString());
+            
     int64_t nTime2 = GetTimeMicros(); nTimeForks += nTime2 - nTime1;
     LogPrint(BCLog::BENCH, "    - Fork checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime2 - nTime1), nTimeForks * MICRO, nTimeForks * MILLI / nBlocksTotal);
 
@@ -2522,11 +2568,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
         
-    // SYSCOIN
-    CCoinsViewCache viewOld(pcoinsTip.get());
-    if (!CheckSyscoinInputs(*block.vtx[0], state, viewOld, fJustCheck, pindex->nHeight, block))
-        return error("ConnectBlock(): CheckSyscoinInputs on block %s failed\n",
-            block.GetHash().ToString());
             
    // SYSCOIN : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS
 

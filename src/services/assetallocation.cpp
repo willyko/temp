@@ -306,7 +306,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Cannot find asset allocation to burn");
 			return error(errorMessage.c_str());
 		}	
-		if (dbAssetAllocation.assetAllocationTuple.vchAddress != theAssetAllocation.assetAllocationTuple.vchAddress || !FindAssetOwnerInTx(inputs, tx, user1))
+		if (dbAssetAllocation.assetAllocationTuple != theAssetAllocation.assetAllocationTuple || !FindAssetOwnerInTx(inputs, tx, user1))
 		{
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot send this asset. Asset allocation owner must sign off on this change");
 			return error(errorMessage.c_str());
@@ -353,7 +353,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             }
         }
         
-        theAssetAllocation = dbAssetAllocation;
+        theAssetAllocation.nBalance = dbAssetAllocation.nBalance;
         
         CAmount mapBalanceSenderCopy;
         if(fJustCheck){
@@ -458,7 +458,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot find sender asset allocation.");
 			return error(errorMessage.c_str());
 		}
-		if (dbAssetAllocation.assetAllocationTuple.vchAddress != theAssetAllocation.assetAllocationTuple.vchAddress || !FindAssetOwnerInTx(inputs, tx, user1))
+		if (dbAssetAllocation.assetAllocationTuple != theAssetAllocation.assetAllocationTuple || !FindAssetOwnerInTx(inputs, tx, user1))
 		{
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015a - " + _("Cannot send this asset. Asset allocation owner must sign off on this change");
 			return error(errorMessage.c_str());

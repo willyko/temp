@@ -53,15 +53,15 @@ void StartNodes()
 	printf("Stopping any test nodes that are running...\n");
 	InitNodeURLMap();
 	StopNodes();
+    if (boost::filesystem::exists(boost::filesystem::system_complete("node1/regtest")))
+        boost::filesystem::remove_all(boost::filesystem::system_complete("node1/regtest")); 
+    if (boost::filesystem::exists(boost::filesystem::system_complete("node2/regtest")))
+        boost::filesystem::remove_all(boost::filesystem::system_complete("node2/regtest"));  
+    if (boost::filesystem::exists(boost::filesystem::system_complete("node3/regtest")))
+        boost::filesystem::remove_all(boost::filesystem::system_complete("node3/regtest"));                     
 	node1LastBlock = 0;
 	node2LastBlock = 0;
 	node3LastBlock = 0;
-	if (boost::filesystem::exists(boost::filesystem::system_complete("node1/wallet.dat")))
-		boost::filesystem::remove(boost::filesystem::system_complete("node1//wallet.dat"));
-	if (boost::filesystem::exists(boost::filesystem::system_complete("node2/wallet.dat")))
-		boost::filesystem::remove(boost::filesystem::system_complete("node2//wallet.dat"));
-	if (boost::filesystem::exists(boost::filesystem::system_complete("node3/wallet.dat")))
-		boost::filesystem::remove(boost::filesystem::system_complete("node3//wallet.dat"));
 	//StopMainNetNodes();
 	printf("Starting 3 nodes in a regtest setup...\n");
 	StartNode("node1");
@@ -105,15 +105,8 @@ void StopNodes()
 }
 void StartNode(const string &dataDir, bool regTest, const string& extraArgs)
 {
-	if (boost::filesystem::exists(boost::filesystem::system_complete(dataDir + "/wallet.dat")))
-	{
-		if (!boost::filesystem::exists(boost::filesystem::system_complete(dataDir + "/regtest")))
-			boost::filesystem::create_directory(boost::filesystem::system_complete(dataDir + "/regtest"));
-		boost::filesystem::copy_file(boost::filesystem::system_complete(dataDir + "/wallet.dat"), boost::filesystem::system_complete(dataDir + "/regtest/wallet.dat"), boost::filesystem::copy_option::overwrite_if_exists);
-		boost::filesystem::remove(boost::filesystem::system_complete(dataDir + "/wallet.dat"));
-	}
 	boost::filesystem::path fpath = boost::filesystem::system_complete("../syscoind");
-	string nodePath = fpath.string() + string(" -unittest -tpstest -daemon -server -debug=0 -datadir=") + dataDir;
+	string nodePath = fpath.string() + string(" -unittest -tpstest -daemon -server -debug=1 -datadir=") + dataDir;
 	if (regTest)
 		nodePath += string(" -regtest");
 	if (!extraArgs.empty())
@@ -221,11 +214,6 @@ void StopNode(const string &dataDir) {
 	{
 
 	}
-	MilliSleep(1000);
-	if (boost::filesystem::exists(boost::filesystem::system_complete(dataDir + "/regtest/wallet.dat")))
-		boost::filesystem::copy_file(boost::filesystem::system_complete(dataDir + "/regtest/wallet.dat"), boost::filesystem::system_complete(dataDir + "/wallet.dat"), boost::filesystem::copy_option::overwrite_if_exists);
-	if (boost::filesystem::exists(boost::filesystem::system_complete(dataDir + "/regtest")))
-		boost::filesystem::remove_all(boost::filesystem::system_complete(dataDir + "/regtest"));
 }
 UniValue CallExtRPC(const string &node, const string& command, const string& args, bool readJson)
 {

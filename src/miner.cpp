@@ -187,7 +187,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     
     
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
-    if (!OrderBasedOnArrivalTime(nHeight, pblock->vtx))
+    if (!OrderBasedOnArrivalTime(pblock->vtx))
     {
         throw std::runtime_error("OrderBasedOnArrivalTime failed!");
     }

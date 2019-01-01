@@ -152,7 +152,7 @@ bool DAGTopologicalSort(const std::vector<CTransactionRef>& blockVtx, std::vecto
 		newVtx.emplace_back(blockVtx[nIndex]);
 	}
 
-	// add non-sys and other sys tx's to end of newVtx
+	// add other sys tx's to end of newVtx
 	std::vector<vector<unsigned char> > vvchArgs;
 	int op;
 	for (unsigned int vOut = 1; vOut< blockVtx.size(); vOut++) {
@@ -163,7 +163,6 @@ bool DAGTopologicalSort(const std::vector<CTransactionRef>& blockVtx, std::vecto
 
 		if (!DecodeAssetAllocationTx(tx, op, vvchArgs) || op != OP_ASSET_ALLOCATION_SEND)
 		{
-        LogPrintf("non aa added\n");
 			newVtx.emplace_back(txRef);
 		}
 	}

@@ -209,7 +209,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             }       
         }
         if(!txsToRemove.empty())
-            LogPrintf("check sys error removing %d txs\n", txsToRemove.size());
+            LogPrint(BCLog::SYS, "Check syscoin error removing %d txs\n", txsToRemove.size());
     }
     
 

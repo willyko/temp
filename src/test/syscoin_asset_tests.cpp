@@ -271,7 +271,8 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 		BOOST_CHECK_NO_THROW(CallExtRPC(receiver, "tpstestsetenabled", "false"));
     int64_t end = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     const int64_t &startblock = GetTimeMicros();
-    GenerateBlocks(2, receivers[0]);
+    printf("creating %d blocks\n", (numAssets/(93*4)) + 2);
+    GenerateBlocks((numAssets/(93*4)) + 2, receivers[0]);
     const int64_t &endblock = GetTimeMicros();
     printf("elapsed time in block creation: %lld\n", endblock-startblock);
     printf("elapsed time in seconds: %lld\n", end-start);

@@ -6,6 +6,7 @@
 using namespace boost;
 using namespace std;
 typedef typename std::vector<int> container;
+extern ArrivalTimesMapImpl arrivalTimesMap;
 bool OrderBasedOnArrivalTime(std::vector<CTransactionRef>& blockVtx) {
 	std::vector<vector<unsigned char> > vvchArgs;
 	std::vector<CTransactionRef> orderedVtx;

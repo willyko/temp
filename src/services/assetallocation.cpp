@@ -29,9 +29,10 @@
 #include <bech32.h>
 using namespace std;
 using namespace boost::multiprecision;
+
 AssetAllocationIndexItemMap AssetAllocationIndex;
 AssetBalanceMap mempoolMapAssetBalances;
-
+ArrivalTimesMapImpl arrivalTimesMap; 
 bool IsAssetAllocationOp(int op) {
 	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN;
 }

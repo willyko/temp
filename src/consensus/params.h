@@ -46,9 +46,9 @@ struct BIP9Deployment {
  */
 struct Params {     
     uint256 hashGenesisBlock;
-    int nSeniorityHeight1;
+    unsigned int nSeniorityHeight1;
     double nSeniorityLevel1;
-    int nSeniorityHeight2;
+    unsigned int nSeniorityHeight2;
     double nSeniorityLevel2;
         
     int nSuperblockStartBlock;

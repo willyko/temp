@@ -45,7 +45,7 @@ public:
 	CAssetAllocationTuple() {
 		SetNull();
 	}
-	string GetAddressString();
+	std::string GetAddressString();
 	inline CAssetAllocationTuple operator=(const CAssetAllocationTuple& other) {
 		this->nAsset = other.nAsset;
 		this->vchAddress = other.vchAddress;

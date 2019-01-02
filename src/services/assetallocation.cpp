@@ -29,10 +29,9 @@
 #include <bech32.h>
 using namespace std;
 using namespace boost::multiprecision;
-
 AssetAllocationIndexItemMap AssetAllocationIndex;
 AssetBalanceMap mempoolMapAssetBalances;
-ArrivalTimesMapImpl arrivalTimesMap; 
+ArrivalTimesMapImpl arrivalTimesMap;
 bool IsAssetAllocationOp(int op) {
 	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN;
 }
@@ -338,7 +337,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Invalid amount entered in the script output");
             return error(errorMessage.c_str());
         }   
-        if(amountTuple.first != vchFromString("burn"))
+        if(amountTuple.first != vchFromStringUint8("burn"))
         {
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Must send output to burn address");
             return error(errorMessage.c_str());
@@ -802,7 +801,7 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	theAssetAllocation.ClearAssetAllocation();
 	theAssetAllocation.assetAllocationTuple = assetAllocationTuple;
     string burnAddr = "burn";
-	theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchFromString(burnAddr), amount));
+	theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchFromStringUint8("burn"), amount));
 
     vector<unsigned char> data;
     theAssetAllocation.Serialize(data);
@@ -857,7 +856,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
     	}
     }
 	CAssetAllocation theAssetAllocation;
-	const CAssetAllocationTuple assetAllocationTuple(nAsset, strAddress == "burn"? vchFromString("burn"): bech32::Decode(strAddress).second);
+	const CAssetAllocationTuple assetAllocationTuple(nAsset, strAddress == "burn"? vchFromStringUint8("burn"): bech32::Decode(strAddress).second);
 	if (!GetAssetAllocation(assetAllocationTuple, theAssetAllocation))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1500 - " + _("Could not find a asset allocation with this key"));
 
@@ -945,7 +944,7 @@ UniValue assetallocationinfo(const JSONRPCRequest& request) {
     const int &nAsset = params[0].get_int();
 	string strAddressFrom = params[1].get_str();
 	UniValue oAssetAllocation(UniValue::VOBJ);
-	const CAssetAllocationTuple assetAllocationTuple(nAsset, strAddressFrom == "burn"? vchFromString("burn"): bech32::Decode(strAddressFrom).second);
+	const CAssetAllocationTuple assetAllocationTuple(nAsset, strAddressFrom == "burn"? vchFromStringUint8("burn"): bech32::Decode(strAddressFrom).second);
 	CAssetAllocation txPos;
 	if (passetallocationdb == nullptr || !passetallocationdb->ReadAssetAllocation(assetAllocationTuple, txPos))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1507 - " + _("Failed to read from assetallocation DB"));

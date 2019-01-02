@@ -186,9 +186,9 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // push vector of signed transactions to tpstestadd on every sender node distributed evenly
     int txPerSender = rawSignedAssetAllocationSends.size() / senders.size();
     printf("Dividing work (%d transactions) between %d senders (%d per sender)...\n", rawSignedAssetAllocationSends.size(), senders.size(), txPerSender);  
-    // max 10 tx per call for max buffer size sent to rpc
-    if(txPerSender > 10)
-        txPerSender = 10; 
+    // max 5 tx per call for max buffer size sent to rpc
+    if(txPerSender > 5)
+        txPerSender = 5; 
     unsigned int j=0;
     unsigned int i=0;
     unsigned int senderIndex=0;
@@ -207,7 +207,6 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
         }
         if(vecTX != "["){
             vecTX += "]";
-			MilliSleep(10);
 			BOOST_CHECK_NO_THROW(CallExtRPC(senders[senderIndex++], "tpstestadd", "0," + vecTX));
         } 
         if(senderIndex >= senders.size())

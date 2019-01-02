@@ -105,8 +105,11 @@ public:
     CMainParams() {
         strNetworkID = "main";
         consensus.nSubsidyHalvingInterval = 525600;
-        consensus.nSeniorityInterval = 43800 * 4; // seniority increases every 4
-        consensus.nTotalSeniorityIntervals = 9;
+        // 35% increase after 1 year, 100% increase after 2.5 years
+        consensus.nSeniorityHeight1 = 525600;
+        consensus.nSeniorityLevel1 = 0.35;
+        consensus.nSeniorityHeight2 = 525600*2.5;
+        consensus.nSeniorityLevel2 = 1.0;        
         consensus.nSuperblockStartBlock = 0;
         consensus.nSuperblockCycle = 43800;
         consensus.nGovernanceMinQuorum = 10;
@@ -225,8 +228,10 @@ public:
     CTestNetParams() {
         strNetworkID = "test";
         consensus.nSubsidyHalvingInterval = 525600;
-        consensus.nSeniorityInterval = 60; // seniority increases every hr
-        consensus.nTotalSeniorityIntervals = 9;
+        // 35% increase after 1 hr, 100% increase after 2.5 hr
+        consensus.nSeniorityHeight1 = 60;
+        consensus.nSeniorityLevel1 = 0.35;
+        consensus.nSeniorityHeight2 = 60*2.5;
         consensus.nSuperblockStartBlock = 0;
         consensus.nSuperblockCycle = 60;
         consensus.nGovernanceMinQuorum = 1;
@@ -317,8 +322,10 @@ public:
     CRegTestParams() {
         strNetworkID = "regtest";
         consensus.nSubsidyHalvingInterval = 150;
-        consensus.nSeniorityInterval = 60; // seniority increases every hr
-        consensus.nTotalSeniorityIntervals = 9;
+        // 35% increase after 1 hr, 100% increase after 2.5 hr
+        consensus.nSeniorityHeight1 = 60;
+        consensus.nSeniorityLevel1 = 0.35;
+        consensus.nSeniorityHeight2 = 60*2.5;
         consensus.nSuperblockStartBlock = 0;
         consensus.nSuperblockCycle = 10;
         consensus.nGovernanceMinQuorum = 1;

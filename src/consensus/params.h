@@ -46,9 +46,11 @@ struct BIP9Deployment {
  */
 struct Params {     
     uint256 hashGenesisBlock;
-    int nSeniorityInterval;
-    int nTotalSeniorityIntervals;
-    
+    int nSeniorityHeight1;
+    double nSeniorityLevel1;
+    int nSeniorityHeight2;
+    double nSeniorityLevel2;
+        
     int nSuperblockStartBlock;
     int nSuperblockCycle; // in blocks
     int nGovernanceMinQuorum; // Min absolute vote count to trigger an action

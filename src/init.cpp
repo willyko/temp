@@ -1570,8 +1570,8 @@ bool AppInitMain()
                 passetallocationtransactionsdb.reset();
 
                 
-                passetdb.reset(new CAssetDB(nCoinCacheUsage, false, fReset));
-                passetallocationdb.reset(new CAssetAllocationDB(nCoinCacheUsage, false, fReset));
+                passetdb.reset(new CAssetDB(nCoinDBCache*16, false, fReset));
+                passetallocationdb.reset(new CAssetAllocationDB(nCoinDBCache*32, false, fReset));
                 passetallocationtransactionsdb.reset(new CAssetAllocationTransactionsDB(0, false, fReset));
 
                 // new CBlockTreeDB tries to delete the existing file, which

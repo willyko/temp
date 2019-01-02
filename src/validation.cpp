@@ -1691,7 +1691,7 @@ bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex
     return ReadRawBlockFromDisk(block, block_pos, message_start);
 }
 
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams, CAmount &nTotalRewardWithMasternodes, bool fSuperblockPartOnly, bool fMasternodePartOnly, unsigned int nStartHeight)
+CAmount GetBlockSubsidy(unsigned int nHeight, const Consensus::Params& consensusParams, CAmount &nTotalRewardWithMasternodes, bool fSuperblockPartOnly, bool fMasternodePartOnly, unsigned int nStartHeight)
 {
     if (nHeight == 0)
         return 8.88*COIN;
@@ -1724,19 +1724,20 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams, C
         nSubsidy *= 0.75;
         if (nHeight > 0 && nStartHeight > 0) {
             unsigned int nDifferenceInBlocks = 0;
-            if (nHeight > (int)nStartHeight)
-                nDifferenceInBlocks = (nHeight - (int)nStartHeight);
-            // the first three intervals should discount rewards to incentivize bonding over longer terms (we add 3% premium every interval)
-            double fSubsidyAdjustmentPercentage = 0;
-            for (int i = 1; i <= consensusParams.nTotalSeniorityIntervals; i++) {
-                const unsigned int &nTotalSeniorityBlocks = i*consensusParams.nSeniorityInterval;
-                if (nDifferenceInBlocks <= nTotalSeniorityBlocks)
-                    break;
-                fSubsidyAdjustmentPercentage += 0.03;
+            if (nHeight > nStartHeight)
+                nDifferenceInBlocks = (nHeight - nStartHeight);
+                
+             double fSubsidyAdjustmentPercentage = 0;
+             if(nDifferenceInBlocks >= consensusParams.nSeniorityHeight2)
+                fSubsidyAdjustmentPercentage += consensusParams.nSeniorityLevel2;
+             else if(nDifferenceInBlocks >= consensusParams.nSeniorityHeight1)
+                fSubsidyAdjustmentPercentage += consensusParams.nSeniorityLevel1;
+                
+            if(fSubsidyAdjustmentPercentage > 0){
+                const CAmount &nChange = nSubsidy*fSubsidyAdjustmentPercentage;
+                nSubsidy += nChange;
+                nTotalRewardWithMasternodes += nChange;
             }
-            const CAmount &nChange = nSubsidy*fSubsidyAdjustmentPercentage;
-            nSubsidy += nChange;
-            nTotalRewardWithMasternodes += nChange;
         }
     }
 

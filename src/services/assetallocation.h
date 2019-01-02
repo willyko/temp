@@ -142,7 +142,7 @@ static const std::string assetAllocationKey = "AAI";
 typedef std::unordered_map<std::string, CAssetAllocation> AssetAllocationMap;
 class CAssetAllocationDB : public CDBWrapper {
 public:
-	CAssetAllocationDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocations", nCacheSize, fMemory, fWipe, false, true) {}
+	CAssetAllocationDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocations", nCacheSize, fMemory, fWipe) {}
     
     bool ReadAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple, CAssetAllocation& assetallocation) {
         return Read(make_pair(assetAllocationKey, assetAllocationTuple), assetallocation);
@@ -156,7 +156,7 @@ public:
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {
 public:
-	CAssetAllocationTransactionsDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocationtransactions", nCacheSize, fMemory, fWipe, false, true) {
+	CAssetAllocationTransactionsDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocationtransactions", nCacheSize, fMemory, fWipe) {
 		ReadAssetAllocationWalletIndex(AssetAllocationIndex);
 	}
 

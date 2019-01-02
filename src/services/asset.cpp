@@ -838,31 +838,30 @@ string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, st
 			strResponse = _("Asset Activated");
 			responseEnglish = "Asset Activated";
 		}
-		else
-			if (op == OP_ASSET_UPDATE) {
-				strResponse = _("Asset Updated");
-				responseEnglish = "Asset Updated";
+		else if (op == OP_ASSET_UPDATE) {
+			strResponse = _("Asset Updated");
+			responseEnglish = "Asset Updated";
+		}
+		else if (op == OP_ASSET_TRANSFER) {
+			strResponse = _("Asset Transferred");
+			responseEnglish = "Asset Transferred";
+		}
+		else if (op == OP_ASSET_SEND) {
+			strResponse = _("Asset Sent");
+			responseEnglish = "Asset Sent";
+		}
+		if (op == OP_ASSET_SEND) {
+			CAssetAllocation assetallocation(tx);
+			if (!assetallocation.IsNull()) {
+				responseGUID = assetallocation.assetAllocationTuple.ToString();
 			}
-			else if (op == OP_ASSET_TRANSFER) {
-				strResponse = _("Asset Transferred");
-				responseEnglish = "Asset Transferred";
+		}
+		else {
+			CAsset asset(tx);
+			if (!asset.IsNull()) {
+				responseGUID = boost::lexical_cast<string>(asset.nAsset);
 			}
-			else if (op == OP_ASSET_SEND) {
-				strResponse = _("Asset Sent");
-				responseEnglish = "Asset Sent";
-			}
-			if (op == OP_ASSET_SEND) {
-				CAssetAllocation assetallocation(tx);
-				if (!assetallocation.IsNull()) {
-					responseGUID = assetallocation.assetAllocationTuple.ToString();
-				}
-			}
-			else {
-				CAsset asset(tx);
-				if (!asset.IsNull()) {
-					responseGUID = boost::lexical_cast<string>(asset.nAsset);
-				}
-			}
+		}
 	}
 	else if (type == OP_SYSCOIN_ASSET_ALLOCATION) {
 		// message from op code

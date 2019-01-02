@@ -36,10 +36,13 @@ bool IsAssetAllocationOp(int op) {
 	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN;
 }
 string CAssetAllocationTuple::ToString() const {
-	if(vchAddress.size() <= 4 && stringFromVchUint8(vchAddress) == "burn")
-		return boost::lexical_cast<string>(nAsset) + "-burn";
+	return boost::lexical_cast<string>(nAsset) + "-" + GetAddressString();
+}
+string CAssetAllocationTuple::GetAddressString() const {
+	if (vchAddress.size() <= 4 && stringFromVchUint8(vchAddress) == "burn")
+		return "burn";
 	else
-		return boost::lexical_cast<string>(nAsset) + "-" + bech32::Encode(Params().Bech32HRP(),vchAddress);
+		return bech32::Encode(Params().Bech32HRP(), vchAddress);
 }
 string assetAllocationFromOp(int op) {
     switch (op) {
@@ -87,7 +90,7 @@ void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocation& asset
 	if (gArgs.IsArgSet("-zmqpubassetallocation") || fAssetAllocationIndex) {
 		UniValue oName(UniValue::VOBJ);
 		bool isMine = true;
-        const string& strReceiver = bech32::Encode(Params().Bech32HRP(),assetallocation.assetAllocationTuple.vchAddress);
+        const string& strReceiver = assetallocation.assetAllocationTuple.GetAddressString();
 		if (BuildAssetAllocationIndexerJson(assetallocation, asset, nSenderBalance, nAmount, strSender, strReceiver, isMine, oName)) {
 			const string& strObj = oName.write();
 			GetMainSignals().NotifySyscoinUpdate(strObj.c_str(), "assetallocation");
@@ -292,7 +295,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			return error(errorMessage.c_str());
 		}
 	}
-	const string &user1 = bech32::Encode(Params().Bech32HRP(),theAssetAllocation.assetAllocationTuple.vchAddress);
+	const string &user1 = theAssetAllocation.assetAllocationTuple.GetAddressString();
 	const CAssetAllocationTuple &assetAllocationTuple = theAssetAllocation.assetAllocationTuple;
     const string & senderTupleStr = assetAllocationTuple.ToString();
 
@@ -1103,7 +1106,7 @@ bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& a
     }
     oAssetAllocation.pushKV("_id", allocationTupleStr);
 	oAssetAllocation.pushKV("asset", assetallocation.assetAllocationTuple.nAsset);
-	oAssetAllocation.pushKV("owner",  bech32::Encode(Params().Bech32HRP(),assetallocation.assetAllocationTuple.vchAddress));
+	oAssetAllocation.pushKV("owner",  assetallocation.assetAllocationTuple.GetAddressString());
 	oAssetAllocation.pushKV("balance", ValueFromAssetAmount(assetallocation.nBalance, asset.nPrecision));
     oAssetAllocation.pushKV("balance_zdag", ValueFromAssetAmount(nBalanceZDAG, asset.nPrecision));
 	return true;
@@ -1154,7 +1157,7 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 	entry.pushKV("txtype", opName);
 	entry.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
 	entry.pushKV("asset", assetallocation.assetAllocationTuple.nAsset);
-	entry.pushKV("owner", bech32::Encode(Params().Bech32HRP(), assetallocation.assetAllocationTuple.vchAddress));
+	entry.pushKV("owner", assetallocation.assetAllocationTuple.GetAddressString());
 	UniValue oAssetAllocationReceiversArray(UniValue::VARR);
 	if (!assetallocation.listSendingAllocationAmounts.empty()) {
 		for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {

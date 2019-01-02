@@ -1124,7 +1124,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				return error(errorMessage.c_str());
 			}
 		}
-		const string &vchOwner = op == OP_ASSET_SEND ? bech32::Encode(Params().Bech32HRP(),theAssetAllocation.assetAllocationTuple.vchAddress) : bech32::Encode(Params().Bech32HRP(),theAsset.vchAddress);
+		const string &vchOwner = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.GetAddressString() : bech32::Encode(Params().Bech32HRP(),theAsset.vchAddress);
 		const string &user1 = dbAsset.IsNull()? vchOwner : bech32::Encode(Params().Bech32HRP(),dbAsset.vchAddress);
 
 	
@@ -1700,7 +1700,7 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniV
 		if (!assetallocation.listSendingAllocationAmounts.empty()) {
 			for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
 				UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-				oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), amountTuple.first));
+				oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromStringUint8("burn")) "burn": bech32::Encode(Params().Bech32HRP(), amountTuple.first));
                 oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
 				oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
 			}

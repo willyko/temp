@@ -1849,7 +1849,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     
                     CAssetAllocation assetallocation(tx);
                     if (!assetallocation.IsNull()) {
-                        const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.assetAllocationTuple.vchAddress);
+						const string& strAddress = assetallocation.assetAllocationTuple.GetAddressString();
                         CCoinsViewCache inputs(pcoinsTip.get());
   
                         if (FindAssetOwnerInTx(inputs, tx, strAddress))
@@ -1863,7 +1863,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                             for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                 UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                 // update to owner
-                                oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), amountTuple.first));
+                                oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromStringUint8("burn")) "burn": bech32::Encode(Params().Bech32HRP(), amountTuple.first));
                                 oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                 oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                             }
@@ -1938,7 +1938,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         CAssetAllocation assetallocation(tx);
                         if (!assetallocation.IsNull()) {
                             CCoinsViewCache inputs(pcoinsTip.get());
-                            const string& strAddress = bech32::Encode(Params().Bech32HRP(), assetallocation.assetAllocationTuple.vchAddress);
+                            const string& strAddress = assetallocation.assetAllocationTuple.GetAddressString();
                             if (FindAssetOwnerInTx(inputs, tx, strAddress))
                                 ownerName = strAddress;
                             if (ownerName.empty())
@@ -1949,7 +1949,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                                 for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                     // update to owner
-                                    oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), amountTuple.first));
+                                    oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromStringUint8("burn")) "burn": bech32::Encode(Params().Bech32HRP(), amountTuple.first));
                                     oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                                 }

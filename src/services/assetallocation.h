@@ -71,7 +71,7 @@ public:
 };
 typedef std::unordered_map<std::string, CAmount> AssetBalanceMap;
 typedef std::unordered_map<uint256, int64_t,SaltedTxidHasher> ArrivalTimesMap;
-std::unordered_map<std::string, ArrivalTimesMap> arrivalTimesMap;
+typedef std::unordered_map<std::string, ArrivalTimesMap> ArrivalTimesMapImpl;
 typedef std::vector<std::pair<std::vector<uint8_t>, CAmount > > RangeAmountTuples;
 typedef std::map<std::string, std::string> AssetAllocationIndexItem;
 typedef std::map<int, AssetAllocationIndexItem> AssetAllocationIndexItemMap;

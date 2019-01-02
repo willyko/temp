@@ -29,7 +29,7 @@
 #include <bech32.h>
 using namespace std;
 using namespace boost::multiprecision;
-std::unordered_map<std::string, ArrivalTimesMap> arrivalTimesMap;
+
 AssetAllocationIndexItemMap AssetAllocationIndex;
 AssetBalanceMap mempoolMapAssetBalances;
 ArrivalTimesMapImpl arrivalTimesMap; 

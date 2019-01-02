@@ -36,7 +36,10 @@ bool IsAssetAllocationOp(int op) {
 	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN;
 }
 string CAssetAllocationTuple::ToString() const {
-	return boost::lexical_cast<string>(nAsset) + "-" + bech32::Encode(Params().Bech32HRP(),vchAddress);
+	if(vchAddress.size() <= 4 && stringFromVchUint8(vchAddress) == "burn")
+		return boost::lexical_cast<string>(nAsset) + "-burn";
+	else
+		return boost::lexical_cast<string>(nAsset) + "-" + bech32::Encode(Params().Bech32HRP(),vchAddress);
 }
 string assetAllocationFromOp(int op) {
     switch (op) {

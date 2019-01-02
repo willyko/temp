@@ -184,8 +184,8 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     
     // PHASE 7:  DISTRIBUTE LOAD AMONG SENDERS
     // push vector of signed transactions to tpstestadd on every sender node distributed evenly
-    int txPerSender = rawSignedAssetAllocationSends.size() / senders.size();
-    printf("Dividing work (%d transactions) between %d senders (%d per sender)...\n", rawSignedAssetAllocationSends.size(), senders.size(), txPerSender);  
+    int txPerSender = max(rawSignedAssetAllocationSends.size() / senders.size(), 250);
+    printf("Dividing work (%d transactions) between %d senders (%d per sender)...\n", rawSignedAssetAllocationSends.size(), senders.size(), rawSignedAssetAllocationSends.size() / senders.size());
     // max 10 tx per call for max buffer size sent to rpc
     if(txPerSender > 10)
         txPerSender = 10; 

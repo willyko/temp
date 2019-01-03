@@ -92,7 +92,8 @@ SYSCOIN_TESTS =\
   test/txvalidation_tests.cpp \
   test/uint256_tests.cpp \
   test/util_tests.cpp \
-  test/versionbits_tests.cpp
+  test/versionbits_tests.cpp \
+  test/ethereum_tests.cpp
 # FIXME: Update and re-enable these tests:
 #   miner_tests
 
@@ -117,7 +118,7 @@ test_test_syscoin_LDADD += $(LIBSYSCOIN_WALLET)
 endif
 
 test_test_syscoin_LDADD += $(LIBSYSCOIN_SERVER) $(LIBSYSCOIN_CLI) $(LIBSYSCOIN_COMMON) $(LIBSYSCOIN_UTIL) $(LIBSYSCOIN_CONSENSUS) $(LIBSYSCOIN_CRYPTO) $(LIBUNIVALUE) \
-  $(LIBLEVELDB) $(LIBLEVELDB_SSE42) $(LIBMEMENV) $(BOOST_LIBS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(LIBSECP256K1) $(EVENT_LIBS) $(EVENT_PTHREADS_LIBS)
+  $(LIBLEVELDB) $(LIBLEVELDB_SSE42) $(LIBMEMENV) $(BOOST_LIBS) $(BOOST_UNIT_TEST_FRAMEWORK_LIB) $(LIBSECP256K1) $(LIBETHEREUM) $(EVENT_LIBS) $(EVENT_PTHREADS_LIBS)
 test_test_syscoin_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
 test_test_syscoin_LDADD += $(LIBSYSCOIN_CONSENSUS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS)

@@ -64,6 +64,23 @@ bool fLogThreadpool = false;
 tp::ThreadPool *threadpool = NULL;
 std::vector<CInv> vInvToSend;
 extern AssetBalanceMap mempoolMapAssetBalances;
+// track worker thread metrics
+static int totalWorkerCount = 0;
+static int totalExecutionCount = 0;
+
+static int totalCheckCount = 0;
+static int totalCheckMicros = 0;
+
+static int totalSyscoinCheckCount = 0;
+static int totalSyscoinCheckMicros = 0;
+
+static int concurrentExecutionCount = 0;
+static int maxConcurrentExecutionCount = 0;
+
+static int64_t totalExecutionMicros = 0;
+static int64_t minExecutionMicros = 1000000000;
+static int64_t maxExecutionMicros = 0;
+            
 #if defined(NDEBUG)
 # error "Syscoin cannot be compiled without assertions."
 #endif
@@ -1296,22 +1313,6 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         
         if (bMultiThreaded && threadpool != NULL)
         {
-            // track worker thread metrics
-            static int totalWorkerCount = 0;
-            static int totalExecutionCount = 0;
-
-            static int totalCheckCount = 0;
-            static int totalCheckMicros = 0;
-
-            static int totalSyscoinCheckCount = 0;
-            static int totalSyscoinCheckMicros = 0;
-
-            static int concurrentExecutionCount = 0;
-            static int maxConcurrentExecutionCount = 0;
-
-            static int64_t totalExecutionMicros = 0;
-            static int64_t minExecutionMicros = 1000000000;
-            static int64_t maxExecutionMicros = 0;
             const CTransaction &txIn = *ptx;
             // define a task for the worker to process
             std::packaged_task<void()> task([&pool, chainparams, txIn, hash, coins_to_uncache, hashCacheEntry, vChecksConcurrent]() {

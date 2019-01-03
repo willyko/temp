@@ -32,6 +32,7 @@ LIBSYSCOIN_UTIL=libsyscoin_util.a
 LIBSYSCOIN_CRYPTO_BASE=crypto/libsyscoin_crypto_base.a
 LIBSYSCOINQT=qt/libsyscoinqt.a
 LIBSECP256K1=secp256k1/libsecp256k1.la
+LIBETHEREUM=ethereum/libethereum.a
 
 if ENABLE_ZMQ
 LIBSYSCOIN_ZMQ=libsyscoin_zmq.a
@@ -70,7 +71,8 @@ EXTRA_LIBRARIES += \
   $(LIBSYSCOIN_SERVER) \
   $(LIBSYSCOIN_CLI) \
   $(LIBSYSCOIN_WALLET) \
-  $(LIBSYSCOIN_ZMQ)
+  $(LIBSYSCOIN_ZMQ) \
+  $(LIBETHEREUM)
 
 lib_LTLIBRARIES = $(LIBSYSCOINCONSENSUS)
 
@@ -242,6 +244,37 @@ obj/build.h: FORCE
 	  "$(abs_top_srcdir)"
 libsyscoin_util_a-clientversion.$(OBJEXT): obj/build.h
 
+ # ethereum
+ ethereum_libethereum_a_CPPFLAGS = $(SYSCOIN_INCLUDES)
+ ethereum_libethereum_a_SOURCES = \
+  ethereum/Address.cpp \
+  ethereum/Address.h \
+  ethereum/BlockHeader.cpp \
+  ethereum/BlockHeader.h \
+  ethereum/Common.cpp \
+  ethereum/Common.h \
+  ethereum/CommonData.cpp \
+  ethereum/CommonData.h \
+  ethereum/Exceptions.h \
+  ethereum/FixedHash.cpp \
+  ethereum/FixedHash.h \
+  ethereum/Guards.cpp \
+  ethereum/Guards.h \
+  ethereum/MemoryDB.cpp \
+  ethereum/MemoryDB.h \
+  ethereum/RLP.cpp \
+  ethereum/RLP.h \
+  ethereum/SHA3.cpp \
+  ethereum/SHA3.h \
+  ethereum/TrieCommon.cpp \
+  ethereum/TrieCommon.h \
+  ethereum/TrieDB.h \
+  ethereum/TrieHash.cpp \
+  ethereum/TrieHash.h \
+  ethereum/ethereum.cpp \
+  ethereum/ethereum.h \
+  ethereum/vector_ref.h
+   
 # server: shared between syscoind and syscoin-qt
 libsyscoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(SYSCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
 libsyscoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
@@ -516,7 +549,8 @@ syscoind_LDADD = \
   $(LIBLEVELDB) \
   $(LIBLEVELDB_SSE42) \
   $(LIBMEMENV) \
-  $(LIBSECP256K1)
+  $(LIBSECP256K1) \
+  $(LIBETHEREUM)
 
 syscoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
 

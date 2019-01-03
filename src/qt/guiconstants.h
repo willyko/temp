@@ -50,5 +50,7 @@ static const int MAX_URI_LENGTH = 255;
 #define QAPP_ORG_DOMAIN "syscoin.org"
 #define QAPP_APP_NAME_DEFAULT "Syscoin-Qt"
 #define QAPP_APP_NAME_TESTNET "Syscoin-Qt-testnet"
+#define QAPP_APP_NAME_REGTEST "Syscoin-Qt-regtest"
+
 
 #endif // SYSCOIN_QT_GUICONSTANTS_H

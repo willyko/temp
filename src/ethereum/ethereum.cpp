@@ -37,9 +37,10 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
     int pathPtr = 0;
 
 	const std::string pathString = toHex(path);
-
+    int nibbles;
     for (int i = 0 ; i < len ; i++) {
-      if(nodeKey.data() != sha3(parentNodes[i].data()).ref()){
+      currentNode = parentNodes[i];
+      if(nodeKey.data() != sha3(currentNode.data()).ref()){
         // console.log("nodeKey != sha3(rlp.encode(currentNode)): ", nodeKey, Buffer.from(sha3(rlp.encode(currentNode)),'hex'))
         return false;
       }
@@ -64,7 +65,7 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
           // console.log(nodeKey, pathPtr, path[pathPtr])
           break;
         case 2:
-          const int nibbles = nibblesToTraverse(toHex(currentNode[0].data()), pathString, pathPtr);
+          nibbles = nibblesToTraverse(toHex(currentNode[0].data()), pathString, pathPtr);
           if(nibbles <= -1)
             return false;
           pathPtr += nibbles;

@@ -9,4 +9,6 @@
 
 bool VerifyHeader(const std::vector<unsigned char>& header);
 
+bool VerifyProof(bytesConstRef path, bytesConstRef value, std::vector<bytesConstRef> parentNodes, bytesConstRef root); 
+
 #endif // SYSCOIN_ETHEREUM_ETHEREUM_H

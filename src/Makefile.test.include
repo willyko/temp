@@ -29,10 +29,7 @@ SYSCOIN_TEST_SUITE = \
 
 # test_syscoin binary #
 SYSCOIN_TESTS =\
-  test/syscoin_asset_tests.cpp \
-  test/syscoin_asset_allocation_tests.cpp \
-  test/test_syscoin_services.cpp \
-  test/test_syscoin_services.h \
+  test/ethereum_tests.cpp \
   test/governance_validators_tests.cpp \
   test/arith_uint256_tests.cpp \
   test/scriptnum10.h \
@@ -92,8 +89,7 @@ SYSCOIN_TESTS =\
   test/txvalidation_tests.cpp \
   test/uint256_tests.cpp \
   test/util_tests.cpp \
-  test/versionbits_tests.cpp \
-  test/ethereum_tests.cpp
+  test/versionbits_tests.cpp
 # FIXME: Update and re-enable these tests:
 #   miner_tests
 

@@ -17,13 +17,13 @@ bool VerifyHeader(const std::vector<unsigned char>& data) {
 
 int nibblesToTraverse(const std::string &encodedPartialPath, const std::string &path, int pathPtr) {
   std::string partialPath;
-  int partialPathInt = boost::lexical_cast<int>(encodedPartialPath[0]);
+  char pathPtrInt[2] = {encodedPartialPath[0], '\0'};
+  int partialPathInt = strtol(pathPtrInt, NULL, 10);
   if(partialPathInt == 0 || partialPathInt == 2){
     partialPath = encodedPartialPath.substr(2);
   }else{
     partialPath = encodedPartialPath.substr(1);
   }
-
   if(partialPath == path.substr(pathPtr, partialPath.size())){
     return partialPath.size();
   }else{
@@ -45,10 +45,11 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
       currentNode = parentNodes[i];
       vec1 = nodeKey.payload();
       vec2 = sha3(currentNode.data()).ref();
-      if(!std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+             
+      if(vec1.size() != vec2.size() || !std::equal(vec1.begin(), vec1.end(), vec2.begin())){
         // console.log("nodeKey != sha3(rlp.encode(currentNode)): ", nodeKey, Buffer.from(sha3(rlp.encode(currentNode)),'hex'))
         return false;
-      }
+      } 
       printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
       if(pathPtr > pathString.size()){
         // console.log("pathPtr >= path.length ", pathPtr,  path.length)
@@ -61,7 +62,7 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
           if(pathPtr == pathString.size()){
             vec1 = currentNode[1].payload();
             vec2 = value.data();
-            if(std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+            if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
                 printf("17 equals ret true\n");
               return true;
             }else{
@@ -74,11 +75,10 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
           pathPtrInt[1] = '\0';
           printf("strtol(pathPtrInt, NULL, 16) %d \n", strtol(pathPtrInt, NULL, 16));
           nodeKey = currentNode[strtol(pathPtrInt, NULL, 16)]; //must == sha3(rlp.encode(currentNode[path[pathptr]]))
-          pathPtr += 1;         
-          // console.log(nodeKey, pathPtr, path[pathPtr])
+          pathPtr += 1;
           break;
         case 2:
-          nibbles = nibblesToTraverse(toHex(currentNode[0].data()), pathString, pathPtr);
+          nibbles = nibblesToTraverse(toHex(currentNode[0].payload()), pathString, pathPtr);
           printf("nibbles %d\n", nibbles);
           if(nibbles <= -1)
             return false;
@@ -87,7 +87,7 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
           if(pathPtr == pathString.size()) { //leaf node
             vec1 = currentNode[1].payload();
             vec2 = value.data();
-            if(std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+            if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
                 printf("2 equals ret true\n");
               return true;
             } else {

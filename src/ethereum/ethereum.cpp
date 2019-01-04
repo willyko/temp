@@ -64,7 +64,10 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
           // console.log(nodeKey, pathPtr, path[pathPtr])
           break;
         case 2:
-          pathPtr += nibblesToTraverse(toHex(currentNode[0].data()), pathString, pathPtr);
+          const int nibbles = nibblesToTraverse(toHex(currentNode[0].data()), pathString, pathPtr);
+          if(nibbles <= -1)
+            return false;
+          pathPtr += nibbles;
           if(pathPtr == pathString.size()) { //leaf node
             if(currentNode[1].data() == value.data()){
               return true;

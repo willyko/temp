@@ -6,9 +6,10 @@
 #define SYSCOIN_ETHEREUM_ETHEREUM_H
 
 #include <vector>
-
+#include "CommonData.h"
+#include "RLP.h"
 bool VerifyHeader(const std::vector<unsigned char>& header);
 
-bool VerifyProof(bytesConstRef path, bytesConstRef value, std::vector<bytesConstRef> parentNodes, bytesConstRef root); 
+bool VerifyProof(dev::bytesConstRef path, const dev::RLP& value, const dev::RLP& parentNodes, const dev::RLP& root); 
 
 #endif // SYSCOIN_ETHEREUM_ETHEREUM_H

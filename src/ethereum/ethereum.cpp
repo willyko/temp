@@ -39,10 +39,7 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
 	const std::string pathString = toHex(path);
 
     for (int i = 0 ; i < len ; i++) {
-      RLPStream rlp;
-      currentNode = parentNodes[i];
-      rlp << currentNode;
-      if(nodeKey.payload() != sha3(rlp.out()).ref()){
+      if(nodeKey.data() != sha3(parentNodes[i].data()).ref()){
         // console.log("nodeKey != sha3(rlp.encode(currentNode)): ", nodeKey, Buffer.from(sha3(rlp.encode(currentNode)),'hex'))
         return false;
       }
@@ -55,7 +52,7 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
       switch(currentNode.size()){
         case 17://branch node
           if(pathPtr == pathString.size()){
-            if(currentNode[16] == value.toString()) {
+            if(currentNode[16].data() == value.data()) {
               return true;
             }else{
               // console.log('currentNode[16],rlp.encode(value): ', currentNode[16], rlp.encode(value))
@@ -67,9 +64,9 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
           // console.log(nodeKey, pathPtr, path[pathPtr])
           break;
         case 2:
-          pathPtr += nibblesToTraverse(toHex(currentNode[0].payload()), pathString, pathPtr);
+          pathPtr += nibblesToTraverse(toHex(currentNode[0].data()), pathString, pathPtr);
           if(pathPtr == pathString.size()) { //leaf node
-            if(currentNode[1] == value.toString()){
+            if(currentNode[1].data() == value.data()){
               return true;
             } else {
               // console.log("currentNode[1] == rlp.encode(value) ", currentNode[1], rlp.encode(value))

@@ -11,5 +11,5 @@
 bool VerifyHeader(const std::vector<unsigned char>& header);
 
 bool VerifyProof(dev::bytesConstRef path, const dev::RLP& value, const dev::RLP& parentNodes, const dev::RLP& root); 
-
+bool parseEthMethodInputData(const dev::h256 &expectedMethodHash, const dev::RLP& rlpData, dev::u256& outputAmount);
 #endif // SYSCOIN_ETHEREUM_ETHEREUM_H

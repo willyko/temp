@@ -117,7 +117,6 @@ SYSCOIN_CORE_H = \
   masternodeconfig.h \
   messagesigner.h \
   netfulfilledman.h \
-  keccak256.h \
   flat-database.h \
   cachemap.h \
   cachemultimap.h \
@@ -496,7 +495,6 @@ libsyscoin_util_a_SOURCES = \
   compat/glibc_sanity.cpp \
   compat/glibcxx_sanity.cpp \
   compat/strnlen.cpp \
-  keccak256.cpp \
   fs.cpp \
   interfaces/handler.cpp \
   interfaces/node.cpp \

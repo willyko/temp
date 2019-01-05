@@ -65,42 +65,7 @@ extern CTranslationInterface translationInterface;
 extern const char * const SYSCOIN_CONF_FILENAME;
 extern const char * const SYSCOIN_PID_FILENAME;
 
-// SYSCOIN
-typedef struct Transaction {
-    uint8_t *rawData;
-    uint16_t rawDataLength;
 
-    uint32_t nonce;
-
-    uint32_t gasPrice;
-    uint16_t gasPriceLow;
-
-    uint32_t gasLimit;
-
-    uint8_t *address;
-    bool hasAddress;
-
-    uint8_t *value;
-    uint8_t valueLength;
-
-    uint8_t *data;
-    uint16_t dataLength;
-
-    uint8_t chainId;
-} Transaction;
-
-bool ethers_decodeTransaction(Transaction* transaction, uint8_t * data, uint16_t length);
-void ethers_keccak256(const uint8_t *data, uint16_t length, uint8_t *result);
-/**
- * Parse eth input string expected to contain smart contract method call data. If the method call is not what we
- * expected, or the number of arguments in the method call is greater than 2, then return false.
- *
- * @param vchInputExpectedMethodHash The expected method hash
- * @param vchInputData The input to parse
- * @param outputAmount The amount passed to the method (1st param)
- * @return true if everything is valid
- */
-bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, std::vector<unsigned char>& vchInputData, CAmount& outputAmount);
 /**
  * Translation function: Call Translate signal on UI interface, which returns a boost::optional result.
  * If no translation slot is registered, nothing is returned, and simply return the input.

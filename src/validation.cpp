@@ -54,6 +54,9 @@
 #include <services/assetallocation.h>
 #include <services/graph.h>
 #include <thread_pool/thread_pool.hpp>
+#include <ethereum/ethereum.h>
+#include <ethereum/Common.h>
+#include <ethereum/CommonData.h>
 std::vector<std::pair<uint256, int64_t> > vecTPSTestReceivedTimesMempool;
 int64_t nTPSTestingStartTime = 0;
 double nTPSTestingSendRawEndTime = 0;
@@ -691,6 +694,52 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
     return true;       
 }
 // SYSCOIN
+bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, bool bSanity)
+{
+    if (tx.nVersion != SYSCOIN_TX_VERSION_MINT)
+        return true;
+    std::string errorMessage;
+    // unserialize assetallocation from txn, check for valid
+    CMintSyscoin mintSyscoin;
+    std::vector<unsigned char> vchData;
+    int nDataOut;
+    if(!GetSyscoinMintData(tx, vchData, nDataOut) || !mintSyscoin.UnserializeFromData(vchData))
+    {
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Cannot unserialize data inside of this transaction relating to an syscoinmint");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+    const std::vector<unsigned char> &vchTxRoot = fUnitTest? mintSyscoin.vchBlockHash: mintSyscoin.vchBlockHash;
+    dev::RLP rlpTxRoot(&vchTxRoot);
+    const std::vector<unsigned char> &vchParentNodes = mintSyscoin.vchParentNodes;
+    dev::RLP rlpParentNodes(&vchParentNodes);
+    const std::vector<unsigned char> &vchValue = mintSyscoin.vchValue;
+    dev::RLP rlpValue(&vchValue);
+    const std::vector<unsigned char> &vchPath = mintSyscoin.vchPath;
+    if(!VerifyProof(&vchPath, rlpValue, rlpParentNodes, rlpTxRoot)){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not verify ethereum transaction using SPV proof");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    } 
+    if (!rlpValue.isList()){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction RLP must be a list");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+        
+    if (rlpValue.itemCount() < 6){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction RLP invalid item count");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+ 
+    if (!rlpValue[5].isData()){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction data RLP must be an array");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+    dev::u256 outputAmount;
+    dev::h256 expectedMethodHash;
+    if(!parseEthMethodInputData(expectedMethodHash, rlpValue[5], outputAmount)){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+}
 bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
 {
 

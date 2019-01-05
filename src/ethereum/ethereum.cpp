@@ -31,77 +31,97 @@ int nibblesToTraverse(const std::string &encodedPartialPath, const std::string &
   }
 }
 bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, const RLP& root) {
-    dev::RLP currentNode;
-    const int len = parentNodes.itemCount();
-    dev::RLP nodeKey = root;       
-    int pathPtr = 0;
-    printf("length %d\n", len);
-	const std::string pathString = toHex(path);
-    printf("pathString %s\n", pathString.c_str());
-    int nibbles;
-    bytesConstRef vec1,vec2;
-    char pathPtrInt[2];
-    for (int i = 0 ; i < len ; i++) {
-      currentNode = parentNodes[i];
-      vec1 = nodeKey.payload();
-      vec2 = sha3(currentNode.data()).ref();
-             
-      if(vec1.size() != vec2.size() || !std::equal(vec1.begin(), vec1.end(), vec2.begin())){
-        // console.log("nodeKey != sha3(rlp.encode(currentNode)): ", nodeKey, Buffer.from(sha3(rlp.encode(currentNode)),'hex'))
-        return false;
-      } 
-      printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
-      if(pathPtr > pathString.size()){
-        // console.log("pathPtr >= path.length ", pathPtr,  path.length)
-
-        return false;
-      }
-      printf("currentNode.itemCount() %d\n", currentNode.itemCount());
-      switch(currentNode.itemCount()){
-        case 17://branch node
-          if(pathPtr == pathString.size()){
-            vec1 = currentNode[1].payload();
-            vec2 = value.data();
-            if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
-                printf("17 equals ret true\n");
-              return true;
-            }else{
-              // console.log('currentNode[16],rlp.encode(value): ', currentNode[16], rlp.encode(value))
-              return false;
-            }
-          }
-          printf("pathPtr %d pathString[pathPtr] %c\n", pathPtr, pathString[pathPtr]);
-          pathPtrInt[0] = pathString[pathPtr];
-          pathPtrInt[1] = '\0';
-          printf("strtol(pathPtrInt, NULL, 16) %d \n", strtol(pathPtrInt, NULL, 16));
-          nodeKey = currentNode[strtol(pathPtrInt, NULL, 16)]; //must == sha3(rlp.encode(currentNode[path[pathptr]]))
-          pathPtr += 1;
-          break;
-        case 2:
-          nibbles = nibblesToTraverse(toHex(currentNode[0].payload()), pathString, pathPtr);
-          printf("nibbles %d\n", nibbles);
-          if(nibbles <= -1)
+    try{
+        dev::RLP currentNode;
+        const int len = parentNodes.itemCount();
+        dev::RLP nodeKey = root;       
+        int pathPtr = 0;
+        printf("length %d\n", len);
+    	const std::string pathString = toHex(path);
+        printf("pathString %s\n", pathString.c_str());
+        int nibbles;
+        bytesConstRef vec1,vec2;
+        char pathPtrInt[2];
+        for (int i = 0 ; i < len ; i++) {
+          currentNode = parentNodes[i];
+          vec1 = nodeKey.payload();
+          vec2 = sha3(currentNode.data()).ref();
+                 
+          if(vec1.size() != vec2.size() || !std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+            // console.log("nodeKey != sha3(rlp.encode(currentNode)): ", nodeKey, Buffer.from(sha3(rlp.encode(currentNode)),'hex'))
             return false;
-          pathPtr += nibbles;
+          } 
           printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
-          if(pathPtr == pathString.size()) { //leaf node
-            vec1 = currentNode[1].payload();
-            vec2 = value.data();
-            if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
-                printf("2 equals ret true\n");
-              return true;
-            } else {
-              // console.log("currentNode[1] == rlp.encode(value) ", currentNode[1], rlp.encode(value))
-              return false;
-            }
-          } else {//extension node
-            nodeKey = currentNode[1];
+          if(pathPtr > pathString.size()){
+            // console.log("pathPtr >= path.length ", pathPtr,  path.length)
+
+            return false;
           }
-          break;
-        default:
-          // console.log("all nodes must be length 17 or 2");
-          return false;
-      }
+          printf("currentNode.itemCount() %d\n", currentNode.itemCount());
+          switch(currentNode.itemCount()){
+            case 17://branch node
+              if(pathPtr == pathString.size()){
+                vec1 = currentNode[1].payload();
+                vec2 = value.data();
+                if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+                    printf("17 equals ret true\n");
+                  return true;
+                }else{
+                  // console.log('currentNode[16],rlp.encode(value): ', currentNode[16], rlp.encode(value))
+                  return false;
+                }
+              }
+              printf("pathPtr %d pathString[pathPtr] %c\n", pathPtr, pathString[pathPtr]);
+              pathPtrInt[0] = pathString[pathPtr];
+              pathPtrInt[1] = '\0';
+              printf("strtol(pathPtrInt, NULL, 16) %d \n", strtol(pathPtrInt, NULL, 16));
+              nodeKey = currentNode[strtol(pathPtrInt, NULL, 16)]; //must == sha3(rlp.encode(currentNode[path[pathptr]]))
+              pathPtr += 1;
+              break;
+            case 2:
+              nibbles = nibblesToTraverse(toHex(currentNode[0].payload()), pathString, pathPtr);
+              printf("nibbles %d\n", nibbles);
+              if(nibbles <= -1)
+                return false;
+              pathPtr += nibbles;
+              printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
+              if(pathPtr == pathString.size()) { //leaf node
+                vec1 = currentNode[1].payload();
+                vec2 = value.data();
+                if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+                    printf("2 equals ret true\n");
+                  return true;
+                } else {
+                  // console.log("currentNode[1] == rlp.encode(value) ", currentNode[1], rlp.encode(value))
+                  return false;
+                }
+              } else {//extension node
+                nodeKey = currentNode[1];
+              }
+              break;
+            default:
+              // console.log("all nodes must be length 17 or 2");
+              return false;
+          }
+        }
+    }
+    catch(...){
+        return false;
     }
   return false;
+}
+
+/**
+ * Parse eth input string expected to contain smart contract method call data. If the method call is not what we
+ * expected, or the number of arguments in the method call is greater than 2, then return false.
+ *
+ * @param expectedMethodHash The expected method hash
+ * @param rlpData The input to parse
+ * @param outputAmount The amount passed to the method (1st param)
+ * @return true if everything is valid
+ */
+bool parseEthMethodInputData(const h256 &expectedMethodHash, const RLP& rlpData, u256& outputAmount) {
+    
+
+    return true;
 }

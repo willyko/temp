@@ -232,6 +232,7 @@ public:
         consensus.nSeniorityHeight1 = 60;
         consensus.nSeniorityLevel1 = 0.35;
         consensus.nSeniorityHeight2 = 60*2.5;
+        consensus.nSeniorityLevel2 = 1.0;      
         consensus.nSuperblockStartBlock = 0;
         consensus.nSuperblockCycle = 60;
         consensus.nGovernanceMinQuorum = 1;
@@ -326,6 +327,7 @@ public:
         consensus.nSeniorityHeight1 = 60;
         consensus.nSeniorityLevel1 = 0.35;
         consensus.nSeniorityHeight2 = 60*2.5;
+        consensus.nSeniorityLevel2 = 1.0;      
         consensus.nSuperblockStartBlock = 0;
         consensus.nSuperblockCycle = 10;
         consensus.nGovernanceMinQuorum = 1;

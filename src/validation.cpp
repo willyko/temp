@@ -1789,9 +1789,9 @@ CAmount GetBlockSubsidy(unsigned int nHeight, const Consensus::Params& consensus
                 
              double fSubsidyAdjustmentPercentage = 0;
              if(nDifferenceInBlocks >= consensusParams.nSeniorityHeight2)
-                fSubsidyAdjustmentPercentage += consensusParams.nSeniorityLevel2;
+                fSubsidyAdjustmentPercentage = consensusParams.nSeniorityLevel2;
              else if(nDifferenceInBlocks >= consensusParams.nSeniorityHeight1)
-                fSubsidyAdjustmentPercentage += consensusParams.nSeniorityLevel1;
+                fSubsidyAdjustmentPercentage = consensusParams.nSeniorityLevel1;
                 
             if(fSubsidyAdjustmentPercentage > 0){
                 const CAmount &nChange = nSubsidy*fSubsidyAdjustmentPercentage;
@@ -1800,7 +1800,6 @@ CAmount GetBlockSubsidy(unsigned int nHeight, const Consensus::Params& consensus
             }
         }
     }
-
     return nSubsidy;
 
 }

@@ -8,8 +8,9 @@
 #include <vector>
 #include "CommonData.h"
 #include "RLP.h"
+#include <amount.h>
 bool VerifyHeader(const std::vector<unsigned char>& header);
 
 bool VerifyProof(dev::bytesConstRef path, const dev::RLP& value, const dev::RLP& parentNodes, const dev::RLP& root); 
-bool parseEthMethodInputData(const dev::h256 &expectedMethodHash, const dev::RLP& rlpData, dev::u256& outputAmount);
+bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, const std::vector<unsigned char>& vchInputData, CAmount& outputAmount, uint32_t& nAsset);
 #endif // SYSCOIN_ETHEREUM_ETHEREUM_H

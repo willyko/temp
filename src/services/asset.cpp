@@ -111,6 +111,15 @@ bool GetSyscoinData(const CTransaction &tx, vector<unsigned char> &vchData, int&
 	const CScript &scriptPubKey = tx.vout[nOut].scriptPubKey;
 	return GetSyscoinData(scriptPubKey, vchData, op);
 }
+bool GetSyscoinMintData(const CTransaction &tx, vector<unsigned char> &vchData, int& nOut)
+{
+    nOut = GetSyscoinDataOutput(tx);
+    if (nOut == -1)
+        return false;
+
+    const CScript &scriptPubKey = tx.vout[nOut].scriptPubKey;
+    return GetSyscoinMintData(scriptPubKey, vchData);
+}
 bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData, int &op)
 {
 	op = 0;
@@ -128,6 +137,18 @@ bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData,
 	if (!scriptPubKey.GetOp(pc, opcode, vchData))
 		return false;
 	return true;
+}
+bool GetSyscoinMintData(const CScript &scriptPubKey, vector<unsigned char> &vchData)
+{
+    CScript::const_iterator pc = scriptPubKey.begin();
+    opcodetype opcode;
+    if (!scriptPubKey.GetOp(pc, opcode))
+        return false;
+    if (opcode != OP_RETURN)
+        return false;
+    if (!scriptPubKey.GetOp(pc, opcode, vchData))
+        return false;
+    return true;
 }
 bool IsAssetOp(int op) {
     return op == OP_ASSET_ACTIVATE
@@ -685,16 +706,24 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
 	std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
 	CWallet* const pwallet = wallet.get();
 	const UniValue &params = request.params;
-	if (request.fHelp || 2 != params.size())
+	if (request.fHelp || 6 != params.size())
 		throw runtime_error(
-			"syscoinmint [addressto] [amount]\n"
+			"syscoinmint [addressto] [amount] [blockhash] [tx_hex] [txmerkleproof_hex] [txmerkleroofpath_hex]\n"
 			"<addressto> Mint to this address.\n"
 			"<amount> Amount of SYS to mint. Note that fees are applied on top. It is not inclusive of fees.\n"
+            "<blockhash> Block hash of the block that included the burn transaction on Ethereum.\n"
+            "<tx_hex> Raw transaction hex of the burn transaction on Ethereum.\n"
+            "<txmerkleproof_hex> The list of parent nodes of the Merkle Patricia Tree for SPV proof.\n"
+            "<txmerkleroofpath_hex> The merkle path to walk through the tree to recreate the merkle root.\n"
 			+ HelpRequiringPassphrase(pwallet));
 
 	string vchAddress = params[0].get_str();
 	CAmount nAmount = AmountFromValue(params[1]);
-
+    string vchBlockHash = params[2].get_str();
+    string vchValue = params[3].get_str();
+    string vchParentNodes = params[4].get_str();
+    string vchPath = params[5].get_str();
+    
 	vector<CRecipient> vecSend;
 	const CTxDestination &dest = DecodeDestination(vchAddress);
 	CScript scriptPubKeyFromOrig = GetScriptForDestination(dest);
@@ -702,7 +731,23 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
 	CMutableTransaction txNew;
 	txNew.nVersion = SYSCOIN_TX_VERSION_MINT;
 	txNew.vout.push_back(CTxOut(nAmount, scriptPubKeyFromOrig));
-
+    
+    CMintSyscoin mintSyscoin;
+    mintSyscoin.vchValue = ParseHex(vchValue);
+    mintSyscoin.vchBlockHash = ParseHex(vchBlockHash);
+    mintSyscoin.vchParentNodes = ParseHex(vchParentNodes);
+    mintSyscoin.vchPath = ParseHex(vchPath);
+    
+    vector<unsigned char> data;
+    mintSyscoin.Serialize(data);
+    
+    CScript scriptData;
+    scriptData << OP_RETURN << data;
+    
+    CTxOut txout(0, scriptData);
+    txNew.vout.push_back(txout);
+    
+    
 	UniValue res(UniValue::VARR);
 	res.push_back(EncodeHexTx(txNew));
 	return res;
@@ -907,6 +952,12 @@ void CAsset::Serialize( vector<unsigned char> &vchData) {
     CDataStream dsAsset(SER_NETWORK, PROTOCOL_VERSION);
     dsAsset << *this;
 	vchData = vector<unsigned char>(dsAsset.begin(), dsAsset.end());
+
+}
+void CMintSyscoin::Serialize( vector<unsigned char> &vchData) {
+    CDataStream dsMint(SER_NETWORK, PROTOCOL_VERSION);
+    dsMint << *this;
+    vchData = vector<unsigned char>(dsMint.begin(), dsMint.end());
 
 }
 void CAssetDB::WriteAssetIndex(const CAsset& asset, const int& op) {
@@ -1377,7 +1428,7 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	CreateFeeRecipient(scriptData, fee);
 	vecSend.push_back(fee);
 	UniValue res = syscointxfund_helper(vchWitness, vecSend);
-	res.push_back(newAsset.nAsset);
+	res.push_back((int)newAsset.nAsset);
 	return res;
 }
 
@@ -1643,7 +1694,7 @@ UniValue assetinfo(const JSONRPCRequest& request) {
 }
 bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
 {
-    oAsset.pushKV("_id", asset.nAsset);
+    oAsset.pushKV("_id", (int)asset.nAsset);
     oAsset.pushKV("txid", asset.txHash.GetHex());
 	oAsset.pushKV("publicvalue", stringFromVch(asset.vchPubData));
 	oAsset.pushKV("owner", bech32::Encode(Params().Bech32HRP(), asset.vchAddress));
@@ -1657,7 +1708,7 @@ bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
 }
 bool BuildAssetIndexerJson(const CAsset& asset, UniValue& oAsset)
 {
-	oAsset.pushKV("_id", asset.nAsset);
+	oAsset.pushKV("_id", (int)asset.nAsset);
 	oAsset.pushKV("owner", bech32::Encode(Params().Bech32HRP(), asset.vchAddress));
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
 	oAsset.pushKV("total_supply", ValueFromAssetAmount(asset.nTotalSupply, asset.nPrecision));
@@ -1677,7 +1728,7 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniV
 	
 
 	entry.pushKV("txtype", opName);
-	entry.pushKV("_id", asset.nAsset);
+	entry.pushKV("_id", (int)asset.nAsset);
 
 	if(!asset.vchPubData.empty() && dbAsset.vchPubData != asset.vchPubData)
 		entry.pushKV("publicvalue", stringFromVch(asset.vchPubData));
@@ -1813,7 +1864,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 		}
 		const UniValue &assetObj = find_value(oOptions, "asset");
 		if (assetObj.isNum()) {
-			nAsset = boost::lexical_cast<int32_t>(assetObj.get_int());
+			nAsset = boost::lexical_cast<uint32_t>(assetObj.get_int());
 		}
 
 		const UniValue &owners = find_value(oOptions, "owner");
@@ -1831,7 +1882,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 	boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
 	pcursor->SeekToFirst();
 	CAsset txPos;
-	pair<string, int32_t > key;
+	pair<string, uint32_t > key;
 	int index = 0;
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();

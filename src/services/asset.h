@@ -44,6 +44,8 @@ int GetSyscoinDataOutput(const CTransaction& tx);
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char &type);
 bool GetSyscoinData(const CTransaction &tx, std::vector<unsigned char> &vchData, int& nOut, int &op);
 bool GetSyscoinData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData,  int &op);
+bool GetSyscoinMintData(const CTransaction &tx, std::vector<unsigned char> &vchData, int& nOut);
+bool GetSyscoinMintData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData);
 void SysTxToJSON(const int op, const std::vector<unsigned char> &vchData,  UniValue &entry, const char& type);
 std::string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, std::string& responseEnglish, const char &type, std::string& responseGUID);
 bool IsOutpointMature(const COutPoint& outpoint);
@@ -82,7 +84,7 @@ enum {
 };
 class CAsset {
 public:
-	int32_t nAsset;
+	uint32_t nAsset;
 	std::vector<uint8_t> vchAddress;
 	std::vector<unsigned char> vchContract;
     uint256 txHash;
@@ -112,7 +114,7 @@ public:
 	inline void SerializationOp(Stream& s, Operation ser_action) {		
 		READWRITE(vchPubData);
 		READWRITE(txHash);
-		READWRITE(nAsset);
+		READWRITE(VARINT(nAsset));
 		READWRITE(vchAddress);
 		READWRITE(nBalance);
 		READWRITE(nTotalSupply);
@@ -152,22 +154,45 @@ public:
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);
 	void Serialize(std::vector<unsigned char>& vchData);
 };
+class CMintSyscoin {
+public:
+    std::vector<unsigned char> vchValue;
+    std::vector<unsigned char> vchParentNodes;
+    std::vector<unsigned char> vchBlockHash;
+    std::vector<unsigned char> vchPath;
+    CMintSyscoin() {
+        SetNull();
+    }
+    ADD_SERIALIZE_METHODS;
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {      
+        READWRITE(vchValue);
+        READWRITE(vchParentNodes);
+        READWRITE(vchBlockHash);
+        READWRITE(vchPath);   
+    }
+    inline void SetNull() { vchValue.clear(); vchParentNodes.clear(); vchBlockHash.clear(); vchPath.clear(); }
+    inline bool IsNull() const { return (vchValue.empty()); }
+    bool UnserializeFromTx(const CTransaction &tx);
+    bool UnserializeFromData(const std::vector<unsigned char> &vchData);
+    void Serialize(std::vector<unsigned char>& vchData);
+};
 static const std::string assetKey = "AI";
 static const std::string lastAssetKey = "LAI";
 typedef std::unordered_map<int, CAsset> AssetMap;
 class CAssetDB : public CDBWrapper {
 public:
     CAssetDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assets", nCacheSize, fMemory, fWipe) {}
-    bool EraseAsset(const int32_t& nAsset, bool cleanup = false) {
+    bool EraseAsset(const uint32_t& nAsset, bool cleanup = false) {
         return Erase(make_pair(assetKey, nAsset));
     }   
-    bool ReadAsset(const int32_t& nAsset, CAsset& asset) {
+    bool ReadAsset(const uint32_t& nAsset, CAsset& asset) {
         return Read(make_pair(assetKey, nAsset), asset);
     }
-    bool ReadLastAsset(const int32_t& nAsset, CAsset& asset) {
+    bool ReadLastAsset(const uint32_t& nAsset, CAsset& asset) {
         return Read(make_pair(lastAssetKey, nAsset), asset);
     }  
-    bool EraseLastAsset(const int32_t& nAsset, bool cleanup = false) {
+    bool EraseLastAsset(const uint32_t& nAsset, bool cleanup = false) {
         return Erase(make_pair(lastAssetKey, nAsset));
     }  
 	void WriteAssetIndex(const CAsset& asset, const int &op);

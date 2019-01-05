@@ -9,6 +9,7 @@
 #include "script/interpreter.h"
 #include "script/standard.h"
 #include "policy/policy.h"
+#include "services/asset.h"
 
 
 class EthereumTestChecker : public BaseSignatureChecker
@@ -61,6 +62,17 @@ BOOST_AUTO_TEST_CASE(ethereum_verifyscript)
 
     BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
 }*/
+BOOST_AUTO_TEST_CASE(ethereum_parseabidata)
+{
+    CAmount outputAmount = 0;
+    uint32_t nAsset = 0;
+    const std::vector<unsigned char> &expectedMethodHash = ParseHex("a82e762b");
+    const std::vector<unsigned char> &rlpBytes = ParseHex("a82e762b00000000000000000000000000000000000000000000000000000000773594009591c8dc");
+    BOOST_CHECK(parseEthMethodInputData(expectedMethodHash, rlpBytes, outputAmount, nAsset));
+    BOOST_CHECK_EQUAL(outputAmount, 20*COIN);
+    BOOST_CHECK_EQUAL(nAsset, 2509359324);
+}
+
 BOOST_AUTO_TEST_CASE(ethereum_spvproof)
 {
     std::string spv_tx_root = "a0e0653fb13c97c1b64a2ac57ec337f4fdd58bbdf6e85b3ef10836ce85b1b4b230";

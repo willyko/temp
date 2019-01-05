@@ -40,34 +40,24 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
     	const std::string pathString = toHex(path);
         printf("pathString %s\n", pathString.c_str());
         int nibbles;
-        bytesConstRef vec1,vec2;
         char pathPtrInt[2];
         for (int i = 0 ; i < len ; i++) {
           currentNode = parentNodes[i];
-          vec1 = nodeKey.payload();
-          vec2 = sha3(currentNode.data()).ref();
-                 
-          if(vec1.size() != vec2.size() || !std::equal(vec1.begin(), vec1.end(), vec2.begin())){
-            // console.log("nodeKey != sha3(rlp.encode(currentNode)): ", nodeKey, Buffer.from(sha3(rlp.encode(currentNode)),'hex'))
+          if(!nodeKey.payload().contentsEqual(sha3(currentNode.data()).ref().toVector())){
             return false;
           } 
           printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
-          if(pathPtr > pathString.size()){
-            // console.log("pathPtr >= path.length ", pathPtr,  path.length)
-
+          if(pathPtr > (int)pathString.size()){
             return false;
           }
           printf("currentNode.itemCount() %d\n", currentNode.itemCount());
           switch(currentNode.itemCount()){
             case 17://branch node
-              if(pathPtr == pathString.size()){
-                vec1 = currentNode[1].payload();
-                vec2 = value.data();
-                if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+              if(pathPtr == (int)pathString.size()){
+                if(currentNode[16].payload().contentsEqual(value.data().toVector())){
                     printf("17 equals ret true\n");
                   return true;
                 }else{
-                  // console.log('currentNode[16],rlp.encode(value): ', currentNode[16], rlp.encode(value))
                   return false;
                 }
               }
@@ -85,14 +75,11 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
                 return false;
               pathPtr += nibbles;
               printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
-              if(pathPtr == pathString.size()) { //leaf node
-                vec1 = currentNode[1].payload();
-                vec2 = value.data();
-                if(vec1.size() == vec2.size() && std::equal(vec1.begin(), vec1.end(), vec2.begin())){
+              if(pathPtr == (int)pathString.size()) { //leaf node
+                if(currentNode[1].payload().contentsEqual(value.data().toVector())){
                     printf("2 equals ret true\n");
                   return true;
                 } else {
-                  // console.log("currentNode[1] == rlp.encode(value) ", currentNode[1], rlp.encode(value))
                   return false;
                 }
               } else {//extension node
@@ -100,7 +87,6 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
               }
               break;
             default:
-              // console.log("all nodes must be length 17 or 2");
               return false;
           }
         }
@@ -113,15 +99,48 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
 
 /**
  * Parse eth input string expected to contain smart contract method call data. If the method call is not what we
- * expected, or the number of arguments in the method call is greater than 2, then return false.
+ * expected, or the length of the expected string is not what we expect then return false.
  *
- * @param expectedMethodHash The expected method hash
- * @param rlpData The input to parse
- * @param outputAmount The amount passed to the method (1st param)
+ * @param vchInputExpectedMethodHash The expected method hash
+ * @param vchInputData The input to parse
+ * @param outputAmount The amount burned
+ * @param nAsset The asset burned or 0 for SYS 
  * @return true if everything is valid
  */
-bool parseEthMethodInputData(const h256 &expectedMethodHash, const RLP& rlpData, u256& outputAmount) {
-    
+bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, const std::vector<unsigned char>& vchInputData, CAmount& outputAmount, uint32_t& nAsset) {
+    // input not 40 bytes is bad
+    if(vchInputData.size() != 40) 
+        return false;
 
+    // method hash is 4 bytes
+    std::vector<unsigned char>::const_iterator first = vchInputData.begin();
+    std::vector<unsigned char>::const_iterator last = first + 4;
+    const std::vector<unsigned char> vchMethodHash(first,last);
+    // if the method hash doesn't match the expected method hash then return false
+    if(vchMethodHash != vchInputExpectedMethodHash) 
+        return false;
+
+    // get the first parameter and convert to CAmount and assign to output var
+    // convert the vch into a int64_t (CAmount)
+    // should be in position 36 walking backwards
+    uint64_t result = static_cast<uint64_t>(vchInputData[35]);
+    result |= static_cast<uint64_t>(vchInputData[34]) << 8;
+    result |= static_cast<uint64_t>(vchInputData[33]) << 16;
+    result |= static_cast<uint64_t>(vchInputData[32]) << 24;
+    result |= static_cast<uint64_t>(vchInputData[31]) << 32;
+    result |= static_cast<uint64_t>(vchInputData[30]) << 40;
+    result |= static_cast<uint64_t>(vchInputData[29]) << 48;
+    result |= static_cast<uint64_t>(vchInputData[28]) << 56;
+    outputAmount = (CAmount)result;
+
+    // get the second parameter and convert to uin32_t and assign to output var
+    // commented out for now since it's unused but I wanted it  here for clarity
+    // and potential afuture enhancements
+    // convert the vch into a uin32_t (nAsset)
+    // should be in position 40 walking backwards
+    nAsset = static_cast<uint32_t>(vchInputData[39]);
+    nAsset |= static_cast<uint32_t>(vchInputData[38]) << 8;
+    nAsset |= static_cast<uint32_t>(vchInputData[37]) << 16;
+    nAsset |= static_cast<uint32_t>(vchInputData[36]) << 24;
     return true;
 }

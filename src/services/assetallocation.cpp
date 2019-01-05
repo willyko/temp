@@ -317,7 +317,16 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot send this asset. Asset allocation owner must sign off on this change");
 			return error(errorMessage.c_str());
 		}
-		if(assetAllocationTuple.nAsset != boost::lexical_cast<int>(stringFromVch(vvchArgs[0])))
+        if(vvchArgs[0].size() != 4)
+        {
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Invalid asset details entered in the script output");
+            return error(errorMessage.c_str());
+        }
+        uint32_t nAssetFromScript  = static_cast<uint32_t>(vvchArgs[0][0]);
+        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][1]) << 8;
+        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][2]) << 16;
+        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][3]) << 24;
+		if(assetAllocationTuple.nAsset != nAssetFromScript)
 		{
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Invalid asset details entered in the script output");
 			return error(errorMessage.c_str());
@@ -813,7 +822,7 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
     theAssetAllocation.Serialize(data);
 
 	CScript scriptPubKey;
-	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_BURN) << vchFromString(boost::lexical_cast<string>(nAsset)) << vchFromString(ValueFromAssetAmount(amount,theAsset.nPrecision).getValStr()) << theAsset.vchContract << OP_2DROP << OP_2DROP << OP_2DROP;
+	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_BURN) << nAsset << vchFromString(ValueFromAssetAmount(amount,theAsset.nPrecision).getValStr()) << theAsset.vchContract << OP_2DROP << OP_2DROP << OP_2DROP;
 	scriptPubKey += scriptPubKeyFromOrig;
 	// send the asset pay txn
 	vector<CRecipient> vecSend;
@@ -1105,7 +1114,7 @@ bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& a
             nBalanceZDAG = mapIt->second;
     }
     oAssetAllocation.pushKV("_id", allocationTupleStr);
-	oAssetAllocation.pushKV("asset", assetallocation.assetAllocationTuple.nAsset);
+	oAssetAllocation.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
 	oAssetAllocation.pushKV("owner",  assetallocation.assetAllocationTuple.GetAddressString());
 	oAssetAllocation.pushKV("balance", ValueFromAssetAmount(assetallocation.nBalance, asset.nPrecision));
     oAssetAllocation.pushKV("balance_zdag", ValueFromAssetAmount(nBalanceZDAG, asset.nPrecision));
@@ -1115,7 +1124,7 @@ bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, co
 {
 	CAmount nAmountDisplay = nAmount;   
 	oAssetAllocation.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
-	oAssetAllocation.pushKV("asset", assetallocation.assetAllocationTuple.nAsset);
+	oAssetAllocation.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
 	oAssetAllocation.pushKV("sender", strSender);
 	oAssetAllocation.pushKV("sender_balance", ValueFromAssetAmount(nSenderBalance, asset.nPrecision));
 	oAssetAllocation.pushKV("receiver", strReceiver);
@@ -1156,7 +1165,7 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 
 	entry.pushKV("txtype", opName);
 	entry.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
-	entry.pushKV("asset", assetallocation.assetAllocationTuple.nAsset);
+	entry.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
 	entry.pushKV("owner", assetallocation.assetAllocationTuple.GetAddressString());
 	UniValue oAssetAllocationReceiversArray(UniValue::VARR);
 	if (!assetallocation.listSendingAllocationAmounts.empty()) {
@@ -1261,11 +1270,11 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations){
 bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
 	vector<vector<uint8_t> > vchAddresses;
-	int32_t nAsset = 0;
+	uint32_t nAsset = 0;
 	if (!oOptions.isNull()) {
 		const UniValue &assetObj = find_value(oOptions, "asset");
 		if(assetObj.isNum()) {
-			nAsset = boost::lexical_cast<int32_t>(assetObj.get_int());
+			nAsset = boost::lexical_cast<uint32_t>(assetObj.get_int());
 		}
 
 		const UniValue &owners = find_value(oOptions, "receivers");

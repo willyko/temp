@@ -25,20 +25,20 @@ std::string assetAllocationFromOp(int op);
 bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
 class CAssetAllocationTuple {
 public:
-	int32_t nAsset;
+	uint32_t nAsset;
 	std::vector<uint8_t> vchAddress;
 	ADD_SERIALIZE_METHODS;
 
 	template <typename Stream, typename Operation>
 	inline void SerializationOp(Stream& s, Operation ser_action) {
-		READWRITE(nAsset);
+		READWRITE(VARINT(nAsset));
 		READWRITE(vchAddress);
 	}
-	CAssetAllocationTuple(const int32_t &asset, const std::vector<uint8_t> &vchAddress_) {
+	CAssetAllocationTuple(const uint32_t &asset, const std::vector<uint8_t> &vchAddress_) {
 		nAsset = asset;
 		vchAddress = vchAddress_;
 	}
-	CAssetAllocationTuple(const int32_t &asset) {
+	CAssetAllocationTuple(const uint32_t &asset) {
 		nAsset = asset;
 		vchAddress.clear();
 	}

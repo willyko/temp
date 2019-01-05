@@ -735,8 +735,8 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const CCo
     }
     CAmount outputAmount;
     uint32_t nAsset = 0;
-    std::vector<unsigned char> expectedMethodHash = vchFromString("3af112");
-    std::vector<unsigned char> rlpBytes = rlpValue[5].data().toBytes();
+    const std::vector<unsigned char> &expectedMethodHash = ParseHex("3af112");
+    const std::vector<unsigned char> &rlpBytes = rlpValue[5].data().toBytes();
     if(!parseEthMethodInputData(expectedMethodHash, rlpBytes, outputAmount, nAsset)){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);

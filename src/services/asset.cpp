@@ -505,7 +505,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
         addressArray.push_back("addr(" + strAddress + ")");
         COutPoint addressOutPoint;
         unsigned int unspentcount = addressunspent(strAddress, addressOutPoint);
-        if (unspentcount <= 1 && !fTPSTestEnabled && tx.nVersion != SYSCOIN_TX_VERSION_MINT)
+        if (unspentcount <= 0 && !fTPSTestEnabled && tx.nVersion != SYSCOIN_TX_VERSION_MINT)
         {
             for (unsigned int i = 0; i < MAX_UPDATES_PER_BLOCK; i++)
                 tx.vout.push_back(CTxOut(addressRecipient.nAmount, addressRecipient.scriptPubKey));

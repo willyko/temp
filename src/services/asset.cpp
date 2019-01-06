@@ -480,7 +480,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
     // decode as non-witness
 	if (!DecodeHexTx(tx, hexstring, true, false))
 		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5500 - " + _("Could not send raw transaction: Cannot decode transaction from hex string: ") + hexstring);
-	
+
 	UniValue addressArray(UniValue::VARR);	
 	bool bFunded = false;
     if (params.size() > 2) {
@@ -499,15 +499,13 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
         bFunded = true;
     }
     else{
-        // save recipient assuming the owner of the address is getting the outputs for future funding
-        // if assumption is incorrect then the tx won't confirm as ownership needs to be proven in consensus code anyway
         CRecipient addressRecipient;
         CScript scriptPubKeyFromOrig = GetScriptForDestination(DecodeDestination(strAddress));
         CreateAssetRecipient(scriptPubKeyFromOrig, addressRecipient);  
         addressArray.push_back("addr(" + strAddress + ")");
         COutPoint addressOutPoint;
         unsigned int unspentcount = addressunspent(strAddress, addressOutPoint);
-        if (unspentcount <= 1 && !fTPSTestEnabled)
+        if (unspentcount <= 1 && !fTPSTestEnabled && tx.nVersion != SYSCOIN_TX_VERSION_MINT)
         {
             for (unsigned int i = 0; i < MAX_UPDATES_PER_BLOCK; i++)
                 tx.vout.push_back(CTxOut(addressRecipient.nAmount, addressRecipient.scriptPubKey));
@@ -517,9 +515,8 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
             tx.vin.push_back(CTxIn(addressOutPoint, pcoin.out.scriptPubKey));   
     }
     
-      
-        
-    CTransaction txIn_t(tx);
+    CTransaction txIn_t(tx);    
+ 
     
     // add total output amount of transaction to desired amount
     CAmount nDesiredAmount = txIn_t.GetValueOut();
@@ -547,7 +544,6 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
     }
     
     
-    
 	if(!bFunded){
     	UniValue paramsBalance(UniValue::VARR);
     	paramsBalance.push_back("start");
@@ -565,32 +561,6 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
     	}
     	else
     		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5501 - " + _("No funds found in addresses provided"));
-
-
-    	const CAmount &minFee = GetFee(3000);
-    	if (nCurrentAmount < (nDesiredAmount + nFees)) {
-    		// only look for small inputs if addresses were passed in, if looking through wallet we do not want to fund via small inputs as we may end up spending small inputs inadvertently
-    		if (tx.nVersion == SYSCOIN_TX_VERSION_ASSET && params.size() > 1) {
-    			LOCK(mempool.cs);
-    			// fund with small inputs first
-    			for (unsigned int i = 0; i < utxoArray.size(); i++)
-    			{
-    				const UniValue& utxoObj = utxoArray[i].get_obj();
-    				const string &strTxid = find_value(utxoObj, "txid").get_str();
-    				const uint256& txid = uint256S(strTxid);
-    				const int& nOut = find_value(utxoObj, "vout").get_int();
-    				const std::vector<unsigned char> &data(ParseHex(find_value(utxoObj, "scriptPubKey").get_str()));
-    				const CScript& scriptPubKey = CScript(data.begin(), data.end());
-    				const CAmount &nValue = AmountFromValue(find_value(utxoObj, "amount"));
-    				const CTxIn txIn(txid, nOut, scriptPubKey);
-    				const COutPoint outPoint(txid, nOut);
-    				if (std::find(tx.vin.begin(), tx.vin.end(), txIn) != tx.vin.end())
-    					continue;
-    				// look for small inputs only, if not selecting all
-    				if (nValue <= minFee) {
-
-    					if (mempool.mapNextTx.find(outPoint) != mempool.mapNextTx.end())
-    						continue;
  
         const CAmount &minFee = GetFee(3000);
         if (nCurrentAmount < (nDesiredAmount + nFees)) {

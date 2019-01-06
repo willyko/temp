@@ -322,10 +322,10 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Invalid asset details entered in the script output");
             return error(errorMessage.c_str());
         }
-        uint32_t nAssetFromScript  = static_cast<uint32_t>(vvchArgs[0][0]);
-        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][1]) << 8;
-        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][2]) << 16;
-        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][3]) << 24;
+        uint32_t nAssetFromScript  = static_cast<uint32_t>(vvchArgs[0][3]);
+        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][2]) << 8;
+        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][1]) << 16;
+        nAssetFromScript |= static_cast<uint32_t>(vvchArgs[0][0]) << 24;
 		if(assetAllocationTuple.nAsset != nAssetFromScript)
 		{
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Invalid asset details entered in the script output");
@@ -347,7 +347,20 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1020 - " + _("Burning amount must be positive");
             return error(errorMessage.c_str());
         } 
-        if(AssetAmountFromValueNonNeg(stringFromVch(vvchArgs[1]), dbAsset.nPrecision) != amountTuple.second)
+        if(vvchArgs[1].size() != 8)
+        {
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Invalid amount entered in the script output");
+            return error(errorMessage.c_str());
+        }       
+        uint64_t nAmountFromScript  = static_cast<uint64_t>(vvchArgs[1][7]);
+        nAmountFromScript |= static_cast<uint64_t>(vvchArgs[1][6]) << 8;
+        nAmountFromScript |= static_cast<uint64_t>(vvchArgs[1][5]) << 16;
+        nAmountFromScript |= static_cast<uint64_t>(vvchArgs[1][4]) << 24; 
+        nAmountFromScript |= static_cast<uint64_t>(vvchArgs[1][3]) << 32;  
+        nAmountFromScript |= static_cast<uint64_t>(vvchArgs[1][2]) << 40;  
+        nAmountFromScript |= static_cast<uint64_t>(vvchArgs[1][1]) << 48;  
+        nAmountFromScript |= static_cast<uint64_t>(vvchArgs[1][0]) << 56; 
+        if((CAmount)nAmountFromScript != amountTuple.second)
         {
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Invalid amount entered in the script output");
             return error(errorMessage.c_str());
@@ -778,6 +791,13 @@ UniValue tpstestadd(const JSONRPCRequest& request) {
 	result.pushKV("status", "success");
 	return result;
 }
+template <typename T>
+inline std::string int_to_hex(T val, size_t width=sizeof(T)*2)
+{
+    std::stringstream ss;
+    ss << std::setfill('0') << std::setw(width) << std::hex << (val|0);
+    return ss.str();
+}
 UniValue assetallocationburn(const JSONRPCRequest& request) {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
     CWallet* const pwallet = wallet.get();
@@ -820,9 +840,15 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 
     vector<unsigned char> data;
     theAssetAllocation.Serialize(data);
+    
+    // convert to hex string because otherwise cscript will push a cscriptnum which is 4 bytes but we want 8 byte hex representation of an int64 pushed
+    const std::string amountHex = int_to_hex(amount);
+    
+    const std::string assetHex = int_to_hex(nAsset);
+
 
 	CScript scriptPubKey;
-	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_BURN) << nAsset << vchFromString(ValueFromAssetAmount(amount,theAsset.nPrecision).getValStr()) << theAsset.vchContract << OP_2DROP << OP_2DROP << OP_2DROP;
+	scriptPubKey << CScript::EncodeOP_N(OP_SYSCOIN_ASSET_ALLOCATION) << CScript::EncodeOP_N(OP_ASSET_ALLOCATION_BURN) << ParseHex(assetHex) << ParseHex(amountHex) << theAsset.vchContract << OP_2DROP << OP_2DROP << OP_DROP;
 	scriptPubKey += scriptPubKeyFromOrig;
 	// send the asset pay txn
 	vector<CRecipient> vecSend;

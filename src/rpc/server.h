@@ -198,6 +198,7 @@ extern UniValue syscoindecoderawtransaction(const JSONRPCRequest& request);
 extern UniValue syscoinaddscript(const JSONRPCRequest& request);
 extern UniValue assetnew(const JSONRPCRequest& request);
 extern UniValue assetupdate(const JSONRPCRequest& request);
+extern UniValue addressbalance(const JSONRPCRequest& request);
 extern UniValue assettransfer(const JSONRPCRequest& request);
 extern UniValue assetsend(const JSONRPCRequest& request);
 extern UniValue assetinfo(const JSONRPCRequest& request);

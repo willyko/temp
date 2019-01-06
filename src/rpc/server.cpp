@@ -273,6 +273,7 @@ static const CRPCCommand vRPCCommands[] =
     // assets using the blockchain, coins/points/service backed tokens
     { "wallet", "assetnew",         &assetnew, {}},
     { "wallet", "assetupdate",         &assetupdate, {}},
+    { "wallet", "addressbalance",         &addressbalance, {}},
     { "wallet", "assettransfer",      &assettransfer, {}},
     { "wallet", "assetsend",      &assetsend, {}},
     { "wallet", "assetinfo",      &assetinfo, {}},

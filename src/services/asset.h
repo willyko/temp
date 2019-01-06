@@ -173,7 +173,6 @@ public:
     }
     inline void SetNull() { vchValue.clear(); vchParentNodes.clear(); vchBlockHash.clear(); vchPath.clear(); }
     inline bool IsNull() const { return (vchValue.empty()); }
-    bool UnserializeFromTx(const CTransaction &tx);
     bool UnserializeFromData(const std::vector<unsigned char> &vchData);
     void Serialize(std::vector<unsigned char>& vchData);
 };

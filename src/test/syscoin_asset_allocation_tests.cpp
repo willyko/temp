@@ -19,7 +19,6 @@ BOOST_FIXTURE_TEST_SUITE(syscoin_asset_allocation_tests, BasicSyscoinTestingSetu
 BOOST_AUTO_TEST_CASE(generate_asset_allocation_address_sync)
 {
 	UniValue r;
-	GenerateBlocks(5);
 	printf("Running generate_asset_allocation_address_sync...\n");
 	GenerateBlocks(5);
 	string newaddress = GetNewFundedAddress("node1");

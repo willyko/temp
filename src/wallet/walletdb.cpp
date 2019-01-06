@@ -19,8 +19,6 @@
 #include <atomic>
 
 #include <boost/thread.hpp>
-// SYSCOIN
-#include <services/asset.h>
 #include <validation.h>
 //
 // WalletBatch
@@ -278,9 +276,6 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             CValidationState state;
             if (!(CheckTransaction(*wtx.tx, state) && (wtx.tx->GetHash() == hash) && state.IsValid()))
             {
-                // SYSCOIN
-                if (wtx.tx->GetHash() != hash && wtx.tx->nVersion == SYSCOIN_TX_VERSION_ASSET)
-                    return true;
                 strErr = "Error reading wallet database. CheckTransaction failed, validation state: " + FormatStateMessage(state);
                 return false;
             }

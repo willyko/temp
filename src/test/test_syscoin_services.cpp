@@ -463,6 +463,10 @@ string GetNewFundedAddress(const string &node) {
     CallExtRPC(sendnode, "sendtoaddress", "\"" + newaddress + "\",\"10\"", false);
 	GenerateBlocks(10, sendnode);
 	GenerateBlocks(10, node);
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "addressbalance " + newaddress));
+    UniValue arr = r.get_array();
+    CAmount nAmount = AmountFromValue(arr[0]);
+    BOOST_CHECK_EQUAL(nAmount, 10*COIN);
 	return newaddress;
 }
 void SleepFor(const int& milliseconds, bool actualSleep) {
@@ -575,7 +579,30 @@ void GetOtherNodes(const string& node, string& otherNode1, string& otherNode2)
 	}
 
 }
-
+string SyscoinMint(const string& node, const string& address, const string& amount, const string& blockhash, const string& tx_hex, const string& txmerkleproof_hex, const string& txmerkleroofpath_hex, const string& witness)
+{
+    string otherNode1, otherNode2;
+    GetOtherNodes(node, otherNode1, otherNode2);
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "addressbalance " + address));
+    UniValue arr = r.get_array();
+    CAmount nAmountBefore = AmountFromValue(arr[0]);
+    // "syscoinmint [addressto] [amount] [blockhash] [tx_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinmint " + address + " " + amount + " " + " " + blockhash + " " + tx_hex + " " + txmerkleproof_hex + " " + txmerkleroofpath_hex + " " + witness));
+    
+    arr = r.get_array();
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + address));
+    arr = r.get_array();
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
+    string hex_str = find_value(r.get_obj(), "hex").get_str();
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
+    GenerateBlocks(5, node);
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "addressbalance " + address));
+    arr = r.get_array();
+    CAmount nAmountAfter = AmountFromValue(arr[0]);
+    BOOST_CHECK_EQUAL(nAmountBefore, nAmountAfter);
+    return hex_str;
+}
 string AssetNew(const string& node, const string& address, const string& pubdata, const string& contract, const string& precision, const string& supply, const string& maxsupply, const string& updateflags, const string& witness)
 {
 	string otherNode1, otherNode2;
@@ -586,7 +613,7 @@ string AssetNew(const string& node, const string& address, const string& pubdata
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetnew " + address + " " + pubdata + " " + contract + " " + precision + " " + supply + " " + maxsupply + " " + updateflags + " " + witness));
 	UniValue arr = r.get_array();
     string guid = boost::lexical_cast<string>(arr[1].get_int());
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + address));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + address));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();

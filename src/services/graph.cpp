@@ -159,7 +159,7 @@ bool DAGTopologicalSort(const std::vector<CTransactionRef>& blockVtx, std::vecto
 	for (unsigned int vOut = 1; vOut< blockVtx.size(); vOut++) {
 		const CTransactionRef& txRef = blockVtx[vOut];
 		const CTransaction& tx = *txRef;
-        if(tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
+        if(tx.nVersion != SYSCOIN_TX_VERSION_ASSET && tx.nVersion != SYSCOIN_TX_VERSION_MINT)
             continue;
 
 		if (!DecodeAssetAllocationTx(tx, op, vvchArgs) || op != OP_ASSET_ALLOCATION_SEND)

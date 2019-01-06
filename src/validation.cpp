@@ -511,18 +511,7 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
         return true;
     std::vector<std::vector<unsigned char> > vvchArgs;
     int op;
-    // minted txs create an output at vout[0] so we simply spend it on disconnect
-    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT){
-        const uint256 &hash = tx.GetHash();
-        COutPoint out(hash, 0);
-        Coin coin;
-        bool is_spent = view.SpendCoin(out, &coin);
-        if (!is_spent || tx.vout[0] != coin.out || pindex->nHeight != coin.nHeight || false != coin.fCoinBase) {
-            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Mint spend failed\n");
-            return false;
-        }
-    }
-    else if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
+    if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
         return true;
 
     AssetAllocationMap mapAssetAllocations;
@@ -694,10 +683,8 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
     return true;       
 }
 // SYSCOIN
-bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, bool bSanity)
+bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state)
 {
-    if (tx.nVersion != SYSCOIN_TX_VERSION_MINT)
-        return true;
     std::string errorMessage;
     // unserialize assetallocation from txn, check for valid
     CMintSyscoin mintSyscoin;
@@ -749,6 +736,7 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const CCo
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Burn amount must match mint amount");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }    
+    return true;
 }
 bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
 {
@@ -764,26 +752,30 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
     std::string errorMessage;
     bool good = true;
     if (block.vtx.empty()) {
-        if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET || tx.IsCoinBase())
+        if(tx.IsCoinBase())
             return true;
-
-        if (DecodeAssetAllocationTx(tx, op, vvchArgs))
+        if (tx.nVersion == SYSCOIN_TX_VERSION_ASSET)
         {
-            errorMessage.clear();
-            good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations,blockMapAssetBalances,errorMessage, bSanity);
-        }
-        else if (DecodeAssetTx(tx, op, vvchArgs))
-        {
-            errorMessage.clear();
-            good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapLastAssets, mapAssets, mapAssetAllocations,blockMapAssetBalances, errorMessage, bSanity);
-        }
-  
-        
-
-        if (!good || !errorMessage.empty())
-            return state.DoS(100, false, REJECT_INVALID, errorMessage);
+            if (DecodeAssetAllocationTx(tx, op, vvchArgs))
+            {
+                errorMessage.clear();
+                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations,blockMapAssetBalances,errorMessage, bSanity);
+            }
+            else if (DecodeAssetTx(tx, op, vvchArgs))
+            {
+                errorMessage.clear();
+                good = CheckAssetInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapLastAssets, mapAssets, mapAssetAllocations,blockMapAssetBalances, errorMessage, bSanity);
+            }
       
-        return true;
+            
+
+            if (!good || !errorMessage.empty())
+                return state.DoS(100, false, REJECT_INVALID, errorMessage);
+          
+            return true;
+        }
+        else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT) 
+            return CheckSyscoinMint(tx, state);
     }
     else if (!block.vtx.empty()) {
 
@@ -802,9 +794,13 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
 
             good = true;
             const CTransaction &tx = *(processBlock.vtx[i]);
-            if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET || tx.IsCoinBase())
+            if(tx.IsCoinBase())
                 continue;
-                     
+            if(tx.nVersion == SYSCOIN_TX_VERSION_MINT && !CheckSyscoinMint(tx, state))
+                return state.DoS(100, error("%s: check syscoin mint", __func__), REJECT_INVALID, FormatStateMessage(state));
+            else if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
+                continue;
+        
             if (DecodeAssetAllocationTx(tx, op, vvchArgs))
             {
                 // dont bother with allocation minting if we are checking as a miner

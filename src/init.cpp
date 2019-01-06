@@ -410,7 +410,7 @@ void SetupServerArgs()
     const auto testnetChainParams = CreateChainParams(CBaseChainParams::TESTNET);
 
     // SYSCOIN Hidden Options   
-    std::vector<std::string> hidden_args = {"-masternode","-unittest","-tpstest","-assetallocationindex", "-rpcssl", "-benchmark", "-h", "-help", "-socks", "-tor", "-debugnet", "-whitelistalwaysrelay",
+    std::vector<std::string> hidden_args = {"-masternode","-unittest","-tpstest","-concurrentprocessing","-assetallocationindex", "-rpcssl", "-benchmark", "-h", "-help", "-socks", "-tor", "-debugnet", "-whitelistalwaysrelay",
         "-prematurewitness", "-walletprematurewitness", "-promiscuousmempoolflags", "-blockminsize", "-dbcrashratio", "-forcecompactdb", "-usehd",
         // GUI args. These will be overwritten by SetupUIArgs for the GUI
         "-allowselfsignedrootcertificates", "-choosedatadir", "-lang=<lang>", "-min", "-resetguisettings", "-rootcertificates=<file>", "-splash", "-uiplatform"};
@@ -1788,6 +1788,7 @@ bool AppInitMain()
     fMasternodeMode = gArgs.GetBoolArg("-masternode", false);
     fUnitTest = gArgs.GetBoolArg("-unittest", false);
     fTPSTest = gArgs.GetBoolArg("-tpstest", false);
+    fConcurrentProcessing = gArgs.GetBoolArg("-concurrentprocessing", true);
     fLogThreadpool = LogAcceptCategory(BCLog::THREADPOOL);
     fAssetAllocationIndex = gArgs.GetBoolArg("-assetallocationindex", false);
     // TODO: masternode should have no wallet

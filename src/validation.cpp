@@ -1509,6 +1509,14 @@ static bool AcceptToMemoryPoolWithTime(const CChainParams& chainparams, CTxMemPo
                         bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
                         bool bypass_limits, const CAmount nAbsurdFee, bool test_accept,bool bMultiThreaded)
 {
+    // SYSCOIN if its been less 60 seconds since the last MT mempool verification failure then fallback to single threaded
+    if (GetTime() - nLastMultithreadMempoolFailure < 60) {
+        LogPrint(BCLog::MEMPOOL, "AcceptToMemoryPoolWithTime: switching to single thread verification...");
+        bMultiThreaded = false;
+    }
+    else if(!fConcurrentProcessing)
+        bMultiThreaded = false;
+
     std::vector<COutPoint> coins_to_uncache;
     bool res = AcceptToMemoryPoolWorker(chainparams, pool, state, tx, pfMissingInputs, nAcceptTime, plTxnReplaced, bypass_limits, nAbsurdFee, coins_to_uncache, test_accept,bMultiThreaded);
     if (!res) {

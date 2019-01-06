@@ -48,6 +48,7 @@ extern bool fUnitTest;
 extern bool fTPSTest;
 extern bool fTPSTestEnabled;
 extern bool fAssetAllocationIndex;
+extern bool fConcurrentProcessing;
 extern bool fLiteMode;
 // Application startup time (used for uptime calculation)
 int64_t GetStartupTime();

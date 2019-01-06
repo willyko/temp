@@ -85,6 +85,7 @@ bool fUnitTest = false;
 bool fTPSTest = false;
 bool fTPSTestEnabled = false;
 bool fAssetAllocationIndex = false;
+bool fConcurrentProcessing = true;
 bool fLiteMode = false;
 // Application startup time (used for uptime calculation)
 const int64_t nStartupTime = GetTime();

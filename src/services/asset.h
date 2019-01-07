@@ -77,7 +77,7 @@ inline bool AssetRange(const CAmount& nValue) { return (nValue > 0 && nValue <= 
 enum {
     ASSET_UPDATE_ADMIN=1, // god mode flag, governs flags field below
     ASSET_UPDATE_DATA=2, // can you update pubic data field?
-    ASSET_UPDATE_CONTRACT=4, // can you update smart contract field?
+    ASSET_UPDATE_CONTRACT=4, // can you update smart contract/burn method signature fields? If you modify this, any subsequent sysx mints will need to wait atleast 10 blocks
     ASSET_UPDATE_SUPPLY=8, // can you update supply?
     ASSET_UPDATE_FLAGS=16, // can you update flags? if you would set permanently disable this one and admin flag as well
     ASSET_UPDATE_ALL=31
@@ -87,6 +87,7 @@ public:
 	uint32_t nAsset;
 	std::vector<uint8_t> vchAddress;
 	std::vector<unsigned char> vchContract;
+    std::vector<unsigned char> vchBurnMethodSignature;
     uint256 txHash;
     unsigned int nHeight;
 	std::vector<unsigned char> vchPubData;
@@ -107,6 +108,7 @@ public:
 		vchPubData.clear();
 		vchAddress.clear();
 		vchContract.clear();
+        vchBurnMethodSignature.clear();
 
 	}
 	ADD_SERIALIZE_METHODS;
@@ -122,7 +124,8 @@ public:
         READWRITE(nHeight);
 		READWRITE(VARINT(nUpdateFlags));
 		READWRITE(VARINT(nPrecision));
-		READWRITE(vchContract);      
+		READWRITE(vchContract); 
+        READWRITE(vchBurnMethodSignature);     
 	}
     inline friend bool operator==(const CAsset &a, const CAsset &b) {
         return (
@@ -142,13 +145,14 @@ public:
 		nPrecision = b.nPrecision;
 		vchContract = b.vchContract;
         nHeight = b.nHeight;
+        vchBurnMethodSignature = b.vchBurnMethodSignature;
         return *this;
     }
 
     inline friend bool operator!=(const CAsset &a, const CAsset &b) {
         return !(a == b);
     }
-	inline void SetNull() { nHeight = 0;vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); vchAddress.clear(); vchPubData.clear(); }
+	inline void SetNull() { vchBurnMethodSignature.clear(); nHeight = 0;vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); vchAddress.clear(); vchPubData.clear(); }
     inline bool IsNull() const { return (nAsset == 0); }
     bool UnserializeFromTx(const CTransaction &tx);
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);

@@ -55,6 +55,7 @@
 #include <services/graph.h>
 #include <thread_pool/thread_pool.hpp>
 #include <ethereum/ethereum.h>
+#include <ethereum/Address.h>
 #include <ethereum/Common.h>
 #include <ethereum/CommonData.h>
 std::vector<std::pair<uint256, int64_t> > vecTPSTestReceivedTimesMempool;
@@ -720,11 +721,20 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state)
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction data RLP must be an array");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-    CAmount outputAmount;
+    if (rlpValue[3].isEmpty()){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Invalid transaction receiver");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+    const dev::Address &address160 = rlpValue[3].toHash<dev::Address>(dev::RLP::VeryStrict);
+    if(Params().GetConsensus().vchSYSXContract != address160.asBytes()){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Receiver not the expected SYSX contract address");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+   /*CAmount outputAmount;
     uint32_t nAsset = 0;
     const std::vector<unsigned char> &expectedMethodHash = ParseHex("3af112");
     const std::vector<unsigned char> &rlpBytes = rlpValue[5].data().toBytes();
-    if(!parseEthMethodInputData(expectedMethodHash, rlpBytes, outputAmount, nAsset)){
+    if(!parseEthMethodInputData(Params().GetConsensus().vchSYSXBurnMethodSignature, rlpBytes, outputAmount, nAsset)){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
@@ -735,7 +745,7 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state)
     if(outputAmount != tx.vout[0].nValue){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Burn amount must match mint amount");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
-    }    
+    }  */  
     return true;
 }
 bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)

@@ -46,6 +46,9 @@ struct BIP9Deployment {
  */
 struct Params {     
     uint256 hashGenesisBlock;
+    // Syscoin
+    std::vector<unsigned char> vchSYSXContract;
+    std::vector<unsigned char> vchSYSXBurnMethodSignature;
     unsigned int nSeniorityHeight1;
     double nSeniorityLevel1;
     unsigned int nSeniorityHeight2;

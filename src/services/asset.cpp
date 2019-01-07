@@ -1320,13 +1320,23 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update public data");
 				return error(errorMessage.c_str());
 			}
-			if (theAsset.vchContract.empty())
-				theAsset.vchContract = dbAsset.vchContract;				
+            
+			if (theAsset.vchBurnMethodSignature.empty())
+				theAsset.vchBurnMethodSignature = dbAsset.vchBurnMethodSignature;				
 			else if (!(dbAsset.nUpdateFlags & ASSET_UPDATE_CONTRACT))
 			{
-				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update smart contract");
+				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update smart contract burn method signature");
 				return error(errorMessage.c_str());
 			}
+            
+            if (theAsset.vchContract.empty())
+                theAsset.vchContract = dbAsset.vchContract;             
+            else if (!(dbAsset.nUpdateFlags & ASSET_UPDATE_CONTRACT))
+            {
+                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update smart contract");
+                return error(errorMessage.c_str());
+            }    
+                  
 			if (theAsset.nUpdateFlags != dbAsset.nUpdateFlags && (!(dbAsset.nUpdateFlags & (ASSET_UPDATE_FLAGS | ASSET_UPDATE_ADMIN)))) {
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2040 - " + _("Insufficient privileges to update flags");
 				return error(errorMessage.c_str());

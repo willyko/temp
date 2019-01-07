@@ -245,6 +245,10 @@ bool DisconnectMintAsset(const CTransaction &tx){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Cannot unserialize data inside of this transaction relating to an syscoinmint\n");
         return false;
     }
+    if (!GetAsset(mintSyscoin.assetAllocationTuple.nAsset, dbAsset)) {
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",mintSyscoin.assetAllocationTuple.nAsset);
+        return false;               
+    }  
     const std::string &receiverTupleStr = mintSyscoin.assetAllocationTuple.ToString();
     CAssetAllocation receiverAllocation;
     if (!GetAssetAllocation(mintSyscoin.assetAllocationTuple, receiverAllocation)) {

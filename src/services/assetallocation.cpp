@@ -1344,13 +1344,13 @@ void AssetMintTxToJson(const CTransaction& tx, UniValue &entry){
         entry.pushKV("txtype", "assetallocationmint");
         entry.pushKV("_id", mintsyscoin.assetAllocationTuple.ToString());
         entry.pushKV("asset", (int)mintsyscoin.assetAllocationTuple.nAsset);
-        entry.pushKV("owner", mintsyscoin.assetAllocationTuple.GetAddressString());
+        entry.pushKV("owner", "");
         UniValue oAssetAllocationReceiversArray(UniValue::VARR);
         CAsset dbAsset;
         GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
        
         UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-        oAssetAllocationReceiversObj.pushKV("owner", bech32::Encode(Params().Bech32HRP(), mintsyscoin.assetAllocationTuple.vchAddress));
+        oAssetAllocationReceiversObj.pushKV("owner", mintsyscoin.assetAllocationTuple.GetAddressString());
         oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
         oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
     

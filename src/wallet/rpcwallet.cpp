@@ -1893,7 +1893,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                    
                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                     // update to owner
-                    oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), mintsyscoin.assetAllocationTuple.vchAddress));
+                    oAssetAllocationReceiversObj.pushKV("ownerto", mintsyscoin.assetAllocationTuple.GetAddressString());
                     oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                       
@@ -2002,7 +2002,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                        
                         UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                         // update to owner
-                        oAssetAllocationReceiversObj.pushKV("ownerto", bech32::Encode(Params().Bech32HRP(), mintsyscoin.assetAllocationTuple.vchAddress));
+                        oAssetAllocationReceiversObj.pushKV("ownerto", mintsyscoin.assetAllocationTuple.GetAddressString());
                         oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
                         oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                           

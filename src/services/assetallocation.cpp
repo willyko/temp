@@ -235,7 +235,108 @@ bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove, 
 	return true;
 	
 }
+bool DisconnectMintAsset(const CTransaction &tx){
+    AssetAllocationMap mapAssetAllocations;
+    AssetMap mapAssets; 
+    CMintSyscoin mintSyscoin(tx);
+    CAsset dbAsset;
+    if(mintSyscoin.IsNull())
+    {
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Cannot unserialize data inside of this transaction relating to an syscoinmint\n");
+        return false;
+    }
+    const std::string &receiverTupleStr = mintSyscoin.assetAllocationTuple.ToString();
+    CAssetAllocation receiverAllocation;
+    if (!GetAssetAllocation(mintSyscoin.assetAllocationTuple, receiverAllocation)) {
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get receiver allocation %s\n",receiverTupleStr);
+        return false;       
+    } 
+    receiverAllocation.nBalance -= mintSyscoin.nValueAsset;
+    dbAsset.nTotalSupply -= mintSyscoin.nValueAsset;
+    if(dbAsset.nTotalSupply < 0){
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Max supply cannot be negative\n");
+        return false;
+    }  
+    if(receiverAllocation.nBalance < 0) {
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",receiverTupleStr, receiverAllocation.nBalance);
+        return false;
+    }       
+    else if(receiverAllocation.nBalance == 0){
+        if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
+            return false;
+        }
+    }
+    else{     
+        auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+        if (!rv.second)
+            rv.first->second = std::move(receiverAllocation);
+    }
+    auto rv1 = mapAssets.emplace(std::move(dbAsset.nAsset), std::move(dbAsset));
+    if (!rv1.second)
+       rv1.first->second = std::move(dbAsset);
+        
+    if(!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets)){
+       LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
+       return false;
+    }        
+        
+    return true; 
+}
+bool DisconnectAssetAllocation(const CTransaction &tx){
+    AssetAllocationMap mapAssetAllocations;
+    AssetMap mapAssets; 
+    CAssetAllocation theAssetAllocation(tx);
+    const std::string &senderTupleStr = theAssetAllocation.assetAllocationTuple.ToString();
+    if(theAssetAllocation.IsNull()){
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset allocation\n");
+        return false;
+    }
+    CAssetAllocation senderAllocation;
+    if (!GetAssetAllocation(theAssetAllocation.assetAllocationTuple, senderAllocation)) {
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get sender allocation %s\n",senderTupleStr);
+        return false;               
+    }
+    for(const auto& amountTuple:theAssetAllocation.listSendingAllocationAmounts){
+        const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
+       
+        const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
+        CAssetAllocation receiverAllocation;
+        if (!GetAssetAllocation(receiverAllocationTuple, receiverAllocation)) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get receiver allocation %s\n",receiverTupleStr);
+            return false;               
+        }
 
+        // reverse allocations
+        receiverAllocation.nBalance -= amountTuple.second;
+        senderAllocation.nBalance += amountTuple.second; 
+        
+        if(receiverAllocation.nBalance < 0) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",receiverTupleStr, receiverAllocation.nBalance);
+            return false;
+        }
+        else if(receiverAllocation.nBalance == 0){
+            if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
+                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
+                return false;
+            }
+        }
+        else{
+            auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+            if (!rv.second)
+                rv.first->second = std::move(receiverAllocation);      
+        }                              
+    }
+    auto rv = mapAssetAllocations.emplace(std::move(senderTupleStr), std::move(senderAllocation));
+    if (!rv.second)
+        rv.first->second = std::move(senderAllocation); 
+        
+    if(!passetallocationdb->Flush(mapAssetAllocations)){
+       LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
+       return false;
+    }
+    return true; 
+}
 bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const vector<vector<unsigned char> > &vvchArgs,
         bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck, bool bMiner) {
     if (passetallocationdb == nullptr)

@@ -1085,8 +1085,99 @@ bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
 	scriptOut = CScript(pc, scriptIn.end());
 	return true;
 }
+bool DisconnectAssetSend(const CTransaction &tx){
+    AssetAllocationMap mapAssetAllocations;
+    AssetMap mapAssets; 
+    CAsset dbAsset;
+    CAssetAllocation theAssetAllocation(tx);
+    if(theAssetAllocation.IsNull()){
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset allocation in asset send\n");
+        return false;
+    } 
+    if (!GetAsset(theAssetAllocation.assetAllocationTuple.nAsset, dbAsset)) {
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAssetAllocation.assetAllocationTuple.nAsset);
+        return false;               
+    }                 
+    for(const auto& amountTuple:theAssetAllocation.listSendingAllocationAmounts){
+        const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
+        const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
+        CAssetAllocation receiverAllocation;
+        if (!GetAssetAllocation(receiverAllocationTuple, receiverAllocation)) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get receiver allocation %s\n",receiverAllocationTuple.ToString());
+            return false;               
+        }
+        // reverse allocation
+        receiverAllocation.nBalance -= amountTuple.second;
+        dbAsset.nBalance += amountTuple.second; 
+        if(receiverAllocation.nBalance < 0) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance in assetsend of %s is negative: %lld\n",receiverTupleStr, receiverAllocation.nBalance);
+            return false;
+        }
+        else if(receiverAllocation.nBalance == 0){
+            if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
+                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
+                return false;
+            }
+        }                
+        auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+        if (!rv.second)
+            rv.first->second = std::move(receiverAllocation);                                     
+    }
+    auto rv = mapAssets.emplace(std::move(theAssetAllocation.assetAllocationTuple.nAsset), std::move(dbAsset));
+    if (!rv.second)
+        rv.first->second = std::move(dbAsset);
+        
+    if(!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets)){
+       LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
+       return false;
+    }      
+    return true;  
+}
+bool DisconnectAssetUpdate(const CTransaction &tx){
+    AssetMap mapAssets; 
+    CAsset dbAsset;
+    CAsset theAsset(tx);
+    if(theAsset.IsNull()){
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset\n");
+        return false;
+    }
+    if (!GetAsset(theAsset.nAsset, dbAsset)) {
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAsset.nAsset);
+        return false;               
+    }            
+    if(theAsset.nBalance > 0){
+        // reverse asset minting by the issuer
+        dbAsset.nBalance -= theAsset.nBalance;
+        dbAsset.nTotalSupply -= theAsset.nBalance;
+        if(dbAsset.nBalance < 0 || dbAsset.nTotalSupply < 0) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Asset cannot be negative: Balance %lld, Supply: %lld\n",dbAsset.nBalance, dbAsset.nTotalSupply);
+            return false;
+        }                   
+        auto rv = mapAssets.emplace(std::move(theAsset.nAsset), std::move(dbAsset));
+        if (!rv.second)
+            rv.first->second = std::move(dbAsset);                        
+    } 
+        
+    if(!passetdb->Flush(mapAssets)){
+       LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
+       return false;
+    }      
+    return true;  
+}
+bool DisconnectAssetActivate(const CTransaction &tx){
+    CAsset theAsset(tx);
+    if(theAsset.IsNull()){
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset in asset activate\n");
+        return false;
+    }
+    if(!passetdb->EraseAsset(theAsset.nAsset)){
+        LogPrint(BCLog::SYS, "Error erasing asset\n");
+        return false;
+    }   
+    return true;  
+}
 bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const vector<vector<unsigned char> > &vvchArgs,
-        bool fJustCheck, int nHeight, AssetMap& mapLastAssets, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck) {
+        bool fJustCheck, int nHeight, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck) {
 	if (passetdb == nullptr)
 		return false;
 	const uint256& txHash = tx.GetHash();
@@ -1220,12 +1311,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update supply");
 				return error(errorMessage.c_str());
-			}
-            if((nHeight - dbAsset.nHeight) <= 10)
-            {
-                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("You must wait atleast 10 blocks between updating your asset");
-                return error(errorMessage.c_str());
-            }           
+			}          
             // increase total supply
             theAsset.nTotalSupply += theAsset.nBalance;
 			theAsset.nBalance += dbAsset.nBalance;
@@ -1367,12 +1453,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
             passetdb->WriteAssetIndex(theAsset, op); 
             auto rv = mapAssets.emplace(std::move(theAsset.nAsset), std::move(theAsset));
             if (!rv.second)
-                rv.first->second = std::move(theAsset);
-            if(op != OP_ASSET_ACTIVATE){
-                auto rv1 = mapLastAssets.emplace(std::move(theAsset.nAsset), std::move(dbAsset));
-                if (!rv1.second)
-                    rv1.first->second = std::move(dbAsset); 
-            }     
+                rv.first->second = std::move(theAsset);    
 		
 			LogPrint(BCLog::SYS,"CONNECTED ASSET: op=%s symbol=%d hash=%s height=%d fJustCheck=%d\n",
 					assetFromOp(op).c_str(),
@@ -1389,32 +1470,34 @@ UniValue assetnew(const JSONRPCRequest& request) {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
     CWallet* const pwallet = wallet.get();
 	const UniValue &params = request.params;
-    if (request.fHelp || params.size() != 8)
+    if (request.fHelp || params.size() != 9)
         throw runtime_error(
-			"assetnew [owner] [public value] [contract] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
+			"assetnew [owner] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
 						"<owner> An address that you own.\n"
                         "<public value> public data, 256 characters max.\n"
-                        "<contract> Ethereum token contract for SyscoinX bridge. Must be in hex and not include the '0x' format tag. For example contract '0xb060ddb93707d2bc2f8bcc39451a5a28852f8d1d' should be set as 'b060ddb93707d2bc2f8bcc39451a5a28852f8d1d'\n"  
+                        "<contract> Ethereum token contract for SyscoinX bridge. Must be in hex and not include the '0x' format tag. For example contract '0xb060ddb93707d2bc2f8bcc39451a5a28852f8d1d' should be set as 'b060ddb93707d2bc2f8bcc39451a5a28852f8d1d'. Leave empty for no smart contract bridge.\n" 
+                        "<burn_method_signature> Ethereum token contract method signature for the burn function.  Use an ABI tool in Ethereum to find this, it mst be set so that the validation code knows the burn function was called to mint assets in Syscoin from Ethereum. Must be in hex and is 4 bytes (8 characters). ie: 'fefefefe'. Leave empty for no smart contract bridge.\n"  
 						"<precision> Precision of balances. Must be between 0 and 8. The lower it is the higher possible max_supply is available since the supply is represented as a 64 bit integer. With a precision of 8 the max supply is 10 billion.\n"
 						"<supply> Initial supply of asset. Can mint more supply up to total_supply amount or if total_supply is -1 then minting is uncapped.\n"
 						"<max_supply> Maximum supply of this asset. Set to -1 for uncapped. Depends on the precision value that is set, the lower the precision the higher max_supply can be.\n"
-						"<update_flags> Ability to update certain fields. Must be decimal value which is a bitmask for certain rights to update. The bitmask represents 0x01(1) to give admin status (needed to update flags), 0x10(2) for updating public data field, 0x100(4) for updating the smart contract field, 0x1000(8) for updating supply, 0x10000(16) for being able to update flags (need admin access to update flags as well)\n"
+						"<update_flags> Ability to update certain fields. Must be decimal value which is a bitmask for certain rights to update. The bitmask represents 0x01(1) to give admin status (needed to update flags), 0x10(2) for updating public data field, 0x100(4) for updating the smart contract/burn method signature fields, 0x1000(8) for updating supply, 0x10000(16) for being able to update flags (need admin access to update flags as well)\n"
 						"<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
 						+ HelpRequiringPassphrase(pwallet));
 	string vchAddress = params[0].get_str();
 	vector<unsigned char> vchPubData = vchFromString(params[1].get_str());
     string strContract = params[2].get_str();
+    string strMethodSig = params[3].get_str();
     if(!strContract.empty())
         boost::remove_erase_if(strContract, boost::is_any_of("0x")); // strip 0x in hex str if exist
-    vector<unsigned char> vchContract = ParseHex(strContract);
-	int precision = params[3].get_int();
+   
+	int precision = params[4].get_int();
 	string vchWitness;
-	UniValue param4 = params[4];
-	UniValue param5 = params[5];
+	UniValue param4 = params[5];
+	UniValue param5 = params[6];
 	CAmount nBalance = AssetAmountFromValue(param4, precision);
 	CAmount nMaxSupply = AssetAmountFromValue(param5, precision);
-	int nUpdateFlags = params[6].get_int();
-	vchWitness = params[7].get_str();
+	int nUpdateFlags = params[7].get_int();
+	vchWitness = params[8].get_str();
 
 	string strAddressFrom;
 	string strAddress = vchAddress;
@@ -1435,7 +1518,8 @@ UniValue assetnew(const JSONRPCRequest& request) {
     CAsset newAsset;
 	newAsset.nAsset = GenerateSyscoinGuid();
 	newAsset.vchPubData = vchPubData;
-    newAsset.vchContract = vchContract;
+    newAsset.vchContract = ParseHex(strContract);
+    newAsset.vchBurnMethodSignature = ParseHex(strMethodSig);
 	newAsset.vchAddress = bech32::Decode(strAddress).second;
 	newAsset.nBalance = nBalance;
 	newAsset.nMaxSupply = nMaxSupply;
@@ -1480,30 +1564,33 @@ UniValue assetupdate(const JSONRPCRequest& request) {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
     CWallet* const pwallet = wallet.get();
 	const UniValue &params = request.params;
-    if (request.fHelp || params.size() != 6)
+    if (request.fHelp || params.size() != 7)
         throw runtime_error(
-			"assetupdate [asset] [public value] [contract] [supply] [update_flags] [witness]\n"
-						"Perform an update on an asset you control.\n"
-						"<asset> Asset guid.\n"
-                        "<public value> Public data, 256 characters max.\n"
-                        "<contract> Ethereum token contract for SyscoinX bridge. Must be in hex and not include the '0x' format tag. For example contract '0xb060ddb93707d2bc2f8bcc39451a5a28852f8d1d' should be set as 'b060ddb93707d2bc2f8bcc39451a5a28852f8d1d'\n"              
-						"<supply> New supply of asset. Can mint more supply up to total_supply amount or if max_supply is -1 then minting is uncapped. If greator than zero, minting is assumed otherwise set to 0 to not mint any additional tokens.\n"
-                        "<update_flags> Ability to update certain fields. Must be decimal value which is a bitmask for certain rights to update. The bitmask represents 0x01(1) to give admin status (needed to update flags), 0x10(2) for updating public data field, 0x100(4) for updating the smart contract field, 0x1000(8) for updating supply, 0x10000(16) for being able to update flags (need admin access to update flags as well)\n"
-                        "<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
-						+ HelpRequiringPassphrase(pwallet));
+			"assetupdate [asset] [public value] [contract] [burn_method_signature] [supply] [update_flags] [witness]\n"
+				"Perform an update on an asset you control.\n"
+				"<asset> Asset guid.\n"
+                "<public value> Public data, 256 characters max.\n"
+                "<contract> Ethereum token contract for SyscoinX bridge. Must be in hex and not include the '0x' format tag. For example contract '0xb060ddb93707d2bc2f8bcc39451a5a28852f8d1d' should be set as 'b060ddb93707d2bc2f8bcc39451a5a28852f8d1d'. Leave empty for no smart contract bridge.\n" 
+                "<burn_method_signature> Ethereum token contract method signature for the burn function.  Use an ABI tool in Ethereum to find this, it mst be set so that the validation code knows the burn function was called to mint assets in Syscoin from Ethereum. Must be in hex and is 4 bytes (8 characters). ie: 'fefefefe'. Leave empty for no smart contract bridge.\n"             
+				"<supply> New supply of asset. Can mint more supply up to total_supply amount or if max_supply is -1 then minting is uncapped. If greator than zero, minting is assumed otherwise set to 0 to not mint any additional tokens.\n"
+                "<update_flags> Ability to update certain fields. Must be decimal value which is a bitmask for certain rights to update. The bitmask represents 0x01(1) to give admin status (needed to update flags), 0x10(2) for updating public data field, 0x100(4) for updating the smart contract/burn method signature fields, 0x1000(8) for updating supply, 0x10000(16) for being able to update flags (need admin access to update flags as well)\n"
+                "<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
+				+ HelpRequiringPassphrase(pwallet));
 	const int &nAsset = params[0].get_int();
 	string strData = "";
 	string strPubData = "";
 	string strCategory = "";
 	strPubData = params[1].get_str();
     string strContract = params[2].get_str();
+    string strMethodSig = params[3].get_str();
     if(!strContract.empty())
         boost::remove_erase_if(strContract, boost::is_any_of("0x")); // strip 0x in hex str if exists
     vector<unsigned char> vchContract = ParseHex(strContract);
+    vector<unsigned char> vchBurnMethodSignature = ParseHex(strMethodSig);
 
-	int nUpdateFlags = params[4].get_int();
+	int nUpdateFlags = params[5].get_int();
 	string vchWitness;
-	vchWitness = params[5].get_str();
+	vchWitness = params[6].get_str();
 
     CScript scriptPubKeyFromOrig;
 	CAsset theAsset;
@@ -1518,10 +1605,10 @@ UniValue assetupdate(const JSONRPCRequest& request) {
 		strAddressFrom = strAddress;
 	}
 
-	UniValue param3 = params[3];
+	UniValue param4 = params[4];
 	CAmount nBalance = 0;
-	if(param3.get_str() != "0")
-		nBalance = AssetAmountFromValue(param3, theAsset.nPrecision);
+	if(param4.get_str() != "0")
+		nBalance = AssetAmountFromValue(param4, theAsset.nPrecision);
 	
 	
 	if (!strAddressFrom.empty()) {
@@ -1538,7 +1625,8 @@ UniValue assetupdate(const JSONRPCRequest& request) {
 		theAsset.vchPubData = vchFromString(strPubData);
     if(vchContract != copyAsset.vchContract)
         theAsset.vchContract = vchContract;
-
+    if(vchBurnMethodSignature != copyAsset.vchBurnMethodSignature)
+        theAsset.vchBurnMethodSignature = vchBurnMethodSignature;
 
 	theAsset.nBalance = nBalance;
 	theAsset.nUpdateFlags = nUpdateFlags;
@@ -1880,21 +1968,6 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
         batch.Write(make_pair(assetKey, asset.nAsset), asset);
     }
     LogPrint(BCLog::SYS, "Flushing %d assets\n", mapAssets.size());
-    return WriteBatch(batch);
-}
-bool CAssetDB::Flush(const AssetMap &mapLastAssets, const AssetMap &mapAssets){
-    if(mapLastAssets.empty() && mapAssets.empty())
-        return true;
-    CDBBatch batch(*this);
-    for (const auto &key : mapLastAssets) {
-        const CAsset &asset = key.second;
-        batch.Write(make_pair(lastAssetKey, asset.nAsset), asset);
-    }
-    for (const auto &key : mapAssets) {
-        const CAsset &asset = key.second;
-        batch.Write(make_pair(assetKey, asset.nAsset), asset);
-    }
-    LogPrint(BCLog::SYS, "Flushing %d assets and %d previous assets\n", mapAssets.size(), mapLastAssets.size());
     return WriteBatch(batch);
 }
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {

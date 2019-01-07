@@ -21,6 +21,7 @@ bool DecodeAndParseAssetAllocationTx(const CTransaction& tx, int& op, std::vecto
 bool DecodeAssetAllocationScript(const CScript& script, int& op, std::vector<std::vector<unsigned char> > &vvch);
 bool IsAssetAllocationOp(int op);
 void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
+void AssetMintTxToJson(const CTransaction& tx, UniValue &entry);
 std::string assetAllocationFromOp(int op);
 bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
 class CAssetAllocationTuple {

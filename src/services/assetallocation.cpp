@@ -1338,6 +1338,25 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 
 
 }
+void AssetMintTxToJson(const CTransaction& tx, UniValue &entry){
+    CMintSyscoin mintsyscoin(tx);
+    if (!mintsyscoin.IsNull() && !mintsyscoin.assetAllocationTuple.IsNull()) {
+        entry.pushKV("txtype", "assetallocationmint");
+        entry.pushKV("_id", mintsyscoin.assetAllocationTuple.ToString());
+        entry.pushKV("asset", (int)mintsyscoin.assetAllocationTuple.nAsset);
+        entry.pushKV("owner", mintsyscoin.assetAllocationTuple.GetAddressString());
+        UniValue oAssetAllocationReceiversArray(UniValue::VARR);
+        CAsset dbAsset;
+        GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
+       
+        UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+        oAssetAllocationReceiversObj.pushKV("owner", bech32::Encode(Params().Bech32HRP(), mintsyscoin.assetAllocationTuple.vchAddress));
+        oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
+        oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
+    
+        entry.pushKV("allocations", oAssetAllocationReceiversArray);                                        
+    }                    
+}
 bool CAssetAllocationTransactionsDB::ScanAssetAllocationIndex(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
 	vector<string> vecSenders;

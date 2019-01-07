@@ -792,6 +792,8 @@ UniValue syscoindecoderawtransaction(const JSONRPCRequest& request) {
 	UniValue output(UniValue::VOBJ);
 	if (DecodeAndParseSyscoinTx(rawTx, op, vvch, ctype))
 		SysTxToJSON(op, vchData, output, ctype);
+    else if(rawTx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET)
+        AssetMintTxToJson(rawTx, output);
 
 	return output;
 }

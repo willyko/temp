@@ -23,7 +23,8 @@ class UniValue;
 class CTxOut;
 class CWallet;
 const int SYSCOIN_TX_VERSION_ASSET = 0x7401;
-const int SYSCOIN_TX_VERSION_MINT = 0x7402;
+const int SYSCOIN_TX_VERSION_MINT_SYSCOIN = 0x7402;
+const int SYSCOIN_TX_VERSION_MINT_ASSET = 0x7403;
 static const unsigned int MAX_GUID_LENGTH = 20;
 static const unsigned int MAX_NAME_LENGTH = 256;
 static const unsigned int MAX_VALUE_LENGTH = 512;
@@ -44,12 +45,10 @@ int GetSyscoinDataOutput(const CTransaction& tx);
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char &type);
 bool GetSyscoinData(const CTransaction &tx, std::vector<unsigned char> &vchData, int& nOut, int &op);
 bool GetSyscoinData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData,  int &op);
-bool GetSyscoinMintData(const CTransaction &tx, std::vector<unsigned char> &vchData, int& nOut);
-bool GetSyscoinMintData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData);
 void SysTxToJSON(const int op, const std::vector<unsigned char> &vchData,  UniValue &entry, const char& type);
 std::string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, std::string& responseEnglish, const char &type, std::string& responseGUID);
 bool IsOutpointMature(const COutPoint& outpoint);
-UniValue syscointxfund_helper(const std::string &vchWitness, std::vector<CRecipient> &vecSend);
+UniValue syscointxfund_helper(const std::string &vchWitness, std::vector<CRecipient> &vecSend, const int nVersion = SYSCOIN_TX_VERSION_ASSET);
 bool FlushSyscoinDBs();
 bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::string& ownerAddressToMatch);
 CWallet* GetDefaultWallet();
@@ -160,12 +159,18 @@ public:
 };
 class CMintSyscoin {
 public:
+    CAssetAllocationTuple assetAllocationTuple;
     std::vector<unsigned char> vchValue;
     std::vector<unsigned char> vchParentNodes;
     std::vector<unsigned char> vchBlockHash;
     std::vector<unsigned char> vchPath;
+    CAmount nValueAsset;
     CMintSyscoin() {
         SetNull();
+    }
+    CMintSyscoin(const CTransaction &tx) {
+        SetNull();
+        UnserializeFromTx(tx);
     }
     ADD_SERIALIZE_METHODS;
     template <typename Stream, typename Operation>
@@ -174,10 +179,13 @@ public:
         READWRITE(vchParentNodes);
         READWRITE(vchBlockHash);
         READWRITE(vchPath);   
+        READWRITE(assetAllocationTuple);  
+        READWRITE(nValueAsset);  
     }
-    inline void SetNull() { vchValue.clear(); vchParentNodes.clear(); vchBlockHash.clear(); vchPath.clear(); }
+    inline void SetNull() { nValueAsset = 0; assetAllocationTuple.SetNull(); vchValue.clear(); vchParentNodes.clear(); vchBlockHash.clear(); vchPath.clear(); }
     inline bool IsNull() const { return (vchValue.empty()); }
     bool UnserializeFromData(const std::vector<unsigned char> &vchData);
+    bool UnserializeFromTx(const CTransaction &tx);
     void Serialize(std::vector<unsigned char>& vchData);
 };
 static const std::string assetKey = "AI";

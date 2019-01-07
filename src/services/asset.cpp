@@ -123,15 +123,6 @@ bool GetSyscoinData(const CTransaction &tx, vector<unsigned char> &vchData, int&
 	const CScript &scriptPubKey = tx.vout[nOut].scriptPubKey;
 	return GetSyscoinData(scriptPubKey, vchData, op);
 }
-bool GetSyscoinMintData(const CTransaction &tx, vector<unsigned char> &vchData, int& nOut)
-{
-    nOut = GetSyscoinDataOutput(tx);
-    if (nOut == -1)
-        return false;
-
-    const CScript &scriptPubKey = tx.vout[nOut].scriptPubKey;
-    return GetSyscoinMintData(scriptPubKey, vchData);
-}
 bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData, int &op)
 {
 	op = 0;
@@ -149,18 +140,6 @@ bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData,
 	if (!scriptPubKey.GetOp(pc, opcode, vchData))
 		return false;
 	return true;
-}
-bool GetSyscoinMintData(const CScript &scriptPubKey, vector<unsigned char> &vchData)
-{
-    CScript::const_iterator pc = scriptPubKey.begin();
-    opcodetype opcode;
-    if (!scriptPubKey.GetOp(pc, opcode))
-        return false;
-    if (opcode != OP_RETURN)
-        return false;
-    if (!scriptPubKey.GetOp(pc, opcode, vchData))
-        return false;
-    return true;
 }
 bool IsAssetOp(int op) {
     return op == OP_ASSET_ACTIVATE
@@ -216,6 +195,20 @@ bool CAsset::UnserializeFromTx(const CTransaction &tx) {
 	{	
 		return false;
 	}
+    return true;
+}
+bool CMintSyscoin::UnserializeFromTx(const CTransaction &tx) {
+    vector<unsigned char> vchData;
+    int nOut, op;
+    if (!GetSyscoinData(tx, vchData, nOut, op) || op != OP_SYSCOIN_MINT)
+    {
+        SetNull();
+        return false;
+    }
+    if(!UnserializeFromData(vchData))
+    {   
+        return false;
+    }
     return true;
 }
 bool FlushSyscoinDBs() {
@@ -357,9 +350,9 @@ UniValue SyscoinListReceived(bool includeempty = true, bool includechange = fals
 	}
 	return ret;
 }
-UniValue syscointxfund_helper(const string &vchWitness, vector<CRecipient> &vecSend) {
+UniValue syscointxfund_helper(const string &vchWitness, vector<CRecipient> &vecSend, const int nVersion) {
 	CMutableTransaction txNew;
-	txNew.nVersion = SYSCOIN_TX_VERSION_ASSET;
+	txNew.nVersion = nVersion;
 
 	COutPoint witnessOutpoint;
 	if (!vchWitness.empty() && vchWitness != "''")
@@ -505,7 +498,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
         addressArray.push_back("addr(" + strAddress + ")");
         COutPoint addressOutPoint;
         unsigned int unspentcount = addressunspent(strAddress, addressOutPoint);
-        if (unspentcount <= 0 && !fTPSTestEnabled && tx.nVersion != SYSCOIN_TX_VERSION_MINT)
+        if (unspentcount <= 0 && !fTPSTestEnabled && tx.nVersion != SYSCOIN_TX_VERSION_MINT_SYSCOIN && tx.nVersion != SYSCOIN_TX_VERSION_MINT_ASSET)
         {
             for (unsigned int i = 0; i < MAX_UPDATES_PER_BLOCK; i++)
                 tx.vout.push_back(CTxOut(addressRecipient.nAmount, addressRecipient.scriptPubKey));
@@ -565,7 +558,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
         const CAmount &minFee = GetFee(3000);
         if (nCurrentAmount < (nDesiredAmount + nFees)) {
             // only look for small inputs if addresses were passed in, if looking through wallet we do not want to fund via small inputs as we may end up spending small inputs inadvertently
-            if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT) && params.size() > 1) {
+            if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && params.size() > 1) {
                 LOCK(mempool.cs);
                 // fund with small inputs first
                 for (unsigned int i = 0; i < utxoArray.size(); i++)
@@ -661,7 +654,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
 		tx.vout.push_back(changeOut);
 	
 
-	if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET || tx.nVersion == SYSCOIN_TX_VERSION_MINT) && !fTPSTestEnabled) {
+	if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET || tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && !fTPSTestEnabled) {
         CValidationState state;
 		// call this twice, with fJustCheck and !fJustCheck both with bSanity enabled so it doesn't actually write out to the databases just does the checks
 	    if (!CheckSyscoinInputs(tx, state, view, true, 0, CBlock(), true))
@@ -738,7 +731,7 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
 	CScript scriptPubKeyFromOrig = GetScriptForDestination(dest);
 
 	CMutableTransaction txNew;
-	txNew.nVersion = SYSCOIN_TX_VERSION_MINT;
+	txNew.nVersion = SYSCOIN_TX_VERSION_MINT_SYSCOIN;
 	txNew.vout.push_back(CTxOut(nAmount, scriptPubKeyFromOrig));
     
     CMintSyscoin mintSyscoin;
@@ -751,7 +744,7 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
     mintSyscoin.Serialize(data);
     
     CScript scriptData;
-    scriptData << OP_RETURN << data;
+    scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_MINT) << data;
     
     CTxOut txout(0, scriptData);
     txNew.vout.push_back(txout);
@@ -812,7 +805,7 @@ void SysTxToJSON(const int op, const vector<unsigned char> &vchData, UniValue &e
 int GenerateSyscoinGuid()
 {
     int rand = 0;
-    while(rand <= SYSCOIN_TX_VERSION_MINT)
+    while(rand <= SYSCOIN_TX_VERSION_MINT_ASSET)
 	    rand = GetRand(std::numeric_limits<int>::max());
     return rand;
 }
@@ -939,15 +932,18 @@ string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, st
 		if (op == OP_ASSET_ALLOCATION_SEND) {
 			strResponse = _("Asset Allocation Sent");
 			responseEnglish = "Asset Allocation Sent";
+            CAssetAllocation assetallocation(tx);
+            if (!assetallocation.IsNull()) {
+                responseGUID = assetallocation.assetAllocationTuple.ToString();
+            } 
 		}
 		else if (op == OP_ASSET_ALLOCATION_BURN) {
 			strResponse = _("Asset Allocation Burned");
 			responseEnglish = "Asset Allocation Burned";
-		}
-
-		CAssetAllocation assetallocation(tx);
-		if (!assetallocation.IsNull()) {
-			responseGUID = assetallocation.assetAllocationTuple.ToString();
+            CAssetAllocation assetallocation(tx);
+            if (!assetallocation.IsNull()) {
+                responseGUID = assetallocation.assetAllocationTuple.ToString();
+            }            
 		}
 	}
 	else {
@@ -1123,7 +1119,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		}
 		switch (op) {
 		case OP_ASSET_ACTIVATE:
-			if (theAsset.nAsset <= SYSCOIN_TX_VERSION_MINT)
+			if (theAsset.nAsset <= SYSCOIN_TX_VERSION_MINT_ASSET)
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2005 - " + _("asset guid invalid");
 				return error(errorMessage.c_str());

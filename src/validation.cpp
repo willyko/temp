@@ -688,14 +688,28 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state)
 {
     std::string errorMessage;
     // unserialize assetallocation from txn, check for valid
-    CMintSyscoin mintSyscoin;
-    std::vector<unsigned char> vchData;
-    int nDataOut;
-    if(!GetSyscoinMintData(tx, vchData, nDataOut) || !mintSyscoin.UnserializeFromData(vchData))
+    CMintSyscoin mintSyscoin(tx);
+    CAsset dbAsset;
+    if(mintSyscoin.IsNull())
     {
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Cannot unserialize data inside of this transaction relating to an syscoinmint");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && !mintSyscoin.assetAllocationTuple.IsNull())
+    {
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Tried to mint Syscoin but asset information was present");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }  
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && mintSyscoin.assetAllocationTuple.IsNull())
+    {
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Tried to mint asset but asset information was not present");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    } 
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && !GetAsset(mintSyscoin.assetAllocationTuple.nAsset, dbAsset)) 
+    {
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Failed to read from asset DB");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }        
     const std::vector<unsigned char> &vchTxRoot = fUnitTest? mintSyscoin.vchBlockHash: mintSyscoin.vchBlockHash;
     dev::RLP rlpTxRoot(&vchTxRoot);
     const std::vector<unsigned char> &vchParentNodes = mintSyscoin.vchParentNodes;
@@ -726,26 +740,41 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state)
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
     const dev::Address &address160 = rlpValue[3].toHash<dev::Address>(dev::RLP::VeryStrict);
-    if(Params().GetConsensus().vchSYSXContract != address160.asBytes()){
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && Params().GetConsensus().vchSYSXContract != address160.asBytes()){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Receiver not the expected SYSX contract address");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-   /*CAmount outputAmount;
+    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && dbAsset.vchContract != address160.asBytes()){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Receiver not the expected SYSX contract address");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+    CAmount outputAmount;
     uint32_t nAsset = 0;
-    const std::vector<unsigned char> &expectedMethodHash = ParseHex("3af112");
     const std::vector<unsigned char> &rlpBytes = rlpValue[5].data().toBytes();
-    if(!parseEthMethodInputData(Params().GetConsensus().vchSYSXBurnMethodSignature, rlpBytes, outputAmount, nAsset)){
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && !parseEthMethodInputData(Params().GetConsensus().vchSYSXBurnMethodSignature, rlpBytes, outputAmount, nAsset)){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-    if(nAsset != 0){
+    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && !parseEthMethodInputData(dbAsset.vchBurnMethodSignature, rlpBytes, outputAmount, nAsset)){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && nAsset != 0){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Cannot mint an asset in a syscoin mint operation");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-    if(outputAmount != tx.vout[0].nValue){
+    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && nAsset != dbAsset.nAsset){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Invalid asset being minted, does not match asset GUID encoded in transaction data");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && outputAmount != tx.vout[0].nValue){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Burn amount must match mint amount");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
-    }  */  
+    }
+    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && outputAmount != mintSyscoin.nValueAsset){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Burn amount must match asset mint amount");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }  
     return true;
 }
 bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
@@ -784,7 +813,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
           
             return true;
         }
-        else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT) 
+        else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN || tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) 
             return CheckSyscoinMint(tx, state);
     }
     else if (!block.vtx.empty()) {
@@ -806,7 +835,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
             const CTransaction &tx = *(processBlock.vtx[i]);
             if(tx.IsCoinBase())
                 continue;
-            if(tx.nVersion == SYSCOIN_TX_VERSION_MINT && !CheckSyscoinMint(tx, state))
+            if((tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN || tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && !CheckSyscoinMint(tx, state))
                 return state.DoS(100, error("%s: check syscoin mint", __func__), REJECT_INVALID, FormatStateMessage(state));
             else if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
                 continue;

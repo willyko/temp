@@ -27,41 +27,6 @@ public:
 
 
 BOOST_AUTO_TEST_SUITE(ethereum_tests)
-/*
-BOOST_AUTO_TEST_CASE(ethereum_blockheader)
-{
-    std::vector<unsigned char> header = ParseHex(block_header_data);
-    bool verified = VerifyHeader(header);
-    BOOST_CHECK(verified);
-}
-
-BOOST_AUTO_TEST_CASE(ethereum_evalscript)
-{
-    std::vector<std::vector<unsigned char> > stack;
-    ScriptError err;
-    EthereumTestChecker checker;
-    CScript scriptPubKey = CScript()
-            << ParseHex(block_header_data)
-            << OP_SYSCOIN_UNLOCK;
-
-    BOOST_CHECK_EQUAL(EvalScript(stack, scriptPubKey, STANDARD_SCRIPT_VERIFY_FLAGS, checker, SigVersion::BASE, &err), true);
-
-    BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
-}
-
-BOOST_AUTO_TEST_CASE(ethereum_verifyscript)
-{
-    ScriptError err;
-    EthereumTestChecker checker;
-    CScript scriptSig = CScript()
-            << ParseHex(block_header_data);
-    CScript scriptPubKey = CScript()
-            << OP_SYSCOIN_UNLOCK;
-
-    BOOST_CHECK_EQUAL(VerifyScript(scriptSig, scriptPubKey, nullptr, STANDARD_SCRIPT_VERIFY_FLAGS, checker, &err), true);
-
-    BOOST_CHECK_EQUAL(err, SCRIPT_ERR_OK);
-}*/
 BOOST_AUTO_TEST_CASE(ethereum_parseabidata)
 {
     CAmount outputAmount = 0;

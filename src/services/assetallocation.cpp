@@ -51,7 +51,7 @@ string assetAllocationFromOp(int op) {
 	case OP_ASSET_ALLOCATION_SEND:
 		return "assetallocationsend";
 	case OP_ASSET_ALLOCATION_BURN:
-		return "assetallocationburn";
+		return "assetallocationburn";      
     default:
         return "<unknown assetallocation op>";
     }
@@ -131,7 +131,6 @@ bool DecodeAssetAllocationTx(const CTransaction& tx, int& op,
         vector<vector<unsigned char> >& vvch) {
     bool found = false;
 
-
     // Strict check - bug disallowed
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const CTxOut& out = tx.vout[i];
@@ -141,7 +140,7 @@ bool DecodeAssetAllocationTx(const CTransaction& tx, int& op,
             break;
         }
     }
-    if (!found) vvch.clear();
+    if (!found) {vvch.clear(); op= 0;}
     return found;
 }
 
@@ -206,11 +205,11 @@ bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptO
 bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove,  const uint256 &txHash, const bool &bMiner=false) {
 
     if(!bMiner){
-        const string& receiverStr = assetAllocationToRemove.ToString();
+        const string& senderStr = assetAllocationToRemove.ToString();
         {
             LOCK(cs_assetallocationarrival);
         	// remove the conflict once we revert since it is assumed to be resolved on POW
-        	ArrivalTimesMap &arrivalTimes = arrivalTimesMap[receiverStr];
+        	ArrivalTimesMap &arrivalTimes = arrivalTimesMap[senderStr];
             
         	bool removeAllConflicts = true;
         	// remove only if all arrival times are either expired (30 mins) or no more zdag transactions left for this sender
@@ -221,8 +220,8 @@ bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove, 
         		}
         	}
         	if(removeAllConflicts){
-                arrivalTimesMap.erase(receiverStr);
-                sorted_vector<string>::const_iterator it = assetAllocationConflicts.find(receiverStr);
+                arrivalTimesMap.erase(senderStr);
+                sorted_vector<string>::const_iterator it = assetAllocationConflicts.find(senderStr);
                 if (it != assetAllocationConflicts.end()) {
                     assetAllocationConflicts.V.erase(const_iterator_cast(assetAllocationConflicts.V, it));
                 }   
@@ -251,8 +250,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 	// unserialize assetallocation from txn, check for valid
 	CAssetAllocation theAssetAllocation;
 	vector<unsigned char> vchData;
-	int nDataOut, tmpOp;
-	if(!GetSyscoinData(tx, vchData, nDataOut, tmpOp) || tmpOp != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData))
+	int nDataOut, type;
+	if(!GetSyscoinData(tx, vchData, nDataOut, type) || type != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData))
 	{
 		errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Cannot unserialize data inside of this transaction relating to an assetallocation");
 		return error(errorMessage.c_str());
@@ -289,7 +288,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 				errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1007 - " + _("Must send exactly one output to burn transaction");
 				return error(errorMessage.c_str());
 			}
-			break;
+			break;           
 		default:
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1009 - " + _("Asset transaction has unknown op");
 			return error(errorMessage.c_str());
@@ -412,13 +411,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 		}
 		if (!fJustCheck && !bSanityCheck) {
 			const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
-            if (bReset) {
-                if (!ResetAssetAllocation(receiverAllocationTuple, txHash, bMiner))
-                {
-                    errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1019 - " + _("Failed to revert asset allocation");
-                    return error(errorMessage.c_str());
-                }
-            } 
 			CAssetAllocation receiverAllocation;
 			if (!GetAssetAllocation(receiverAllocationTuple, receiverAllocation)) {
 				receiverAllocation.assetAllocationTuple = receiverAllocationTuple;
@@ -512,14 +504,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 		CAmount nTotal = 0;
 		for (const auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
 			const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
-			
-			if (bReset) {
-				if (!ResetAssetAllocation(receiverAllocationTuple, txHash, bMiner))
-				{
-					errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1019 - " + _("Failed to revert asset allocation");
-					return error(errorMessage.c_str());
-				}
-			}
 			nTotal += amountTuple.second;
 			if (amountTuple.second <= 0)
 			{
@@ -656,14 +640,14 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 	// asset sends are the only ones confirming without PoW
 	if (!bBalanceOverrun && !bSanityCheck) {
 		// set the assetallocation's txn-dependent 
-		if(fJustCheck && op == OP_ASSET_ALLOCATION_SEND){
+		if(fJustCheck){
             LOCK(cs_assetallocationarrival);
             ArrivalTimesMap &arrivalTimes = arrivalTimesMap[senderTupleStr];
             arrivalTimes[txHash] = GetTimeMillis();
         
             
         }
-        else if(!fJustCheck){
+        else {
     		theAssetAllocation.listSendingAllocationAmounts.clear();
             passetallocationdb->WriteAssetAllocationIndex(theAssetAllocation, txHash, nHeight, dbAsset, theAssetAllocation.nBalance, 0, ""); 
             auto rv = mapAssetAllocations.emplace(std::move(senderTupleStr), std::move(theAssetAllocation));
@@ -863,6 +847,53 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	vecSend.push_back(fee);
 
 	return syscointxfund_helper("", vecSend);
+}
+UniValue assetallocationmint(const JSONRPCRequest& request) {
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    CWallet* const pwallet = wallet.get();
+    const UniValue &params = request.params;
+    if (request.fHelp || 8 != params.size())
+        throw runtime_error(
+            "assetallocationmint [asset] [owner] [amount] [blockhash] [tx_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+            "<asset> Asset guid.\n"
+            "<owner> Owner that will get this minting.\n"
+            "<amount> Amount of asset to mint. Note that fees will be taken from the owner address.\n"
+            "<blockhash> Block hash of the block that included the burn transaction on Ethereum.\n"
+            "<tx_hex> Raw transaction hex of the burn transaction on Ethereum.\n"
+            "<txmerkleproof_hex> The list of parent nodes of the Merkle Patricia Tree for SPV proof.\n"
+            "<txmerkleroofpath_hex> The merkle path to walk through the tree to recreate the merkle root.\n"
+            "<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
+            + HelpRequiringPassphrase(pwallet));
+
+    const int &nAsset = params[0].get_int();
+    string strAddress = params[1].get_str();
+    CAmount nAmount = AmountFromValue(params[2]);
+    string vchBlockHash = params[3].get_str();
+    string vchValue = params[4].get_str();
+    string vchParentNodes = params[5].get_str();
+    string vchPath = params[6].get_str();
+    string strWitness = params[7].get_str();
+    
+    vector<CRecipient> vecSend;
+    
+    CMintSyscoin mintSyscoin;
+    mintSyscoin.assetAllocationTuple = CAssetAllocationTuple(nAsset, bech32::Decode(strAddress).second);
+    mintSyscoin.nValueAsset = nAmount;
+    mintSyscoin.vchValue = ParseHex(vchValue);
+    mintSyscoin.vchBlockHash = ParseHex(vchBlockHash);
+    mintSyscoin.vchParentNodes = ParseHex(vchParentNodes);
+    mintSyscoin.vchPath = ParseHex(vchPath);
+    
+    vector<unsigned char> data;
+    mintSyscoin.Serialize(data);
+    
+    CScript scriptData;
+    scriptData << OP_RETURN << CScript::EncodeOP_N(OP_SYSCOIN_MINT) << data;
+    CRecipient fee;
+    CreateFeeRecipient(scriptData, fee);
+    vecSend.push_back(fee);
+       
+    return syscointxfund_helper(strWitness, vecSend, SYSCOIN_TX_VERSION_MINT_ASSET);
 }
 UniValue assetallocationsend(const JSONRPCRequest& request) {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
@@ -1101,7 +1132,7 @@ UniValue assetallocationsenderstatus(const JSONRPCRequest& request) {
     const int64_t & nNow = GetTimeMillis();
 	const CAssetAllocationTuple assetAllocationTupleSender(nAsset, bech32::Decode(strAddressSender).second);
     
-       // if arrival times have expired, then expire any conflicting status for this sender as well
+    // if arrival times have expired, then expire any conflicting status for this sender as well
     const ArrivalTimesMap &arrivalTimes = arrivalTimesMap[assetAllocationTupleSender.ToString()];
     bool allArrivalsExpired = true;
     for (auto& arrivalTime : arrivalTimes) {

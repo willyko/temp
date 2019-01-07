@@ -469,7 +469,7 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag1)
     AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress1 + "\\\",\\\"amount\\\":1.0}]\"");
 
     BurnAssetAllocation("node1", assetguid, useraddress1, "0.8", false);
-
+    MilliSleep(1000);
     AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"");
     MilliSleep(1000);
 
@@ -534,14 +534,14 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag2)
     MilliSleep(1000);
 
     BurnAssetAllocation("node1", assetguid, useraddress1, "0.5", false);
-
+    MilliSleep(1000);
     // this one should be thrown away for not enough balance on POW
     BurnAssetAllocation("node1", assetguid, useraddress1, "0.5", false);
-
+    MilliSleep(1000);
     BurnAssetAllocation("node1", assetguid, useraddress1, "0.2", false);
-
+    MilliSleep(1000);
     AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress3 + "\\\",\\\"amount\\\":0.2}]\"");
-
+    MilliSleep(1000);
     BurnAssetAllocation("node1", assetguid, useraddress3, "0.2", false);
 
     GenerateBlocks(5, "node1");
@@ -586,7 +586,7 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset_zdag3)
     AssetAllocationTransfer(false, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.1}]\"");
     
     BurnAssetAllocation("node1", assetguid, useraddress1, "0.8", false);
-    
+    MilliSleep(1000);
     AssetAllocationTransfer(true, "node1", assetguid, useraddress1, "\"[{\\\"ownerto\\\":\\\"" + useraddress2 + "\\\",\\\"amount\\\":0.4}]\"");
     // wait for 1 second as required by unit test
     MilliSleep(1000);

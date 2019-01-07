@@ -263,7 +263,9 @@ static const CRPCCommand vRPCCommands[] =
   //  --------------------- ------------------------  -----------------------  ----------
     // SYSCOIN rpc functions
     { "wallet", "syscoinburn",          &syscoinburn, {} },
-    { "wallet", "syscoinmint",          &syscoinmint, {} },    
+    { "wallet", "syscoinmint",          &syscoinmint, {} }, 
+    { "wallet", "assetallocationburn",          &assetallocationburn, {} }, 
+    { "wallet", "assetallocationmint",          &syscoinmint, {} },     
     { "wallet", "syscointxfund",          &syscointxfund, {}},
     
 	{ "wallet", "syscoinaddscript",        &syscoinaddscript,{} },
@@ -279,7 +281,7 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet", "assetinfo",      &assetinfo, {}},
     { "wallet", "listassets",      &listassets, {} },
     { "wallet", "assetallocationsend",          &assetallocationsend, {}},
-    { "wallet", "assetallocationburn",          &assetallocationburn, {} },
+    
     { "wallet", "assetallocationinfo",          &assetallocationinfo, {}},
     { "wallet", "assetallocationsenderstatus",          &assetallocationsenderstatus, {}},
     { "wallet", "listassetallocationtransactions",          &listassetallocationtransactions, {} },

@@ -155,17 +155,26 @@ bool DAGTopologicalSort(const std::vector<CTransactionRef>& blockVtx, std::vecto
 
 	// add other sys tx's to end of newVtx
 	std::vector<vector<unsigned char> > vvchArgs;
-	int op;
-	for (unsigned int vOut = 1; vOut< blockVtx.size(); vOut++) {
-		const CTransactionRef& txRef = blockVtx[vOut];
-		const CTransaction& tx = *txRef;
-        if(tx.nVersion != SYSCOIN_TX_VERSION_ASSET && tx.nVersion != SYSCOIN_TX_VERSION_MINT)
+	int op = 0;
+    // add syscoin mint/asset allocation mints to the end of the list
+    for (unsigned int vOut = 1; vOut< blockVtx.size(); vOut++) {
+        const CTransactionRef& txRef = blockVtx[vOut];
+        const CTransaction& tx = *txRef;
+        if(tx.nVersion != SYSCOIN_TX_VERSION_MINT_SYSCOIN || tx.nVersion != SYSCOIN_TX_VERSION_MINT_ASSET)
             continue;
-
-		if (!DecodeAssetAllocationTx(tx, op, vvchArgs) || op != OP_ASSET_ALLOCATION_SEND)
-		{
-			newVtx.emplace_back(txRef);
-		}
-	}
+        
+        newVtx.emplace_back(txRef);
+    }
+    for (unsigned int vOut = 1; vOut< blockVtx.size(); vOut++) {
+        const CTransactionRef& txRef = blockVtx[vOut];
+        const CTransaction& tx = *txRef;
+        if(tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
+            continue;
+        // must be asset or allocation burn 
+        if (!DecodeAssetAllocationTx(tx, op, vvchArgs) || op != OP_ASSET_ALLOCATION_SEND)
+        {
+            newVtx.emplace_back(txRef);
+        }
+    }
 	return true;
 }

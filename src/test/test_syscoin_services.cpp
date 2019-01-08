@@ -603,14 +603,14 @@ string SyscoinMint(const string& node, const string& address, const string& amou
     BOOST_CHECK_EQUAL(nAmountBefore, nAmountAfter);
     return hex_str;
 }
-string AssetNew(const string& node, const string& address, const string& pubdata, const string& contract, const string& precision, const string& supply, const string& maxsupply, const string& updateflags, const string& witness)
+string AssetNew(const string& node, const string& address, const string& pubdata, const string& contract, const string& burnmethod, const string& precision, const string& supply, const string& maxsupply, const string& updateflags, const string& witness)
 {
 	string otherNode1, otherNode2;
 	GetOtherNodes(node, otherNode1, otherNode2);
 	UniValue r;
     
-	// "assetnew [owner] [public value] [contract] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetnew " + address + " " + pubdata + " " + contract + " " + precision + " " + supply + " " + maxsupply + " " + updateflags + " " + witness));
+	// "assetnew [owner] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetnew " + address + " " + pubdata + " " + contract + " " + burnmethod + " " + precision + " " + supply + " " + maxsupply + " " + updateflags + " " + witness));
 	UniValue arr = r.get_array();
     string guid = boost::lexical_cast<string>(arr[1].get_int());
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + address));
@@ -702,7 +702,7 @@ void AssetUpdate(const string& node, const string& guid, const string& pubdata, 
 
 
 	// "assetupdate [asset] [public] [contract] [supply] [update_flags] [witness]\n"
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetupdate " + guid + " " + newpubdata + " '' " +  newsupply + " " + updateflags + " " +witness));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetupdate " + guid + " " + newpubdata + " '' '' " +  newsupply + " " + updateflags + " " +witness));
 	// increase supply to new amount if we passed in a supply value
 	newsupply = supply == "''" ? oldsupply : ValueFromAssetAmount(newamount, nprecision).write();
     UniValue arr = r.get_array();

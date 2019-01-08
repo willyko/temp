@@ -1877,6 +1877,33 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                 entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
                 entry.pushKV("sysowner", ownerName);
             }
+            else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET){
+                if (mapSysTx.find(tx.GetHash()) != mapSysTx.end())
+                    continue;
+                mapSysTx[tx.GetHash()] = true;
+                CMintSyscoin mintsyscoin(tx);
+                if (!mintsyscoin.IsNull() && !mintsyscoin.assetAllocationTuple.IsNull()) {
+                    UniValue oAssetAllocationReceiversArray(UniValue::VARR);
+                    string strResponseEnglish = "";
+                    string strResponseGUID = "";
+                    strResponse = GetSyscoinTransactionDescription(tx, op, strResponseEnglish, type, strResponseGUID);
+                    const string& strAddress = mintsyscoin.assetAllocationTuple.GetAddressString();
+                    CAsset dbAsset;
+                    GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
+                   
+                    UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+                    // update to owner
+                    oAssetAllocationReceiversObj.pushKV("ownerto", mintsyscoin.assetAllocationTuple.GetAddressString());
+                    oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
+                    oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
+                      
+                    entry.pushKV("systx", strResponse);
+                    entry.pushKV("systype", strResponseEnglish);
+                    entry.pushKV("sysguid", strResponseGUID); 
+                    entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
+                    entry.pushKV("sysowner", strAddress);                                           
+                }                    
+            }             
             ret.push_back(entry);
         }
     }
@@ -1953,13 +1980,39 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                                     oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                                 }
-
                             }
                         }
-                    }
+                    }             
                     entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
                     entry.pushKV("sysowner", ownerName);
-                }                    
+                } 
+                 else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET){
+                    if (mapSysTx.find(tx.GetHash()) != mapSysTx.end())
+                        continue;
+                    mapSysTx[tx.GetHash()] = true;
+                    CMintSyscoin mintsyscoin(tx);
+                    if (!mintsyscoin.IsNull() && !mintsyscoin.assetAllocationTuple.IsNull()) {
+                        UniValue oAssetAllocationReceiversArray(UniValue::VARR);
+                        string strResponseEnglish = "";
+                        string strResponseGUID = "";
+                        strResponse = GetSyscoinTransactionDescription(tx, op, strResponseEnglish, type, strResponseGUID);
+                        const string& strAddress = mintsyscoin.assetAllocationTuple.GetAddressString();
+                        CAsset dbAsset;
+                        GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
+                       
+                        UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+                        // update to owner
+                        oAssetAllocationReceiversObj.pushKV("ownerto", mintsyscoin.assetAllocationTuple.GetAddressString());
+                        oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
+                        oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
+                          
+                        entry.pushKV("systx", strResponse);
+                        entry.pushKV("systype", strResponseEnglish);
+                        entry.pushKV("sysguid", strResponseGUID); 
+                        entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
+                        entry.pushKV("sysowner", strAddress);                                           
+                    }                    
+                }                      
                 ret.push_back(entry);
             }
         }

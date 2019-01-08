@@ -65,7 +65,7 @@ enum opcodetype
     // syscoin extended reserved 
     OP_SYSCOIN_ASSET = 0x01,
     OP_SYSCOIN_ASSET_ALLOCATION = 0x02,
-    OP_SYSCOIN_UNLOCK = 0xba,
+    OP_SYSCOIN_MINT = 0x03,
     OP_FALSE = OP_0,
     OP_PUSHDATA1 = 0x4c,
     OP_PUSHDATA2 = 0x4d,

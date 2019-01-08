@@ -570,7 +570,7 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const boo
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Failed to read from asset DB");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }        
-    const std::vector<unsigned char> &vchTxRoot = fUnitTest? mintSyscoin.vchBlockHash: mintSyscoin.vchBlockHash;
+    const std::vector<unsigned char> &vchTxRoot = mintSyscoin.vchTxRoot;
     dev::RLP rlpTxRoot(&vchTxRoot);
     const std::vector<unsigned char> &vchParentNodes = mintSyscoin.vchParentNodes;
     dev::RLP rlpParentNodes(&vchParentNodes);

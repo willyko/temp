@@ -16,7 +16,9 @@ JSON_TEST_FILES = \
   test/data/tx_valid.json \
   test/data/proposals_valid.json \
   test/data/proposals_invalid.json \
-  test/data/utxo.json
+  test/data/utxo.json \
+  test/data/ethspv_valid.json \
+  test/data/ethspv_invalid.json
 
 RAW_TEST_FILES =
 

@@ -121,7 +121,12 @@ fs::path GetDefaultDataDir();
 const fs::path &GetBlocksDir(bool fNetSpecific = true);
 const fs::path &GetDataDir(bool fNetSpecific = true);
 // SYSCOIN
+fs::path GetGethPidFile();
+void KillProcess(const pid_t& pid);
+std::string GetGethFilename();
 fs::path GetMasternodeConfigFile();
+bool StartGethNode(pid_t &pid,int websocketport=8546);
+bool StopGethNode(pid_t pid);
 void ClearDatadirCache();
 fs::path GetConfigFile(const std::string& confPath);
 #ifndef WIN32

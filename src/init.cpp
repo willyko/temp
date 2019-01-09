@@ -1365,9 +1365,7 @@ bool AppInitMain()
         LogPrint(BCLog::THREADPOOL, "THREADPOOL::Created threadpool\n");
     }
     
-    StartGethNode(gethPID);
-        
-        
+   
     if (!sporkManager.SetSporkAddress(gArgs.GetArg("-sporkaddr", Params().SporkAddress())))
         return InitError(_("Invalid spork address specified with -sporkaddr"));
 
@@ -1793,6 +1791,7 @@ bool AppInitMain()
     
     fMasternodeMode = gArgs.GetBoolArg("-masternode", false);
     fUnitTest = gArgs.GetBoolArg("-unittest", false);
+    StartGethNode(gethPID);
     fTPSTest = gArgs.GetBoolArg("-tpstest", false);
     fConcurrentProcessing = gArgs.GetBoolArg("-concurrentprocessing", true);
     fLogThreadpool = LogAcceptCategory(BCLog::THREADPOOL);

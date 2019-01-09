@@ -80,6 +80,7 @@
 //Syscoin only features
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <signal.h>
 bool fMasternodeMode = false;
 bool fUnitTest = false;
 bool fTPSTest = false;
@@ -991,7 +992,106 @@ std::string ArgsManager::GetChainName() const
         return CBaseChainParams::TESTNET;
     return CBaseChainParams::MAIN;
 }
+// SYSCOIN
+fs::path GetGethPidFile()
+{
+    return AbsPathForConfigVal(fs::path("geth.pid"));
+}
+void KillProcess(const pid_t& pid){
+    if(pid <= 0)
+        return;
+    #ifdef WIN32
+        HANDLE handy;
+        handy =OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, TRUE,pid);
+        TerminateProcess(handy,0);
+    #endif  
+    #ifndef WIN32
+        kill( pid, SIGTERM ) ;
+    #endif 
+}
+std::string GetGethFilename(){
+    // For Windows:
+    #ifdef WIN32
+       return "bin/win64/geth.exe";
+    #endif    
+    #ifdef MAC_OSX
+        // Mac
+        return "./bin/osx/geth";
+    #else
+        // Linux
+        return "./bin/linux/geth";
+    #endif
+}
+bool StopGethNode(pid_t pid)
+{
+    if(fUnitTest)
+        return true;
+    if(pid){
+        try{
+            KillProcess(pid);
+            LogPrintf("%s: Geth successfully exited from pid %d\n", __func__, pid);
+        }
+        catch(...){
+            LogPrintf("%s: Geth failed to exit from pid %d\n", __func__, pid);
+        }
+    }
+    {
+        boost::filesystem::ifstream ifs(GetGethPidFile(), std::ios::in);
+        pid_t pidFile = 0;
+        while(ifs >> pidFile){
+            if(pidFile && pidFile != pid){
+                try{
+                    KillProcess(pidFile);
+                    LogPrintf("%s: Geth successfully exited from pid %d(from geth.pid)\n", __func__, pidFile);
+                }
+                catch(...){
+                    LogPrintf("%s: Geth failed to exit from pid %d(from geth.pid)\n", __func__, pidFile);
+                }
+            } 
+        }  
+    }
+    boost::filesystem::remove(GetGethPidFile());
+    return true;
+}
 
+bool StartGethNode(pid_t &pid, int websocketport)
+{
+    if(fUnitTest)
+        return true;
+    LogPrintf("%s: Starting geth...\n", __func__);
+    std::string gethFilename = GetGethFilename();
+    
+    // stop any geth nodes before starting
+    StopGethNode(pid);
+        
+    fs::path fpath = fs::system_complete(gethFilename);
+
+    // Prevent killed child-processes remaining as "defunct"
+    struct sigaction sigchld_action = {
+        .sa_handler = SIG_DFL,
+        .sa_flags = SA_NOCLDWAIT
+    };
+    sigaction( SIGCHLD, &sigchld_action, NULL ) ;
+
+    // Duplicate ("fork") the process. Will return zero in the child
+    // process, and the child's PID in the parent (or negative on error).
+    pid = fork() ;
+    if( pid < 0 ) {
+        return false;
+    }
+
+    if( pid == 0 ) {
+        std::string portStr = std::to_string(websocketport);
+        char * argv[] = {(char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
+        execvp(fpath.c_str(), argv);
+    }
+    else{
+        boost::filesystem::ofstream ofs(GetGethPidFile(), std::ios::out | std::ios::trunc);
+        ofs << pid;
+    }
+    LogPrintf("%s: Geth Started with pid %d\n", __func__, pid);
+    return true;
+}
 #ifndef WIN32
 fs::path GetPidFile()
 {

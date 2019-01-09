@@ -58,8 +58,6 @@ bool DecodeAssetScript(const CScript& script, int& op, std::vector<std::vector<u
 bool IsAssetOp(int op);
 int GenerateSyscoinGuid();
 bool IsSyscoinScript(const CScript& scriptPubKey, int &op, std::vector<std::vector<unsigned char> > &vvchArgs);
-bool StartGethNode(pid_t &pid,int websocketport=8546);
-bool StopGethNode(pid_t pid);
 
 bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut);
 void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);

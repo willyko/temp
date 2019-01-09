@@ -33,24 +33,47 @@ std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
 using namespace std::chrono;
 using namespace std;
 
-
+void KillProcess(const pid_t& pid){
+    if(pid <= 0)
+        return;
+    #ifdef WIN32
+        HANDLE handy;
+        handy =OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, TRUE,pid);
+        TerminateProcess(handy,0);
+    #endif  
+    #ifndef WIN32
+        kill( pid, SIGTERM ) ;
+    #endif 
+}
 bool StopGethNode(pid_t pid)
 {
     if(fUnitTest)
         return true;
-    LogPrintf("%s: Stopping geth...\n", __func__);
-    if (boost::filesystem::exists(boost::filesystem::system_complete("geth.dat")))
-        boost::filesystem::remove(boost::filesystem::system_complete("geth.dat"));
-    
-
-    /*#ifdef WIN32
-       TerminateThread(thread.native_handle(), 0);
-    #endif  
-    #ifndef WIN32
-        pthread_kill(thread.native_handle(), SIGTERM);
-    #endif */
-    kill( pid, SIGTERM ) ;
-    LogPrintf("%s: Geth exited.\n", __func__);
+    if(pid){
+        try{
+            KillProcess(pid);
+            LogPrintf("%s: Geth successfully exited from pid %d\n", __func__, pid);
+        }
+        catch(...){
+            LogPrintf("%s: Geth failed to exit from pid %d\n", __func__, pid);
+        }
+    }
+    {
+        boost::filesystem::ifstream ifs(boost::filesystem::system_complete("geth.pid"), std::ios::in);
+        pid_t pidFile = 0;
+        while(ifs >> pidFile){
+            if(pidFile && pidFile != pid){
+                try{
+                    KillProcess(pidFile);
+                    LogPrintf("%s: Geth successfully exited from pid %d(from geth.pid)\n", __func__, pidFile);
+                }
+                catch(...){
+                    LogPrintf("%s: Geth failed to exit from pid %d(from geth.pid)\n", __func__, pidFile);
+                }
+            } 
+        }  
+    }
+    boost::filesystem::remove(boost::filesystem::system_complete("geth.pid"));
     return true;
 }
 string GetGethFilename(){
@@ -73,15 +96,12 @@ bool StartGethNode(pid_t &pid, int websocketport)
     LogPrintf("%s: Starting geth...\n", __func__);
     string gethFilename = GetGethFilename();
     
-    if (boost::filesystem::exists(boost::filesystem::system_complete("geth.dat")))
-        return true;
+    // stop any geth nodes before starting
+    StopGethNode(pid);
         
     boost::filesystem::path fpath = boost::filesystem::system_complete(gethFilename);
-    string nodePath = fpath.string() + " --ws --wsport " + boost::lexical_cast<string>(websocketport) + " --wsorigins \"*\" --syncmode \"light\"";
 
-    //thread = boost::thread(runCommand, nodePath);
-    
-        // Prevent killed child-processes remaining as "defunct"
+    // Prevent killed child-processes remaining as "defunct"
     struct sigaction sigchld_action = {
         .sa_handler = SIG_DFL,
         .sa_flags = SA_NOCLDWAIT
@@ -96,13 +116,14 @@ bool StartGethNode(pid_t &pid, int websocketport)
     }
 
     if( pid == 0 ) {
-        
-        char * argv[] = {"--ws",  "--wsorigins", "*", "--syncmode", "light", NULL };
+        string portStr = std::to_string(websocketport);
+        char * argv[] = {(char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
         execvp(fpath.c_str(), argv);
     }
     
     
-    boost::filesystem::ofstream ofs(boost::filesystem::system_complete("geth.dat"));
+    boost::filesystem::ofstream ofs(boost::filesystem::system_complete("geth.pid"), std::ios::out | ios::trunc);
+    ofs << pid;
     LogPrintf("%s: Geth Started with pid %d\n", __func__, pid);
     return true;
 }

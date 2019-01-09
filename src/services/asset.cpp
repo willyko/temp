@@ -17,7 +17,6 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper()
 #include <boost/lexical_cast.hpp>
-#include <boost/thread.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
 #include <chrono>
 #include <key_io.h>
@@ -26,12 +25,88 @@
 #include <wallet/fees.h>
 #include <outputtype.h>
 #include <bech32.h>
+#include <signal.h>
 unsigned int MAX_UPDATES_PER_BLOCK = 2;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
 using namespace std::chrono;
 using namespace std;
+
+
+bool StopGethNode(pid_t pid)
+{
+    if(fUnitTest)
+        return true;
+    LogPrintf("%s: Stopping geth...\n", __func__);
+    if (boost::filesystem::exists(boost::filesystem::system_complete("geth.dat")))
+        boost::filesystem::remove(boost::filesystem::system_complete("geth.dat"));
+    
+
+    /*#ifdef WIN32
+       TerminateThread(thread.native_handle(), 0);
+    #endif  
+    #ifndef WIN32
+        pthread_kill(thread.native_handle(), SIGTERM);
+    #endif */
+    kill( pid, SIGTERM ) ;
+    LogPrintf("%s: Geth exited.\n", __func__);
+    return true;
+}
+string GetGethFilename(){
+    // For Windows:
+    #ifdef WIN32
+       return "bin/win64/geth.exe";
+    #endif    
+    #ifdef MAC_OSX
+        // Mac
+        return "./bin/osx/geth";
+    #else
+        // Linux
+        return "./bin/linux/geth";
+    #endif
+}
+bool StartGethNode(pid_t &pid, int websocketport)
+{
+    if(fUnitTest)
+        return true;
+    LogPrintf("%s: Starting geth...\n", __func__);
+    string gethFilename = GetGethFilename();
+    
+    if (boost::filesystem::exists(boost::filesystem::system_complete("geth.dat")))
+        return true;
+        
+    boost::filesystem::path fpath = boost::filesystem::system_complete(gethFilename);
+    string nodePath = fpath.string() + " --ws --wsport " + boost::lexical_cast<string>(websocketport) + " --wsorigins \"*\" --syncmode \"light\"";
+
+    //thread = boost::thread(runCommand, nodePath);
+    
+        // Prevent killed child-processes remaining as "defunct"
+    struct sigaction sigchld_action = {
+        .sa_handler = SIG_DFL,
+        .sa_flags = SA_NOCLDWAIT
+    };
+    sigaction( SIGCHLD, &sigchld_action, NULL ) ;
+
+    // Duplicate ("fork") the process. Will return zero in the child
+    // process, and the child's PID in the parent (or negative on error).
+    pid = fork() ;
+    if( pid < 0 ) {
+        return false;
+    }
+
+    if( pid == 0 ) {
+        
+        char * argv[] = {"--ws",  "--wsorigins", "*", "--syncmode", "light", NULL };
+        execvp(fpath.c_str(), argv);
+    }
+    
+    
+    boost::filesystem::ofstream ofs(boost::filesystem::system_complete("geth.dat"));
+    LogPrintf("%s: Geth Started with pid %d\n", __func__, pid);
+    return true;
+}
+
 bool FindSyscoinScriptOp(const CScript& script, int& op) {
 	CScript::const_iterator pc = script.begin();
 	opcodetype opcode;
@@ -706,13 +781,14 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
 	std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
 	CWallet* const pwallet = wallet.get();
 	const UniValue &params = request.params;
-	if (request.fHelp || 7 != params.size())
+	if (request.fHelp || 8 != params.size())
 		throw runtime_error(
-			"syscoinmint [address] [amount] [blockhash] [tx_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+			"syscoinmint [address] [amount] [blockhash] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
 			"<address> Mint to this address.\n"
 			"<amount> Amount of SYS to mint. Note that fees are applied on top. It is not inclusive of fees.\n"
             "<blockhash> Block hash of the block that included the burn transaction on Ethereum.\n"
             "<tx_hex> Raw transaction hex of the burn transaction on Ethereum.\n"
+            "<txroot_hex> The transaction merkle root that commits this transaction to the block header.\n"
             "<txmerkleproof_hex> The list of parent nodes of the Merkle Patricia Tree for SPV proof.\n"
             "<txmerkleroofpath_hex> The merkle path to walk through the tree to recreate the merkle root.\n"
             "<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
@@ -722,9 +798,10 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
 	CAmount nAmount = AmountFromValue(params[1]);
     string vchBlockHash = params[2].get_str();
     string vchValue = params[3].get_str();
-    string vchParentNodes = params[4].get_str();
-    string vchPath = params[5].get_str();
-    string strWitnessAddress = params[6].get_str();
+    string vchTxRoot = params[4].get_str();
+    string vchParentNodes = params[5].get_str();
+    string vchPath = params[6].get_str();
+    string strWitnessAddress = params[7].get_str();
     
 	vector<CRecipient> vecSend;
 	const CTxDestination &dest = DecodeDestination(vchAddress);
@@ -736,6 +813,7 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
     
     CMintSyscoin mintSyscoin;
     mintSyscoin.vchValue = ParseHex(vchValue);
+    mintSyscoin.vchTxRoot = ParseHex(vchTxRoot);
     mintSyscoin.vchBlockHash = ParseHex(vchBlockHash);
     mintSyscoin.vchParentNodes = ParseHex(vchParentNodes);
     mintSyscoin.vchPath = ParseHex(vchPath);
@@ -1110,7 +1188,7 @@ bool DisconnectAssetSend(const CTransaction &tx){
         }
         // reverse allocation
         receiverAllocation.nBalance -= amountTuple.second;
-        dbAsset.nBalance += amountTuple.second; 
+        dbAsset.nBalance += amountTuple.second;      
         if(receiverAllocation.nBalance < 0) {
             LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance in assetsend of %s is negative: %lld\n",receiverTupleStr, receiverAllocation.nBalance);
             return false;

@@ -95,6 +95,7 @@ static const bool DEFAULT_STOPAFTERBLOCKIMPORT = false;
 std::unique_ptr<CConnman> g_connman;
 std::unique_ptr<PeerLogicValidation> peerLogic;
 static CDSNotificationInterface* pdsNotificationInterface = NULL;
+pid_t gethPID = 0;
 #if !(ENABLE_WALLET)
 class DummyWalletInit : public WalletInitInterface {
 public:
@@ -329,7 +330,8 @@ void PrepareShutdown()
     UnregisterAllValidationInterfaces();
     GetMainSignals().UnregisterBackgroundSignalScheduler();
     GetMainSignals().UnregisterWithMempoolSignals(mempool);
-
+    // SYSCOIN
+    StopGethNode(gethPID);
     LogPrintf("%s: done\n", __func__);
 }
 /**
@@ -1362,6 +1364,10 @@ bool AppInitMain()
         threadpool = new tp::ThreadPool;
         LogPrint(BCLog::THREADPOOL, "THREADPOOL::Created threadpool\n");
     }
+    
+    StartGethNode(gethPID);
+        
+        
     if (!sporkManager.SetSporkAddress(gArgs.GetArg("-sporkaddr", Params().SporkAddress())))
         return InitError(_("Invalid spork address specified with -sporkaddr"));
 

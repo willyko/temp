@@ -12,7 +12,7 @@
 #include "serialize.h"
 #include "primitives/transaction.h"
 #include "services/assetallocation.h"
-
+#include <sys/types.h>
 class CTransaction;
 class CReserveKey;
 class CCoinsViewCache;
@@ -58,6 +58,9 @@ bool DecodeAssetScript(const CScript& script, int& op, std::vector<std::vector<u
 bool IsAssetOp(int op);
 int GenerateSyscoinGuid();
 bool IsSyscoinScript(const CScript& scriptPubKey, int &op, std::vector<std::vector<unsigned char> > &vvchArgs);
+bool StartGethNode(pid_t &pid,int websocketport=8546);
+bool StopGethNode(pid_t pid);
+
 bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut);
 void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
 std::string assetFromOp(int op);
@@ -162,6 +165,7 @@ public:
     CAssetAllocationTuple assetAllocationTuple;
     std::vector<unsigned char> vchValue;
     std::vector<unsigned char> vchParentNodes;
+    std::vector<unsigned char> vchTxRoot;
     std::vector<unsigned char> vchBlockHash;
     std::vector<unsigned char> vchPath;
     CAmount nValueAsset;
@@ -178,11 +182,12 @@ public:
         READWRITE(vchValue);
         READWRITE(vchParentNodes);
         READWRITE(vchBlockHash);
+        READWRITE(vchTxRoot);
         READWRITE(vchPath);   
         READWRITE(assetAllocationTuple);  
         READWRITE(nValueAsset);  
     }
-    inline void SetNull() { nValueAsset = 0; assetAllocationTuple.SetNull(); vchValue.clear(); vchParentNodes.clear(); vchBlockHash.clear(); vchPath.clear(); }
+    inline void SetNull() { nValueAsset = 0; assetAllocationTuple.SetNull(); vchTxRoot.clear(); vchValue.clear(); vchParentNodes.clear(); vchBlockHash.clear(); vchPath.clear(); }
     inline bool IsNull() const { return (vchValue.empty()); }
     bool UnserializeFromData(const std::vector<unsigned char> &vchData);
     bool UnserializeFromTx(const CTransaction &tx);

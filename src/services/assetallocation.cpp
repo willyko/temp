@@ -957,14 +957,15 @@ UniValue assetallocationmint(const JSONRPCRequest& request) {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
     CWallet* const pwallet = wallet.get();
     const UniValue &params = request.params;
-    if (request.fHelp || 8 != params.size())
+    if (request.fHelp || 9 != params.size())
         throw runtime_error(
-            "assetallocationmint [asset] [owner] [amount] [blockhash] [tx_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+            "assetallocationmint [asset] [owner] [amount] [blockhash] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
             "<asset> Asset guid.\n"
             "<owner> Owner that will get this minting.\n"
             "<amount> Amount of asset to mint. Note that fees will be taken from the owner address.\n"
             "<blockhash> Block hash of the block that included the burn transaction on Ethereum.\n"
             "<tx_hex> Raw transaction hex of the burn transaction on Ethereum.\n"
+            "<txroot_hex> The transaction merkle root that commits this transaction to the block header.\n"
             "<txmerkleproof_hex> The list of parent nodes of the Merkle Patricia Tree for SPV proof.\n"
             "<txmerkleroofpath_hex> The merkle path to walk through the tree to recreate the merkle root.\n"
             "<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
@@ -974,16 +975,18 @@ UniValue assetallocationmint(const JSONRPCRequest& request) {
     string strAddress = params[1].get_str();
     CAmount nAmount = AmountFromValue(params[2]);
     string vchBlockHash = params[3].get_str();
-    string vchValue = params[4].get_str();
-    string vchParentNodes = params[5].get_str();
-    string vchPath = params[6].get_str();
-    string strWitness = params[7].get_str();
+    string vchTxRoot = params[4].get_str();
+    string vchValue = params[5].get_str();
+    string vchParentNodes = params[6].get_str();
+    string vchPath = params[7].get_str();
+    string strWitness = params[8].get_str();
     
     vector<CRecipient> vecSend;
     
     CMintSyscoin mintSyscoin;
     mintSyscoin.assetAllocationTuple = CAssetAllocationTuple(nAsset, bech32::Decode(strAddress).second);
     mintSyscoin.nValueAsset = nAmount;
+    mintSyscoin.vchTxRoot = ParseHex(vchTxRoot);
     mintSyscoin.vchValue = ParseHex(vchValue);
     mintSyscoin.vchBlockHash = ParseHex(vchBlockHash);
     mintSyscoin.vchParentNodes = ParseHex(vchParentNodes);

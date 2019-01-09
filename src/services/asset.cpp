@@ -2096,3 +2096,33 @@ UniValue listassets(const JSONRPCRequest& request) {
 		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("Scan failed"));
 	return oRes;
 }
+UniValue syscoinsetethstatus(const JSONRPCRequest& request) {
+    const UniValue &params = request.params;
+    if (request.fHelp || 2 != params.size())
+        throw runtime_error("syscoinsetethstatus [syncing_status] [highestBlock]\n"
+            "Sets ethereum syncing and network status for indication status of network sync.\n"
+            "[syncing_status]      Syncing status either 'syncing' or 'synced'.\n"
+            "[highestBlock]        What the highest block height on Ethereum is found to be. Usually coupled with syncing_status of 'syncing'. Set to 0 if syncing_status is 'synced'.\n" 
+            + HelpExampleCli("syscoinsetethheaders", "syncing 7000000")
+            + HelpExampleCli("syscoinsetethheaders", "synced 0")
+        );
+    string status = params[0].get_str();
+    int highestBlock = params[1].get_int();
+    
+    if(highestBlock > 0)
+        fGethSyncHeight = highestBlock;
+    fGethSyncStatus = status;
+    return "success";
+}
+UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
+    const UniValue &params = request.params;
+    if (request.fHelp || 1 != params.size())
+        throw runtime_error("syscoinsetethheaders [headers]\n"
+            "Sets Ethereum headers in Syscoin to validate transactions through the SYSX bridge.\n"
+            "[headers]         A JSON objects representing an array of tuples (block number, tx root) from Ethereum blockchain.\n"
+            + HelpExampleCli("syscoinsetethheaders", "0 0 '{\"owners\":[{\"owner\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"owner\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
+            + HelpExampleCli("listassets", "0 0 '{\"asset\":3473733,\"owner\":\"SfaT8dGhk1zaQkk8bujMfgWw3szxReej4S\"0}'")
+        );
+   
+    return "success";
+}

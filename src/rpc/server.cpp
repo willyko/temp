@@ -289,7 +289,7 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet", "tpstestinfo",          &tpstestinfo, {} },
     { "wallet", "tpstestadd",          &tpstestadd, {} },
     { "wallet", "tpstestsetenabled",          &tpstestsetenabled, {} },
-    { "wallet", "syscoinsetethstatus",          &syscoinsetethstatus, {} },
+    { "wallet", "syscoinsetethheight",          &syscoinsetethheight, {} },
     { "wallet", "syscoinsetethheaders",          &syscoinsetethheaders, {} },
     
     /* Overall control/query calls */

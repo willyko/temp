@@ -2096,22 +2096,18 @@ UniValue listassets(const JSONRPCRequest& request) {
 		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("Scan failed"));
 	return oRes;
 }
-UniValue syscoinsetethstatus(const JSONRPCRequest& request) {
+UniValue syscoinsetethheight(const JSONRPCRequest& request) {
     const UniValue &params = request.params;
-    if (request.fHelp || 2 != params.size())
-        throw runtime_error("syscoinsetethstatus [syncing_status] [highestBlock]\n"
-            "Sets ethereum syncing and network status for indication status of network sync.\n"
-            "[syncing_status]      Syncing status either 'syncing' or 'synced'.\n"
-            "[highestBlock]        What the highest block height on Ethereum is found to be. Usually coupled with syncing_status of 'syncing'. Set to 0 if syncing_status is 'synced'.\n" 
-            + HelpExampleCli("syscoinsetethheaders", "syncing 7000000")
-            + HelpExampleCli("syscoinsetethheaders", "synced 0")
+    if (request.fHelp || 1 != params.size())
+        throw runtime_error("syscoinsetethheight [highestBlock]\n"
+            "Sets highest block height seen on the Ethereum network.\n"
+            "[highestBlock]        What the highest block height on Ethereum is found to be.\n" 
+            + HelpExampleCli("syscoinsetethheight", "7000000")
         );
-    string status = params[0].get_str();
-    int highestBlock = params[1].get_int();
+    int highestBlock = params[0].get_int();
     
     if(highestBlock > 0)
         fGethSyncHeight = highestBlock;
-    fGethSyncStatus = status;
     return "success";
 }
 UniValue syscoinsetethheaders(const JSONRPCRequest& request) {

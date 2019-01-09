@@ -206,7 +206,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "tpstestadd", 0, "starttime" },
     { "tpstestadd", 1, "rawrxs" },
     { "tpstestsetenabled", 0, "enabled" },
-    { "syscoinsetethstatus", 1, "highestBlock" }
+    { "syscoinsetethheight", 0, "highestBlock" }
 };
 
 class CRPCConvertTable

@@ -51,7 +51,6 @@ extern bool fAssetAllocationIndex;
 extern bool fConcurrentProcessing;
 extern bool fLiteMode;
 extern int fGethSyncHeight;
-extern std::string fGethSyncStatus;
 typedef struct {
     // Values from /proc/meminfo, in KiB or converted to MiB.
     long MemTotalKiB;

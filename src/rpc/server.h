@@ -213,7 +213,7 @@ extern UniValue listassetallocations(const JSONRPCRequest& request);
 extern UniValue tpstestinfo(const JSONRPCRequest& request);
 extern UniValue tpstestadd(const JSONRPCRequest& request);
 extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
-extern UniValue syscoinsetethstatus(const JSONRPCRequest& request);
+extern UniValue syscoinsetethheight(const JSONRPCRequest& request);
 extern UniValue syscoinsetethheaders(const JSONRPCRequest& request);
     
 extern UniValue scantxoutset(const JSONRPCRequest& request);

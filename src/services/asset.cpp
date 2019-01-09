@@ -120,10 +120,10 @@ bool StartGethNode(pid_t &pid, int websocketport)
         char * argv[] = {(char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
         execvp(fpath.c_str(), argv);
     }
-    
-    
-    boost::filesystem::ofstream ofs(boost::filesystem::system_complete("geth.pid"), std::ios::out | ios::trunc);
-    ofs << pid;
+    else{
+        boost::filesystem::ofstream ofs(boost::filesystem::system_complete("geth.pid"), std::ios::out | ios::trunc);
+        ofs << pid;
+    }
     LogPrintf("%s: Geth Started with pid %d\n", __func__, pid);
     return true;
 }

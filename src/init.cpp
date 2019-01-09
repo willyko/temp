@@ -1817,7 +1817,13 @@ bool AppInitMain()
 
     if(fMasternodeMode) {
         LogPrintf("MASTERNODE:\n");
-
+        meminfo_t memInfo = parse_meminfo();
+        LogPrintf("Total Memory(MB) %d (Total Free %d) Swap Total(MB) %d (Total Free %d)\n", memInfo.MemTotalMiB, memInfo.MemAvailableMiB, memInfo.SwapTotalMiB, memInfo.SwapFreeMiB);
+        if(memInfo.MemTotalMiB < 8000)
+            return InitError(_("Insufficient memory, you need atleast 8GB RAM to run a masternode and be running in a Unix OS. Please see documentation."));
+        LogPrintf("Total number of physical cores found %d\n", boost::thread::physical_concurrency());
+        if(boost::thread::physical_concurrency() < 4)
+            return InitError(_("Insufficient CPU cores, you need atleast 4 cores to run a masternode. Please see documentation."));
         std::string strMasterNodePrivKey = gArgs.GetArg("-masternodeprivkey", "");
         if(!strMasterNodePrivKey.empty()) {
             if(!CMessageSigner::GetKeysFromSecret(strMasterNodePrivKey, activeMasternode.keyMasternode, activeMasternode.pubKeyMasternode))

@@ -32,7 +32,7 @@ static const unsigned int MAX_SYMBOL_LENGTH = 8;
 static const unsigned int MIN_SYMBOL_LENGTH = 1;
 static const uint64_t ONE_YEAR_IN_SECONDS = 31536000;
 static uint32_t MAX_ETHEREUM_TX_ROOTS = 600000;
-CCriticalSection cs_ethsyncheight;
+static CCriticalSection cs_ethsyncheight;
 std::string stringFromVch(const std::vector<unsigned char> &vch);
 std::vector<unsigned char> vchFromValue(const UniValue& value);
 std::vector<unsigned char> vchFromString(const std::string &str);

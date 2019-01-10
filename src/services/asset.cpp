@@ -2133,7 +2133,7 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
     return "success";
 }
 bool CEthereumTxRootsDB::PruneTxRoots() {
-    
+    LogPrintf("Pruning Ethereum Transaction Roots\n");
     EthereumTxRootMap mapEraseTxRoots;
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
     pcursor->SeekToFirst();

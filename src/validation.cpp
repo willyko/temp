@@ -569,7 +569,25 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const boo
     {
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Failed to read from asset DB");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
-    }        
+    }
+    int32_t cutoffHeight;
+    {
+        LOCK(cs_ethsyncheight);
+        // cutoff is 3.5 months of blocks is about 600k blocks
+        cutoffHeight = fGethSyncHeight - MAX_ETHEREUM_TX_ROOTS;
+    }
+    // do this check only when not resyncing
+    if(!fUnitTest /*&& !fResync*/){
+        std::vector<unsigned char> vchTxRoot;
+        if(cutoffHeight > 0 && mintSyscoin.nBlockNumber <= (uint32_t)cutoffHeight) {
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("The block height is too old, your SPV proof is invalid. SPV Proof must be done within ~3.5 months of the burn transaction on Ethereum blockchain");
+            return state.DoS(100, false, REJECT_INVALID, errorMessage);
+        }    
+        if(!pethereumtxrootsdb || !pethereumtxrootsdb->ReadTxRoot(mintSyscoin.nBlockNumber, vchTxRoot) || mintSyscoin.vchTxRoot != vchTxRoot){
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Invalid transaction root for SPV proof");
+            return state.DoS(100, false, REJECT_INVALID, errorMessage);
+        }    
+    }
     const std::vector<unsigned char> &vchTxRoot = mintSyscoin.vchTxRoot;
     dev::RLP rlpTxRoot(&vchTxRoot);
     const std::vector<unsigned char> &vchParentNodes = mintSyscoin.vchParentNodes;

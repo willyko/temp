@@ -88,7 +88,7 @@ bool fTPSTestEnabled = false;
 bool fAssetAllocationIndex = false;
 bool fConcurrentProcessing = true;
 bool fLiteMode = false;
-std::string fGethSyncStatus;
+int fGethSyncHeight;
 // Application startup time (used for uptime calculation)
 const int64_t nStartupTime = GetTime();
 
@@ -1083,7 +1083,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
 
     if( pid == 0 ) {
         std::string portStr = std::to_string(websocketport);
-        char * argv[] = {(char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
+        char * argv[] = {(char*)"--rpc", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
         execvp(fpath.c_str(), argv);
     }
     else{

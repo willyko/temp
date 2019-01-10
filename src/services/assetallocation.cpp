@@ -237,6 +237,7 @@ bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove, 
 }
 bool DisconnectMintAsset(const CTransaction &tx){
     AssetAllocationMap mapAssetAllocations;
+    AssetAllocationMap mapEraseAssetAllocations;
     AssetMap mapAssets; 
     CMintSyscoin mintSyscoin(tx);
     CAsset dbAsset;
@@ -266,10 +267,9 @@ bool DisconnectMintAsset(const CTransaction &tx){
         return false;
     }       
     else if(receiverAllocation.nBalance == 0){
-        if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
-            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
-            return false;
-        }
+        auto rv = mapEraseAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+        if (!rv.second)
+            rv.first->second = std::move(receiverAllocation);
     }
     else{     
         auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
@@ -280,7 +280,7 @@ bool DisconnectMintAsset(const CTransaction &tx){
     if (!rv1.second)
        rv1.first->second = std::move(dbAsset);
         
-    if(!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets)){
+    if(!passetallocationdb->Flush(mapAssetAllocations, mapEraseAssetAllocations) || !passetdb->Flush(mapAssets)){
        LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
        return false;
     }        
@@ -289,6 +289,7 @@ bool DisconnectMintAsset(const CTransaction &tx){
 }
 bool DisconnectAssetAllocation(const CTransaction &tx){
     AssetAllocationMap mapAssetAllocations;
+    AssetAllocationMap mapEraseAssetAllocations;
     AssetMap mapAssets; 
     CAssetAllocation theAssetAllocation(tx);
     const std::string &senderTupleStr = theAssetAllocation.assetAllocationTuple.ToString();
@@ -320,10 +321,9 @@ bool DisconnectAssetAllocation(const CTransaction &tx){
             return false;
         }
         else if(receiverAllocation.nBalance == 0){
-            if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
-                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
-                return false;
-            }
+            auto rv = mapEraseAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+            if (!rv.second)
+                rv.first->second = std::move(receiverAllocation);    
         }
         else{
             auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
@@ -335,7 +335,7 @@ bool DisconnectAssetAllocation(const CTransaction &tx){
     if (!rv.second)
         rv.first->second = std::move(senderAllocation); 
         
-    if(!passetallocationdb->Flush(mapAssetAllocations)){
+    if(!passetallocationdb->Flush(mapAssetAllocations, mapEraseAssetAllocations)){
        LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
        return false;
     }
@@ -959,11 +959,11 @@ UniValue assetallocationmint(const JSONRPCRequest& request) {
     const UniValue &params = request.params;
     if (request.fHelp || 9 != params.size())
         throw runtime_error(
-            "assetallocationmint [asset] [owner] [amount] [blockhash] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+            "assetallocationmint [asset] [owner] [amount] [blocknumber] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
             "<asset> Asset guid.\n"
             "<owner> Owner that will get this minting.\n"
             "<amount> Amount of asset to mint. Note that fees will be taken from the owner address.\n"
-            "<blockhash> Block hash of the block that included the burn transaction on Ethereum.\n"
+            "<blocknumber> Block number of the block that included the burn transaction on Ethereum.\n"
             "<tx_hex> Raw transaction hex of the burn transaction on Ethereum.\n"
             "<txroot_hex> The transaction merkle root that commits this transaction to the block header.\n"
             "<txmerkleproof_hex> The list of parent nodes of the Merkle Patricia Tree for SPV proof.\n"
@@ -974,7 +974,7 @@ UniValue assetallocationmint(const JSONRPCRequest& request) {
     const int &nAsset = params[0].get_int();
     string strAddress = params[1].get_str();
     CAmount nAmount = AmountFromValue(params[2]);
-    string vchBlockHash = params[3].get_str();
+    uint32_t nBlockNumber = (uint32_t)params[3].get_int();
     string vchTxRoot = params[4].get_str();
     string vchValue = params[5].get_str();
     string vchParentNodes = params[6].get_str();
@@ -988,7 +988,7 @@ UniValue assetallocationmint(const JSONRPCRequest& request) {
     mintSyscoin.nValueAsset = nAmount;
     mintSyscoin.vchTxRoot = ParseHex(vchTxRoot);
     mintSyscoin.vchValue = ParseHex(vchValue);
-    mintSyscoin.vchBlockHash = ParseHex(vchBlockHash);
+    mintSyscoin.nBlockNumber = nBlockNumber;
     mintSyscoin.vchParentNodes = ParseHex(vchParentNodes);
     mintSyscoin.vchPath = ParseHex(vchPath);
     
@@ -1445,10 +1445,24 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations){
         return true;
     CDBBatch batch(*this);
     for (const auto &key : mapAssetAllocations) {
-        const CAssetAllocation &assetallocation = key.second;
-        batch.Write(make_pair(assetAllocationKey, assetallocation.assetAllocationTuple), assetallocation);
+        batch.Write(key.second.assetAllocationTuple, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing %d asset allocations\n", mapAssetAllocations.size());
+    return WriteBatch(batch);
+}
+bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations, const AssetAllocationMap &mapEraseAssetAllocations){
+    if(mapAssetAllocations.empty() && mapEraseAssetAllocations.empty())
+        return true;
+    CDBBatch batch(*this);
+    for (const auto &key : mapEraseAssetAllocations) {
+        batch.Erase(key.first);
+    }    
+    for (const auto &key : mapAssetAllocations) {
+        // ensure we don't write entries that have been tasked for deletion
+        if(mapEraseAssetAllocations.find(key.first) == mapEraseAssetAllocations.end())
+            batch.Write(key.second.assetAllocationTuple, key.second);
+    }
+    LogPrint(BCLog::SYS, "Flushing %d asset allocations written and %d asset allocations deleted\n", mapAssetAllocations.size(), mapEraseAssetAllocations.size());
     return WriteBatch(batch);
 }
 bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
@@ -1477,13 +1491,13 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 	boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
 	pcursor->SeekToFirst();
 	CAssetAllocation txPos;
-	pair<string, CAssetAllocationTuple > key;
+    CAssetAllocationTuple key;
 	CAsset theAsset;
 	int index = 0;
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();
 		try {
-			if (pcursor->GetKey(key) && key.first == assetAllocationKey && (nAsset == 0 || nAsset != key.second.nAsset)) {
+			if (pcursor->GetKey(key) && (nAsset == 0 || nAsset != key.nAsset)) {
 				pcursor->GetValue(txPos);
 				if (!vchAddresses.empty() && std::find(vchAddresses.begin(), vchAddresses.end(), txPos.assetAllocationTuple.vchAddress) == vchAddresses.end())
 				{

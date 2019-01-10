@@ -29,6 +29,7 @@ unsigned int MAX_UPDATES_PER_BLOCK = 2;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
+std::unique_ptr<CEthereumTxRootsDB> pethereumtxrootsdb;
 using namespace std::chrono;
 using namespace std;
 
@@ -213,7 +214,7 @@ bool CMintSyscoin::UnserializeFromTx(const CTransaction &tx) {
     return true;
 }
 bool FlushSyscoinDBs() {
-	{
+	 {
 		LOCK(cs_assetallocationindex);
 		if (passetallocationtransactionsdb != nullptr)
 		{
@@ -223,7 +224,15 @@ bool FlushSyscoinDBs() {
 				return false;
 			}
 		}
-	}
+	 }
+     if (pethereumtxrootsdb != nullptr)
+     {
+        if(!pethereumtxrootsdb->PruneTxRoots())
+        {
+            LogPrintf("Failed to write to prune Ethereum TX Roots database!");
+            return false;
+        }
+     }
 	return true;
 }
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op,
@@ -709,10 +718,10 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
 	if (request.fHelp || 8 != params.size())
 		throw runtime_error(
-			"syscoinmint [address] [amount] [blockhash] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+			"syscoinmint [address] [amount] [blocknumber] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
 			"<address> Mint to this address.\n"
 			"<amount> Amount of SYS to mint. Note that fees are applied on top. It is not inclusive of fees.\n"
-            "<blockhash> Block hash of the block that included the burn transaction on Ethereum.\n"
+            "<blocknumber> Block number of the block that included the burn transaction on Ethereum.\n"
             "<tx_hex> Raw transaction hex of the burn transaction on Ethereum.\n"
             "<txroot_hex> The transaction merkle root that commits this transaction to the block header.\n"
             "<txmerkleproof_hex> The list of parent nodes of the Merkle Patricia Tree for SPV proof.\n"
@@ -722,7 +731,7 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
 
 	string vchAddress = params[0].get_str();
 	CAmount nAmount = AmountFromValue(params[1]);
-    string vchBlockHash = params[2].get_str();
+    uint32_t nBlockNumber = (uint32_t)params[2].get_int();
     string vchValue = params[3].get_str();
     string vchTxRoot = params[4].get_str();
     string vchParentNodes = params[5].get_str();
@@ -740,7 +749,7 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
     CMintSyscoin mintSyscoin;
     mintSyscoin.vchValue = ParseHex(vchValue);
     mintSyscoin.vchTxRoot = ParseHex(vchTxRoot);
-    mintSyscoin.vchBlockHash = ParseHex(vchBlockHash);
+    mintSyscoin.nBlockNumber = nBlockNumber;
     mintSyscoin.vchParentNodes = ParseHex(vchParentNodes);
     mintSyscoin.vchPath = ParseHex(vchPath);
     
@@ -1093,6 +1102,7 @@ bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
 }
 bool DisconnectAssetSend(const CTransaction &tx){
     AssetAllocationMap mapAssetAllocations;
+    AssetAllocationMap mapEraseAssetAllocations;
     AssetMap mapAssets; 
     CAsset dbAsset;
     CAssetAllocation theAssetAllocation(tx);
@@ -1120,20 +1130,21 @@ bool DisconnectAssetSend(const CTransaction &tx){
             return false;
         }
         else if(receiverAllocation.nBalance == 0){
-            if(!passetallocationdb->EraseAssetAllocation(receiverAllocation.assetAllocationTuple)){
-                LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Error erasing %s\n",receiverTupleStr);
-                return false;
-            }
-        }                
-        auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
-        if (!rv.second)
-            rv.first->second = std::move(receiverAllocation);                                     
+            auto rv = mapEraseAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+            if (!rv.second)
+                rv.first->second = std::move(receiverAllocation);            
+        }    
+        else{            
+            auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
+            if (!rv.second)
+                rv.first->second = std::move(receiverAllocation);    
+        }                                 
     }
     auto rv = mapAssets.emplace(std::move(theAssetAllocation.assetAllocationTuple.nAsset), std::move(dbAsset));
     if (!rv.second)
         rv.first->second = std::move(dbAsset);
         
-    if(!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets)){
+    if(!passetallocationdb->Flush(mapAssetAllocations, mapEraseAssetAllocations) || !passetdb->Flush(mapAssets)){
        LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
        return false;
     }      
@@ -1970,8 +1981,7 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
         return true;
     CDBBatch batch(*this);
     for (const auto &key : mapAssets) {
-        const CAsset &asset = key.second;
-        batch.Write(make_pair(assetKey, asset.nAsset), asset);
+        batch.Write(key.first, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing %d assets\n", mapAssets.size());
     return WriteBatch(batch);
@@ -2005,12 +2015,12 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 	boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
 	pcursor->SeekToFirst();
 	CAsset txPos;
-	pair<string, uint32_t > key;
+	uint32_t key;
 	int index = 0;
 	while (pcursor->Valid()) {
 		boost::this_thread::interruption_point();
 		try {
-			if (pcursor->GetKey(key) && key.first == assetKey && (nAsset == 0 || key.second == nAsset)) {
+			if (pcursor->GetKey(key) && (nAsset == 0 || nAsset != key)) {
 				pcursor->GetValue(txPos);
 				if (!strTxid.empty() && strTxid != txPos.txHash.GetHex())
 				{
@@ -2121,4 +2131,57 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
         );
    
     return "success";
+}
+bool CEthereumTxRootsDB::PruneTxRoots() {
+    
+    EthereumTxRootMap mapEraseTxRoots;
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+    pcursor->SeekToFirst();
+    vector<uint32_t> vecHeightKeys;
+    uint32_t key;
+    int32_t cutoffHeight;
+    {
+        LOCK(cs_ethsyncheight);
+        // cutoff is 3.5 months of blocks is about 600k blocks
+        cutoffHeight = fGethSyncHeight - MAX_ETHEREUM_TX_ROOTS;
+    }
+    if(cutoffHeight < 0){
+        LogPrint(BCLog::SYS, "Nothing to prune fGethSyncHeight = %d\n", fGethSyncHeight);
+        return true;
+    }
+    std::vector<unsigned char> txPos;
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        try {
+            if (pcursor->GetKey(key) && key < (uint32_t)cutoffHeight) {
+                vecHeightKeys.emplace_back(std::move(key));
+            }
+            pcursor->Next();
+        }
+        catch (std::exception &e) {
+            return error("%s() : deserialize error", __PRETTY_FUNCTION__);
+        }
+    }
+    FlushErase(vecHeightKeys);
+    return true;
+}
+bool CEthereumTxRootsDB::FlushErase(const std::vector<uint32_t> &vecHeightKeys){
+    if(vecHeightKeys.empty())
+        return true;
+    CDBBatch batch(*this);
+    for (const auto &key : vecHeightKeys) {
+        batch.Erase(key);
+    }
+    LogPrint(BCLog::SYS, "Flushing, erasing %d ethereum tx roots\n", vecHeightKeys.size());
+    return WriteBatch(batch);
+}
+bool CEthereumTxRootsDB::FlushWrite(const EthereumTxRootMap &mapTxRoots){
+    if(mapTxRoots.empty())
+        return true;
+    CDBBatch batch(*this);
+    for (const auto &key : mapTxRoots) {
+        batch.Write(key.first, key.second);
+    }
+    LogPrint(BCLog::SYS, "Flushing, writing %d ethereum tx roots\n", mapTxRoots.size());
+    return WriteBatch(batch);
 }

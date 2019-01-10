@@ -31,6 +31,8 @@ static const unsigned int MAX_VALUE_LENGTH = 512;
 static const unsigned int MAX_SYMBOL_LENGTH = 8;
 static const unsigned int MIN_SYMBOL_LENGTH = 1;
 static const uint64_t ONE_YEAR_IN_SECONDS = 31536000;
+static uint32_t MAX_ETHEREUM_TX_ROOTS = 600000;
+CCriticalSection cs_ethsyncheight;
 std::string stringFromVch(const std::vector<unsigned char> &vch);
 std::vector<unsigned char> vchFromValue(const UniValue& value);
 std::vector<unsigned char> vchFromString(const std::string &str);
@@ -164,7 +166,7 @@ public:
     std::vector<unsigned char> vchValue;
     std::vector<unsigned char> vchParentNodes;
     std::vector<unsigned char> vchTxRoot;
-    std::vector<unsigned char> vchBlockHash;
+    uint32_t nBlockNumber;
     std::vector<unsigned char> vchPath;
     CAmount nValueAsset;
     CMintSyscoin() {
@@ -179,28 +181,39 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {      
         READWRITE(vchValue);
         READWRITE(vchParentNodes);
-        READWRITE(vchBlockHash);
+        READWRITE(VARINT(nBlockNumber));
         READWRITE(vchTxRoot);
         READWRITE(vchPath);   
         READWRITE(assetAllocationTuple);  
         READWRITE(nValueAsset);  
     }
-    inline void SetNull() { nValueAsset = 0; assetAllocationTuple.SetNull(); vchTxRoot.clear(); vchValue.clear(); vchParentNodes.clear(); vchBlockHash.clear(); vchPath.clear(); }
+    inline void SetNull() { nValueAsset = 0; assetAllocationTuple.SetNull(); vchTxRoot.clear(); vchValue.clear(); vchParentNodes.clear(); nBlockNumber = 0; vchPath.clear(); }
     inline bool IsNull() const { return (vchValue.empty()); }
     bool UnserializeFromData(const std::vector<unsigned char> &vchData);
     bool UnserializeFromTx(const CTransaction &tx);
     void Serialize(std::vector<unsigned char>& vchData);
 };
-static const std::string assetKey = "AI";
+typedef std::unordered_map<uint32_t, std::vector<unsigned char> > EthereumTxRootMap;
+
+class CEthereumTxRootsDB : public CDBWrapper {
+public:
+    CEthereumTxRootsDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "ethereumtxroots", nCacheSize, fMemory, fWipe) {} 
+    bool ReadTxRoot(const uint32_t& nHeight, std::vector<unsigned char>& vchTxRoot) {
+        return Read(nHeight, vchTxRoot);
+    } 
+    bool PruneTxRoots();
+    bool FlushErase(const std::vector<uint32_t> &vecHeightKeys);
+    bool FlushWrite(const EthereumTxRootMap &mapTxRoots);
+};
 typedef std::unordered_map<int, CAsset> AssetMap;
 class CAssetDB : public CDBWrapper {
 public:
     CAssetDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assets", nCacheSize, fMemory, fWipe) {}
-    bool EraseAsset(const uint32_t& nAsset, bool cleanup = false) {
-        return Erase(make_pair(assetKey, nAsset));
+    bool EraseAsset(const uint32_t& nAsset) {
+        return Erase(nAsset);
     }   
     bool ReadAsset(const uint32_t& nAsset, CAsset& asset) {
-        return Read(make_pair(assetKey, nAsset), asset);
+        return Read(nAsset, asset);
     } 
 	void WriteAssetIndex(const CAsset& asset, const int &op);
 	bool ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
@@ -221,4 +234,5 @@ bool DecodeAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsi
 extern std::unique_ptr<CAssetDB> passetdb;
 extern std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 extern std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
+extern std::unique_ptr<CEthereumTxRootsDB> pethereumtxrootsdb;
 #endif // ASSET_H

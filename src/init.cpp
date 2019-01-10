@@ -296,6 +296,7 @@ void PrepareShutdown()
     passetdb.reset();
     passetallocationdb.reset();
     passetallocationtransactionsdb.reset();
+    pethereumtxrootsdb.reset();
     if (threadpool)
         delete threadpool;
     threadpool = NULL;
@@ -1569,15 +1570,16 @@ bool AppInitMain()
                 pcoinscatcher.reset();
                 
                 // SYSCOIN
-               
+                
                 passetdb.reset();
                 passetallocationdb.reset();
                 passetallocationtransactionsdb.reset();
-
+                pethereumtxrootsdb.reset();
                 
                 passetdb.reset(new CAssetDB(nCoinDBCache*16, false, fReset));
                 passetallocationdb.reset(new CAssetAllocationDB(nCoinDBCache*32, false, fReset));
                 passetallocationtransactionsdb.reset(new CAssetAllocationTransactionsDB(0, false, fReset));
+                pethereumtxrootsdb.reset(new CEthereumTxRootsDB(nCoinDBCache*16, false, fReset));
 
                 // new CBlockTreeDB tries to delete the existing file, which
                 // fails if it's still open from the previous loop. Close it first:

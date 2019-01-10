@@ -587,8 +587,8 @@ string SyscoinMint(const string& node, const string& address, const string& amou
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "addressbalance " + address));
     UniValue arr = r.get_array();
     CAmount nAmountBefore = AmountFromValue(arr[0]);
-    // "syscoinmint [addressto] [amount] [blockhash] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
-    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinmint " + address + " " + amount + " " + " '' " + txroot_hex + " " + tx_hex + " " + txmerkleproof_hex + " " + txmerkleroofpath_hex + " " + witness));
+    // "syscoinmint [addressto] [amount] [blocknumber] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinmint " + address + " " + amount + " " + " 0 " + txroot_hex + " " + tx_hex + " " + txmerkleproof_hex + " " + txmerkleroofpath_hex + " " + witness));
     
     arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + address));

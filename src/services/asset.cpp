@@ -2139,8 +2139,7 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
             "Sets Ethereum headers in Syscoin to validate transactions through the SYSX bridge.\n"
             "[headers]         A JSON objects representing an array of arrays (block number, tx root) from Ethereum blockchain.\n"
             + HelpExampleCli("syscoinsetethheaders", "\"[[7043888,\\\"0xd8ac75c7b4084c85a89d6e28219ff162661efb8b794d4b66e6e9ea52b4139b10\\\"],...]\""));  
-    LogPrintf("params[0] %s\n", params[0].write().c_str());
-    
+
     EthereumTxRootMap txRootMap;       
     const UniValue &headerArray = params[0].get_array();
     for(int i =0;i<headerArray.size();i++){

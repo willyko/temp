@@ -589,7 +589,7 @@ string SyscoinMint(const string& node, const string& address, const string& amou
     CAmount nAmountBefore = AmountFromValue(arr[0]);
     int randomBlockNumber = 23232;
     // ensure that block number you claim the burn is atleast 1 hour old
-    int randomBlockNumberPlus240 = 23232+MAX_ETHEREUM_TX_ROOTS;
+    int randomBlockNumberPlus240 = 23232+ETHEREUM_CONFIRMS_REQUIRED;
     string headerStr = "\"[[" + boost::lexical_cast<string>(randomBlockNumber) + ",\\\"" + txroot_hex + "\\\"]]\"";
     printf("headerStr %s\n", headerStr.c_str());
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsetethstatus synced " + boost::lexical_cast<string>(randomBlockNumberPlus240)));

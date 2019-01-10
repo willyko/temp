@@ -579,7 +579,7 @@ void GetOtherNodes(const string& node, string& otherNode1, string& otherNode2)
 	}
 
 }
-string SyscoinMint(const string& node, const string& address, const string& amount, const string& txroot_hex, const string& tx_hex, const string& txmerkleproof_hex, const string& txmerkleroofpath_hex, const string& witness)
+string SyscoinMint(const string& node, const string& address, const string& amount, const string& tx_hex, const string& txroot_hex, const string& txmerkleproof_hex, const string& txmerkleroofpath_hex, const string& witness)
 {
     string otherNode1, otherNode2;
     GetOtherNodes(node, otherNode1, otherNode2);
@@ -588,7 +588,7 @@ string SyscoinMint(const string& node, const string& address, const string& amou
     UniValue arr = r.get_array();
     CAmount nAmountBefore = AmountFromValue(arr[0]);
     // "syscoinmint [addressto] [amount] [blocknumber] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
-    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinmint " + address + " " + amount + " " + " 0 " + txroot_hex + " " + tx_hex + " " + txmerkleproof_hex + " " + txmerkleroofpath_hex + " " + witness));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinmint " + address + " " + amount + " " + " 0 " + tx_hex + " " + txroot_hex + " " + txmerkleproof_hex + " " + txmerkleroofpath_hex + " " + witness));
     
     arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + address));

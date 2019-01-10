@@ -301,7 +301,7 @@ BOOST_AUTO_TEST_CASE(generate_syscoinmint)
 		std::string spv_path = test[3].get_str();
 
     string newaddress = GetNewFundedAddress("node1");
-    SyscoinMint("node1", newaddress, "0.5", spv_tx_root, spv_value, spv_parent_nodes, spv_path);
+    SyscoinMint("node1", newaddress, "0.5", spv_value, spv_tx_root, spv_parent_nodes, spv_path);
 }
 BOOST_AUTO_TEST_CASE(generate_burn_syscoin)
 {

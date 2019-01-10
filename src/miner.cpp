@@ -178,6 +178,9 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         if (!masternodeSync.IsSynced()) {
             throw std::runtime_error("Masternode information has not synced, please wait until it finishes before mining!");
         }
+        if(fLiteMode){
+             throw std::runtime_error("You cannot mine in lite mode, set litemode=0 in your conf file!");
+        }
     }
     // Update coinbase transaction with additional info about masternode and governance payments,
     // get some info back to pass to getblocktemplate
@@ -196,7 +199,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     CCoinsViewCache viewOld(pcoinsTip.get());
     std::vector<uint256> txsToRemove;         
     CValidationState stateInputs;
-    if (!CheckSyscoinInputs(*pblock->vtx[0], stateInputs, viewOld, false, nHeight, *pblock, false, true, txsToRemove) && !txsToRemove.empty())
+    if (!CheckSyscoinInputs(false, *pblock->vtx[0], stateInputs, viewOld, false, nHeight, *pblock, false, true, txsToRemove) && !txsToRemove.empty())
     {
         for(unsigned int i =0; i< pblock->vtx.size();i++){
             const uint256& hash = pblock->vtx[i]->GetHash();

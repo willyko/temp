@@ -88,7 +88,10 @@ bool fTPSTestEnabled = false;
 bool fAssetAllocationIndex = false;
 bool fConcurrentProcessing = true;
 bool fLiteMode = false;
-int fGethSyncHeight;
+uint32_t fGethSyncHeight;
+std::string fGethSyncStatus;
+bool fGethSynced = false;
+bool fLoaded = false;
 // Application startup time (used for uptime calculation)
 const int64_t nStartupTime = GetTime();
 

@@ -50,7 +50,10 @@ extern bool fTPSTestEnabled;
 extern bool fAssetAllocationIndex;
 extern bool fConcurrentProcessing;
 extern bool fLiteMode;
-extern int fGethSyncHeight;
+extern uint32_t fGethSyncHeight;
+extern std::string fGethSyncStatus;
+extern bool fGethSynced;
+extern bool fLoaded;
 typedef struct {
     // Values from /proc/meminfo, in KiB or converted to MiB.
     long MemTotalKiB;

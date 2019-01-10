@@ -17,6 +17,7 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper()
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
 #include <chrono>
 #include <key_io.h>
@@ -667,13 +668,13 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
 	if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET || tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && !fTPSTestEnabled) {
         CValidationState state;
 		// call this twice, with fJustCheck and !fJustCheck both with bSanity enabled so it doesn't actually write out to the databases just does the checks
-	    if (!CheckSyscoinInputs(tx, state, view, true, 0, CBlock(), true))
+	    if (!CheckSyscoinInputs(false, tx, state, view, true, 0, CBlock(), true))
 		    throw runtime_error(FormatStateMessage(state));
 		CBlock block;
 		CMutableTransaction coinbasetx;
 		block.vtx.push_back(MakeTransactionRef(coinbasetx));
 		block.vtx.push_back(MakeTransactionRef(tx));
-		if (!CheckSyscoinInputs(tx, state, view, false, 0, block, true))
+		if (!CheckSyscoinInputs(false, tx, state, view, false, 0, block, true))
 			throw runtime_error(FormatStateMessage(state));
 	}
 	// pass back new raw transaction
@@ -1505,7 +1506,8 @@ UniValue assetnew(const JSONRPCRequest& request) {
     string strContract = params[2].get_str();
     string strMethodSig = params[3].get_str();
     if(!strContract.empty())
-        boost::remove_erase_if(strContract, boost::is_any_of("0x")); // strip 0x in hex str if exist
+         boost::erase_all(strContract, "0x");  // strip 0x in hex str if exist
+
    
 	int precision = params[4].get_int();
 	string vchWitness;
@@ -2106,31 +2108,60 @@ UniValue listassets(const JSONRPCRequest& request) {
 		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("Scan failed"));
 	return oRes;
 }
-UniValue syscoinsetethheight(const JSONRPCRequest& request) {
+UniValue syscoinsetethstatus(const JSONRPCRequest& request) {
     const UniValue &params = request.params;
-    if (request.fHelp || 1 != params.size())
-        throw runtime_error("syscoinsetethheight [highestBlock]\n"
-            "Sets highest block height seen on the Ethereum network.\n"
-            "[highestBlock]        What the highest block height on Ethereum is found to be.\n" 
-            + HelpExampleCli("syscoinsetethheight", "7000000")
-        );
-    int highestBlock = params[0].get_int();
+    if (request.fHelp || 2 != params.size())
+        throw runtime_error("syscoinsetethstatus [syncing_status] [highestBlock]\n"
+            "Sets ethereum syncing and network status for indication status of network sync.\n"
+            "[syncing_status]      Syncing status either 'syncing' or 'synced'.\n"
+            "[highestBlock]        What the highest block height on Ethereum is found to be. Usually coupled with syncing_status of 'syncing'. Set to 0 if syncing_status is 'synced'.\n" 
+            + HelpExampleCli("syscoinsetethheaders", "syncing 7000000")
+            + HelpExampleCli("syscoinsetethheaders", "synced 0"));
+    string status = params[0].get_str();
+    int highestBlock = params[1].get_int();
     
-    if(highestBlock > 0)
+    if(highestBlock > 0){
+        LOCK(cs_ethsyncheight);
         fGethSyncHeight = highestBlock;
-    return "success";
+    }
+    fGethSyncStatus = status;
+    // first time we get synced, we set fGethSynced to true so that peers can start connecting
+    if(!fGethSynced && fGethSyncStatus == "synced")
+        fGethSynced = true;
+    UniValue ret(UniValue::VARR);
+    ret.pushKV("status", "success");
+    return ret;
 }
 UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
     const UniValue &params = request.params;
     if (request.fHelp || 1 != params.size())
         throw runtime_error("syscoinsetethheaders [headers]\n"
             "Sets Ethereum headers in Syscoin to validate transactions through the SYSX bridge.\n"
-            "[headers]         A JSON objects representing an array of tuples (block number, tx root) from Ethereum blockchain.\n"
-            + HelpExampleCli("syscoinsetethheaders", "0 0 '{\"owners\":[{\"owner\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"owner\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
-            + HelpExampleCli("listassets", "0 0 '{\"asset\":3473733,\"owner\":\"SfaT8dGhk1zaQkk8bujMfgWw3szxReej4S\"0}'")
-        );
-   
-    return "success";
+            "[headers]         A JSON objects representing an array of arrays (block number, tx root) from Ethereum blockchain.\n"
+            + HelpExampleCli("syscoinsetethheaders", "\"[[7043888,\\\"0xd8ac75c7b4084c85a89d6e28219ff162661efb8b794d4b66e6e9ea52b4139b10\\\"],...]\""));  
+    LogPrintf("params[0] %s\n", params[0].write().c_str());
+    
+    EthereumTxRootMap txRootMap;       
+    const UniValue &headerArray = params[0].get_array();
+    for(int i =0;i<headerArray.size();i++){
+        const UniValue &tupleArray = headerArray[i].get_array();
+        if(tupleArray.size() != 2)
+            throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("Invalid size in a blocknumber/txroot tuple, should be size of 2"));
+        uint32_t nHeight = (uint32_t)tupleArray[0].get_int();
+        {
+            LOCK(cs_ethsyncheight);
+            if(nHeight > fGethSyncHeight)
+                fGethSyncHeight = nHeight;
+        }
+        string txRoot = tupleArray[1].get_str();
+        boost::erase_all(txRoot, "0x");  // strip 0x
+        const vector<unsigned char> &vchTxRoot = ParseHex(txRoot);
+        txRootMap.emplace(std::move(nHeight), std::move(vchTxRoot));
+    }
+    pethereumtxrootsdb->FlushWrite(txRootMap);
+    UniValue ret(UniValue::VARR);
+    ret.pushKV("status", "success");
+    return ret;
 }
 bool CEthereumTxRootsDB::PruneTxRoots() {
     LogPrintf("Pruning Ethereum Transaction Roots\n");
@@ -2142,7 +2173,7 @@ bool CEthereumTxRootsDB::PruneTxRoots() {
     int32_t cutoffHeight;
     {
         LOCK(cs_ethsyncheight);
-        // cutoff is 3.5 months of blocks is about 600k blocks
+        // cutoff is ~1.5 months of blocks is about 250k blocks
         cutoffHeight = fGethSyncHeight - MAX_ETHEREUM_TX_ROOTS;
     }
     if(cutoffHeight < 0){

@@ -1146,9 +1146,14 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
             return;
         }
     }
-    // don't accept incoming connections until fully synced
+    // SYSCOIN don't accept incoming connections until fully synced
     if(fMasternodeMode && !masternodeSync.IsSynced()) {
         LogPrintf("AcceptConnection -- masternode is not synced yet, skipping inbound connection attempt\n");
+        CloseSocket(hSocket);
+        return;
+    }
+    if(!fGethSynced && !fLiteMode && !fUnitTest) {
+        LogPrintf("AcceptConnection -- Geth is not synced yet, skipping inbound connection attempt\n");
         CloseSocket(hSocket);
         return;
     }

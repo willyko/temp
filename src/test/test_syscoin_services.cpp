@@ -587,8 +587,25 @@ string SyscoinMint(const string& node, const string& address, const string& amou
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "addressbalance " + address));
     UniValue arr = r.get_array();
     CAmount nAmountBefore = AmountFromValue(arr[0]);
+    int randomBlockNumber = 23232;
+    // ensure that block number you claim the burn is atleast 1 hour old
+    int randomBlockNumberPlus240 = 23232+240;
+    string headerStr = "\"[[" + boost::lexical_cast<string>(randomBlockNumber) + ",\\\"" + txroot_hex + "\\\"]]\"";
+    printf("headerStr %s\n", headerStr.c_str());
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsetethstatus synced " + boost::lexical_cast<string>(randomBlockNumberPlus240)));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsetethheaders " + headerStr));
+    if (!otherNode1.empty())
+    {
+        BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "syscoinsetethstatus synced " + boost::lexical_cast<string>(randomBlockNumberPlus240)));
+        BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "syscoinsetethheaders " + headerStr));
+    }
+    if (!otherNode2.empty())
+    {
+        BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "syscoinsetethstatus synced " + boost::lexical_cast<string>(randomBlockNumberPlus240)));
+        BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "syscoinsetethheaders " + headerStr));
+    }   
     // "syscoinmint [addressto] [amount] [blocknumber] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
-    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinmint " + address + " " + amount + " " + " 0 " + tx_hex + " " + txroot_hex + " " + txmerkleproof_hex + " " + txmerkleroofpath_hex + " " + witness));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinmint " + address + " " + amount + " " + boost::lexical_cast<string>(randomBlockNumber) + " " + tx_hex + " " + txroot_hex + " " + txmerkleproof_hex + " " + txmerkleroofpath_hex + " " + witness));
     
     arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + address));

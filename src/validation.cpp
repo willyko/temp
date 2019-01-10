@@ -544,7 +544,7 @@ bool DisconnectSyscoinTransaction(const CTransaction& tx, const CBlockIndex* pin
     return true;       
 }
 // SYSCOIN
-bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const bool &fJustCheck, const int& nHeight, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances)
+bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& state, const bool &fJustCheck, const int& nHeight, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances)
 {
     std::string errorMessage;
     // unserialize assetallocation from txn, check for valid
@@ -570,23 +570,36 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const boo
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Failed to read from asset DB");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-    int32_t cutoffHeight;
-    {
-        LOCK(cs_ethsyncheight);
-        // cutoff is 3.5 months of blocks is about 600k blocks
-        cutoffHeight = fGethSyncHeight - MAX_ETHEREUM_TX_ROOTS;
-    }
-    // do this check only when not resyncing
-    if(!fUnitTest /*&& !fResync*/){
+    // do this check only when not in IBD (initial block download) or litemode
+    // if we are starting up and verifying the db also skip this check as fLoaded will be false until startup sequence is complete
+    if(!ibd && !fLiteMode && fLoaded){
+        if(!fGethSynced){
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Geth is not synced");
+            return state.DoS(0, false, REJECT_INVALID, errorMessage);
+        }
         std::vector<unsigned char> vchTxRoot;
-        if(cutoffHeight > 0 && mintSyscoin.nBlockNumber <= (uint32_t)cutoffHeight) {
-            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("The block height is too old, your SPV proof is invalid. SPV Proof must be done within ~3.5 months of the burn transaction on Ethereum blockchain");
-            return state.DoS(100, false, REJECT_INVALID, errorMessage);
-        }    
+        int32_t cutoffHeight;
+       
+        // validate that the block passed is commited to by the tx root he also passes in, then validate the spv proof to the tx root below  
         if(!pethereumtxrootsdb || !pethereumtxrootsdb->ReadTxRoot(mintSyscoin.nBlockNumber, vchTxRoot) || mintSyscoin.vchTxRoot != vchTxRoot){
+            LogPrintf("mintSyscoin.vchTxRoot %s vchTxRoot %s\n", HexStr(mintSyscoin.vchTxRoot).c_str(), HexStr(vchTxRoot).c_str());
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Invalid transaction root for SPV proof");
             return state.DoS(100, false, REJECT_INVALID, errorMessage);
-        }    
+        }  
+        {
+            LOCK(cs_ethsyncheight);
+            // cutoff is ~1.5 months of blocks is about 250k blocks
+            cutoffHeight = fGethSyncHeight - MAX_ETHEREUM_TX_ROOTS;
+            if(cutoffHeight > 0 && mintSyscoin.nBlockNumber <= (uint32_t)cutoffHeight) {
+                errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("The block height is too old, your SPV proof is invalid. SPV Proof must be done within ~3.5 months of the burn transaction on Ethereum blockchain");
+                return state.DoS(100, false, REJECT_INVALID, errorMessage);
+            } 
+            // ensure that we wait atleast ETHEREUM_CONFIRMS_REQUIRED blocks (~1 hour) before we are allowed process this mint transaction  
+            if(fGethSyncHeight <= 0 || (fGethSyncHeight - mintSyscoin.nBlockNumber < ETHEREUM_CONFIRMS_REQUIRED)){
+                errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Not enough confirmations on Ethereum to process this mint transaction");
+                return state.DoS(100, false, REJECT_INVALID, errorMessage);
+            } 
+        }
     }
     const std::vector<unsigned char> &vchTxRoot = mintSyscoin.vchTxRoot;
     dev::RLP rlpTxRoot(&vchTxRoot);
@@ -691,7 +704,7 @@ bool CheckSyscoinMint(const CTransaction& tx, CValidationState& state, const boo
     }
     return true;
 }
-bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
+bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
 {
 
     AssetAllocationMap mapAssetAllocations;
@@ -725,7 +738,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
             return true;
         }
         else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN || tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) 
-            return CheckSyscoinMint(tx, state, fJustCheck, nHeight, mapAssets, mapAssetAllocations, blockMapAssetBalances);
+            return CheckSyscoinMint(ibd, tx, state, fJustCheck, nHeight, mapAssets, mapAssetAllocations, blockMapAssetBalances);
     }
     else if (!block.vtx.empty()) {
 
@@ -746,7 +759,7 @@ bool CheckSyscoinInputs(const CTransaction& tx, CValidationState& state, const C
             const CTransaction &tx = *(processBlock.vtx[i]);
             if(tx.IsCoinBase())
                 continue;
-            if((tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN || tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && !CheckSyscoinMint(tx, state, fJustCheck, nHeight, mapAssets, mapAssetAllocations, blockMapAssetBalances))
+            if((tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN || tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && !CheckSyscoinMint(ibd, tx, state, fJustCheck, nHeight, mapAssets, mapAssetAllocations, blockMapAssetBalances))
                 return state.DoS(100, error("%s: check syscoin mint", __func__), REJECT_INVALID, FormatStateMessage(state));
             else if (tx.nVersion != SYSCOIN_TX_VERSION_ASSET)
                 continue;
@@ -1282,7 +1295,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             control.Add(vChecks);   
             if (!control.Wait())
                 return false;
-            if (!CheckSyscoinInputs(tx, state, view, true, chainActive.Height(), CBlock())) {
+            if (!CheckSyscoinInputs(false, tx, state, view, true, chainActive.Height(), CBlock())) {
                 return false;
             }
         }            
@@ -1371,7 +1384,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                     }
                     {
                          
-                        if (!CheckSyscoinInputs(txIn, validationState, coinsViewCache, true, chainActive.Height(), CBlock()))
+                        if (!CheckSyscoinInputs(false, txIn, validationState, coinsViewCache, true, chainActive.Height(), CBlock()))
                         {
                             nLastMultithreadMempoolFailure = GetTime();
                             LOCK2(cs_main, mempool.cs);
@@ -2489,7 +2502,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     }
 
     // SYSCOIN
-    if (!CheckSyscoinInputs(*block.vtx[0], state, view, fJustCheck, pindex->nHeight, block))
+    if (!CheckSyscoinInputs(IsInitialBlockDownload(), *block.vtx[0], state, view, fJustCheck, pindex->nHeight, block))
         return error("ConnectBlock(): CheckSyscoinInputs on block %s failed\n",
             block.GetHash().ToString());
             

@@ -3,17 +3,10 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "ethereum.h"
-#include "BlockHeader.h"
-#include <boost/lexical_cast.hpp>
+#include "SHA3.h"
 
 using namespace dev;
-using namespace eth;
 
-
-bool VerifyHeader(const std::vector<unsigned char>& data) {
-        BlockHeader header(data, BlockDataType::HeaderData);
-        return true;
-}
 
 int nibblesToTraverse(const std::string &encodedPartialPath, const std::string &path, int pathPtr) {
   std::string partialPath;

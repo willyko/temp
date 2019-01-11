@@ -16,19 +16,6 @@
 
 extern UniValue read_json(const std::string& jsondata);
 
-class EthereumTestChecker : public BaseSignatureChecker
-{
-public:
-    virtual bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const
-    {
-        return true;
-    }
-
-    virtual bool CheckEthHeader(const std::vector<unsigned char>& header) const {
-        return VerifyHeader(header);
-    }
-};
-
 
 BOOST_AUTO_TEST_SUITE(ethereum_tests)
 BOOST_AUTO_TEST_CASE(ethereum_parseabidata)

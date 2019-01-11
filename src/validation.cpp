@@ -48,6 +48,9 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
 // SYSCOIN
+#include <bech32.h>
+#include <key_io.h>
+#include <outputtype.h>
 #include <masternodeman.h>
 #include <masternode-payments.h>
 #include <services/asset.h>
@@ -58,6 +61,7 @@
 #include <ethereum/Address.h>
 #include <ethereum/Common.h>
 #include <ethereum/CommonData.h>
+#include <ethereum/TransactionBase.h>
 std::vector<std::pair<uint256, int64_t> > vecTPSTestReceivedTimesMempool;
 int64_t nTPSTestingStartTime = 0;
 double nTPSTestingSendRawEndTime = 0;
@@ -612,36 +616,50 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not verify ethereum transaction using SPV proof");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     } 
-    if (!rlpValue.isList()){
-        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction RLP must be a list");
+    dev::eth::TransactionBase txBase(rlpValue.data(), dev::eth::CheckTransaction::None);
+    if (!txBase){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction is invalid");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-        
-    if (rlpValue.itemCount() < 6){
-        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction RLP invalid item count");
-        return state.DoS(100, false, REJECT_INVALID, errorMessage);
-    }
- 
-    if (!rlpValue[5].isData()){
-        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Transaction data RLP must be an array");
-        return state.DoS(100, false, REJECT_INVALID, errorMessage);
-    }
-    if (rlpValue[3].isEmpty()){
-        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Invalid transaction receiver");
-        return state.DoS(100, false, REJECT_INVALID, errorMessage);
-    }
-    const dev::Address &address160 = rlpValue[3].toHash<dev::Address>(dev::RLP::VeryStrict);
-    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && Params().GetConsensus().vchSYSXContract != address160.asBytes()){
+
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && Params().GetConsensus().vchSYSXContract != txBase.to().asBytes()){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Receiver not the expected SYSX contract address");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && dbAsset.vchContract != address160.asBytes()){
+    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && dbAsset.vchContract != txBase.to().asBytes()){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Receiver not the expected SYSX contract address");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
+    const std::vector<unsigned char> & vecSenderBytes = txBase.senderPubKey();
+    if(vecSenderBytes.empty()){
+        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Sender could not be found in the transaction payload");
+        return state.DoS(100, false, REJECT_INVALID, errorMessage);
+    }
+    const std::string &strSender = EncodeDestination(WitnessV0KeyHash(CPubKey(vecSenderBytes).GetID()));
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN) {
+        CTxDestination dest;
+        if (!ExtractDestination(tx.vout[0].scriptPubKey, dest)){
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not extract address from mint transaction output");
+            return state.DoS(100, false, REJECT_INVALID, errorMessage);
+        }
+        const std::string &strSenderSaved = EncodeDestination(dest);
+        if(strSenderSaved != strSender){
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Receiver address does not match sender address");
+            return state.DoS(100, false, REJECT_INVALID, errorMessage);
+        }         
+    }
+    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET)
+    {
+        const std::string &strSenderSaved = bech32::Encode(Params().Bech32HRP(),mintSyscoin.assetAllocationTuple.vchAddress);
+        if(strSenderSaved != strSender){
+            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Receiver address does not match sender address");
+            return state.DoS(100, false, REJECT_INVALID, errorMessage);
+        }
+    }
+    
     CAmount outputAmount;
     uint32_t nAsset = 0;
-    const std::vector<unsigned char> &rlpBytes = rlpValue[5].data().toBytes();
+    const std::vector<unsigned char> &rlpBytes = txBase.data();
     if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && !parseEthMethodInputData(Params().GetConsensus().vchSYSXBurnMethodSignature, rlpBytes, outputAmount, nAsset)){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);

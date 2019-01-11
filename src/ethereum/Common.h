@@ -52,7 +52,6 @@
 #pragma warning(pop)
 #pragma GCC diagnostic pop
 #include "vector_ref.h"
-
 // CryptoPP defines byte in the global namespace, so must we.
 using byte = uint8_t;
 
@@ -66,8 +65,6 @@ using byte = uint8_t;
 
 namespace dev
 {
-
-extern char const* Version;
 
 extern std::string const EmptyString;
 

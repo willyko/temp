@@ -29,7 +29,6 @@ using namespace dev;
 namespace dev
 {
 
-char const* Version = "DOGETHEREUM v9k"; // ETH_PROJECT_VERSION;
 bytes const NullBytes;
 u256 const Invalid256 = ~(u256)0;
 std::string const EmptyString;

@@ -248,28 +248,21 @@ libsyscoin_util_a-clientversion.$(OBJEXT): obj/build.h
  ethereum_libethereum_a_SOURCES = \
   ethereum/Address.cpp \
   ethereum/Address.h \
-  ethereum/BlockHeader.cpp \
-  ethereum/BlockHeader.h \
   ethereum/Common.cpp \
   ethereum/Common.h \
   ethereum/CommonData.cpp \
   ethereum/CommonData.h \
+  ethereum/TransactionBase.cpp \
+  ethereum/TransactionBase.h \
   ethereum/Exceptions.h \
   ethereum/FixedHash.cpp \
   ethereum/FixedHash.h \
   ethereum/Guards.cpp \
   ethereum/Guards.h \
-  ethereum/MemoryDB.cpp \
-  ethereum/MemoryDB.h \
   ethereum/RLP.cpp \
   ethereum/RLP.h \
   ethereum/SHA3.cpp \
   ethereum/SHA3.h \
-  ethereum/TrieCommon.cpp \
-  ethereum/TrieCommon.h \
-  ethereum/TrieDB.h \
-  ethereum/TrieHash.cpp \
-  ethereum/TrieHash.h \
   ethereum/ethereum.cpp \
   ethereum/ethereum.h \
   ethereum/vector_ref.h

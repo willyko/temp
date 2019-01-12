@@ -1823,7 +1823,7 @@ bool AppInitMain()
         LogPrintf("Total Memory(MB) %d (Total Free %d) Swap Total(MB) %d (Total Free %d)\n", memInfo.MemTotalMiB, memInfo.MemAvailableMiB, memInfo.SwapTotalMiB, memInfo.SwapFreeMiB);
         if(memInfo.MemTotalMiB < 4000)
             return InitError(_("Insufficient memory, you need atleast 4GB RAM to run a masternode and be running in a Unix OS. Please see documentation."));
-        if(memInfo.SwapTotalMiB < 4000)
+        if(memInfo.MemTotalMiB < 8000 && memInfo.SwapTotalMiB < 4000)
             return InitError(_("Insufficient swap memory, you need atleast 4GB swap RAM to run a masternode and be running in a Unix OS. Please see documentation."));           
         LogPrintf("Total number of physical cores found %d\n", boost::thread::physical_concurrency());
         if(boost::thread::physical_concurrency() < 2)

@@ -101,7 +101,7 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
  * @return true if everything is valid
  */
 bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, const std::vector<unsigned char>& vchInputData, CAmount& outputAmount, uint32_t& nAsset, std::vector<unsigned char>& vchAddress) {
-    if(vchInputData.size() != 60 || vchInputData.size() != 72) 
+    if(vchInputData.size() != 164) 
         return false;  
     // method hash is 4 bytes
     std::vector<unsigned char>::const_iterator first = vchInputData.begin();
@@ -134,12 +134,15 @@ bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedM
     nAsset |= static_cast<uint32_t>(vchInputData[37]) << 16;
     nAsset |= static_cast<uint32_t>(vchInputData[36]) << 24;
     
-    // size of payload
-    // witness program starting at position 42 till the end
-    std::vector<unsigned char>::const_iterator firstWitness = vchInputData.begin()+41;
-    std::vector<unsigned char>::const_iterator lastWitness = vchInputData.end();
-    vchAddress = std::vector<unsigned char>(firstWitness,lastWitness);
-    if((vchInputData.size() == 60 && vchAddress.size() != 20) || (vchInputData.size() == 72 && vchAddress.size() != 32))
+    // skip data position field (68 + 32) + 31 (offset to the varint byte)
+    int dataPos = 131;
+    
+    const unsigned char &dataLength = vchInputData[dataPos++];
+    if(dataLength != 20 || dataLength != 32)
         return false;
+    // witness program starting at position dataPos till the end
+    std::vector<unsigned char>::const_iterator firstWitness = vchInputData.begin()+dataPos;
+    std::vector<unsigned char>::const_iterator lastWitness = firstWitness + dataLength;
+    vchAddress = std::vector<unsigned char>(firstWitness,lastWitness);
     return true;
 }

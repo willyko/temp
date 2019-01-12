@@ -308,7 +308,7 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin)
     printf("Running generate_burn_syscoin...\n");
     UniValue r;
     string newaddress = GetNewFundedAddress("node1");
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinburn 9.9 true"));
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinburn 9.9 true 0x931D387731bBbC988B312206c74F77D004D6B84b"));
     UniValue varray = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + varray[0].get_str() + " " + newaddress));
     varray = r.get_array();
@@ -320,7 +320,7 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin)
     BOOST_CHECK(DecodeHexTx(txIn, hexStr, true, true));
     CTransaction tx(txIn);
     BOOST_CHECK(tx.vout[0].scriptPubKey.IsUnspendable());
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinburn 0.1 true"));
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscoinburn 0.1 true 0x931D387731bBbC988B312206c74F77D004D6B84b"));
     varray = r.get_array();
     BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + varray[0].get_str() + " " + newaddress), runtime_error);
 }
@@ -335,11 +335,11 @@ BOOST_AUTO_TEST_CASE(generate_burn_syscoin_asset)
     string creatoraddress = GetNewFundedAddress("node1");
     string useraddress = GetNewFundedAddress("node1");
 
-    string assetguid = AssetNew("node1", creatoraddress, "pubdata", "0xc47bD54a3Df2273426829a7928C3526BF8F7Acaa");
+    string assetguid = AssetNew("node1", creatoraddress, "pubdata", "0x931D387731bBbC988B312206c74F77D004D6B84b");
 
     AssetSend("node1", assetguid, "\"[{\\\"ownerto\\\":\\\"" + useraddress + "\\\",\\\"amount\\\":0.5}]\"");
     // try to burn more than we own
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationburn " + assetguid + " " + useraddress + " 0.6"));
+    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationburn " + assetguid + " " + useraddress + " 0.6 0x931D387731bBbC988B312206c74F77D004D6B84b"));
     UniValue arr = r.get_array();
     BOOST_CHECK_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + useraddress), runtime_error);
     // this one is ok

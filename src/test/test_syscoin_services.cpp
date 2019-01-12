@@ -25,6 +25,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper()
 #include <bech32.h>
+#include <rpc/util.h>
 static int node1LastBlock = 0;
 static int node2LastBlock = 0;
 static int node3LastBlock = 0;
@@ -813,14 +814,17 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 		BOOST_CHECK(receiver.isObject());
       
 		UniValue receiverObj = receiver.get_obj();
-		vector<uint8_t> vchAddressTo = bech32::Decode(find_value(receiverObj, "ownerto").get_str()).second;
         
+        const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "ownerto").get_str());
+        UniValue detail = DescribeAddress(dest);
+        string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
+                           
 		UniValue amountObj = find_value(receiverObj, "amount");
 		if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision);
 			inputamount += amount;
 			BOOST_CHECK(amount > 0);
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchAddressTo, amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(ParseHex(witnessProgramHex), amount));
 		}
 
 
@@ -881,7 +885,7 @@ void BurnAssetAllocation(const string& node, const string &guid, const string &a
         beforeBalance = AssetAmountFromValue(balanceB, 8);
     }
     
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationburn " + guid + " " + address + " " + amount));
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationburn " + guid + " " + address + " " + amount + " 0x931D387731bBbC988B312206c74F77D004D6B84b"));
     UniValue arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + address));
     arr = r.get_array();
@@ -918,14 +922,16 @@ string AssetSend(const string& node, const string& guid, const string& inputs, c
 
 
 		UniValue receiverObj = receiver.get_obj();
-		vector<uint8_t> vchAddressTo = bech32::Decode(find_value(receiverObj, "ownerto").get_str()).second;
+        const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "ownerto").get_str());
+        UniValue detail = DescribeAddress(dest);
+        string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
         
 		UniValue amountObj = find_value(receiverObj, "amount");
         if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision);
 			inputamount += amount;
 			BOOST_CHECK(amount > 0);
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchAddressTo, amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(ParseHex(witnessProgramHex), amount));
 		}
 
 

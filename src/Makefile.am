@@ -252,8 +252,6 @@ libsyscoin_util_a-clientversion.$(OBJEXT): obj/build.h
   ethereum/Common.h \
   ethereum/CommonData.cpp \
   ethereum/CommonData.h \
-  ethereum/TransactionBase.cpp \
-  ethereum/TransactionBase.h \
   ethereum/Exceptions.h \
   ethereum/FixedHash.cpp \
   ethereum/FixedHash.h \

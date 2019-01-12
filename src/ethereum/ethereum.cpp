@@ -100,11 +100,9 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
  * @param nAsset The asset burned or 0 for SYS 
  * @return true if everything is valid
  */
-bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, const std::vector<unsigned char>& vchInputData, CAmount& outputAmount, uint32_t& nAsset) {
-    // input not 40 bytes is bad
-    if(vchInputData.size() != 40) 
-        return false;
-
+bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, const std::vector<unsigned char>& vchInputData, CAmount& outputAmount, uint32_t& nAsset, std::vector<unsigned char>& vchAddress) {
+    if(vchInputData.size() != 60 || vchInputData.size() != 72) 
+        return false;  
     // method hash is 4 bytes
     std::vector<unsigned char>::const_iterator first = vchInputData.begin();
     std::vector<unsigned char>::const_iterator last = first + 4;
@@ -126,7 +124,7 @@ bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedM
     result |= static_cast<uint64_t>(vchInputData[28]) << 56;
     outputAmount = (CAmount)result;
 
-    // get the second parameter and convert to uin32_t and assign to output var
+    // get the second parameter and convert to uint32_t and assign to output var
     // commented out for now since it's unused but I wanted it  here for clarity
     // and potential afuture enhancements
     // convert the vch into a uin32_t (nAsset)
@@ -135,5 +133,13 @@ bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedM
     nAsset |= static_cast<uint32_t>(vchInputData[38]) << 8;
     nAsset |= static_cast<uint32_t>(vchInputData[37]) << 16;
     nAsset |= static_cast<uint32_t>(vchInputData[36]) << 24;
+    
+    // size of payload
+    // witness program starting at position 42 till the end
+    std::vector<unsigned char>::const_iterator firstWitness = vchInputData.begin()+41;
+    std::vector<unsigned char>::const_iterator lastWitness = vchInputData.end();
+    vchAddress = std::vector<unsigned char>(firstWitness,lastWitness);
+    if((vchInputData.size() == 60 && vchAddress.size() != 20) || (vchInputData.size() == 72 && vchAddress.size() != 32))
+        return false;
     return true;
 }

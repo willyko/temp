@@ -27,15 +27,15 @@ bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptO
 class CAssetAllocationTuple {
 public:
 	uint32_t nAsset;
-	std::vector<uint8_t> vchAddress;
+	std::vector<unsigned char> vchAddress;
 	ADD_SERIALIZE_METHODS;
 
 	template <typename Stream, typename Operation>
 	inline void SerializationOp(Stream& s, Operation ser_action) {
-		READWRITE(VARINT(nAsset));
+		READWRITE(nAsset);
 		READWRITE(vchAddress);
 	}
-	CAssetAllocationTuple(const uint32_t &asset, const std::vector<uint8_t> &vchAddress_) {
+	CAssetAllocationTuple(const uint32_t &asset, const std::vector<unsigned char> &vchAddress_) {
 		nAsset = asset;
 		vchAddress = vchAddress_;
 	}
@@ -74,7 +74,7 @@ public:
 typedef std::unordered_map<std::string, CAmount> AssetBalanceMap;
 typedef std::unordered_map<uint256, int64_t,SaltedTxidHasher> ArrivalTimesMap;
 typedef std::unordered_map<std::string, ArrivalTimesMap> ArrivalTimesMapImpl;
-typedef std::vector<std::pair<std::vector<uint8_t>, CAmount > > RangeAmountTuples;
+typedef std::vector<std::pair<std::vector<unsigned char>, CAmount > > RangeAmountTuples;
 typedef std::map<std::string, std::string> AssetAllocationIndexItem;
 typedef std::map<int, AssetAllocationIndexItem> AssetAllocationIndexItemMap;
 extern AssetAllocationIndexItemMap AssetAllocationIndex;
@@ -150,7 +150,7 @@ public:
     }
     bool Flush(const AssetAllocationMap &mapAssetAllocations);
     bool Flush(const AssetAllocationMap &mapAssetAllocations,const AssetAllocationMap &mapEraseAssetAllocations);
-	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender);
+	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::vector<unsigned char>& senderWitnessProgram);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {

@@ -20,6 +20,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
 #include <chrono>
+#include <rpc/util.h>
 #include <key_io.h>
 #include <policy/policy.h>
 #include <consensus/validation.h>
@@ -94,19 +95,6 @@ vector<unsigned char> vchFromValue(const UniValue& value) {
 std::vector<unsigned char> vchFromString(const std::string &str) {
 	unsigned char *strbeg = (unsigned char*)str.c_str();
 	return vector<unsigned char>(strbeg, strbeg + str.size());
-}
-std::vector<uint8_t> vchFromStringUint8(const std::string &str) {
-    uint8_t *strbeg = (uint8_t*)str.c_str();
-    return vector<uint8_t>(strbeg, strbeg + str.size());
-}
-string stringFromVchUint8(const vector<uint8_t> &vch) {
-    string res;
-    vector<uint8_t>::const_iterator vi = vch.begin();
-    while (vi != vch.end()) {
-        res += (uint8_t)(*vi);
-        vi++;
-    }
-    return res;
 }
 string stringFromVch(const vector<unsigned char> &vch) {
 	string res;
@@ -243,18 +231,17 @@ bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op,
 		DecodeAndParseAssetAllocationTx(tx, op, vvch, type)
 		|| DecodeAndParseAssetTx(tx, op, vvch, type);
 }
-bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const string& ownerAddressToMatch) {
+bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::vector<unsigned char> &witnessprogramToMatch) {
 	CTxDestination dest;
 	for (unsigned int i = 0; i < tx.vin.size(); i++) {
 		const Coin& prevCoins = inputs.AccessCoin(tx.vin[i].prevout);
 		if (prevCoins.IsSpent()) {
 			continue;
 		}
-		if (!ExtractDestination(prevCoins.out.scriptPubKey, dest))
-			continue;
-		if (EncodeDestination(dest) == ownerAddressToMatch) {
-			return true;
-		}
+        int witnessversion;
+        std::vector<unsigned char> witnessprogram;
+        if (prevCoins.out.scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram) && witnessprogramToMatch == witnessprogram)
+            return true;
 	}
 	return false;
 }
@@ -686,21 +673,26 @@ UniValue syscoinburn(const JSONRPCRequest& request) {
 	std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
 	CWallet* const pwallet = wallet.get();
 	const UniValue &params = request.params;
-	if (request.fHelp || 2 != params.size())
+	if (request.fHelp || 3 != params.size())
 		throw runtime_error(
-			"syscoinburn [amount] [burn_to_sysx]\n"
+			"syscoinburn [amount] [burn_to_sysx] [ethereum_destination_address]\n"
 			"<amount> Amount of SYS to burn. Note that fees are applied on top. It is not inclusive of fees.\n"
 			"<burn_to_sysx> Boolean. Set to true if you are provably burning SYS to go to SYSX. False if you are provably burning SYS forever.\n"
+            "<ethereum_destination_address> The 20 byte (40 character) hex string of the ethereum destination address.\n"
 			+ HelpRequiringPassphrase(pwallet));
             
 	CAmount nAmount = AmountFromValue(params[0]);
 	bool bBurnToSYSX = params[1].get_bool();
+    string ethAddress = params[2].get_str();
+    boost::erase_all(ethAddress, "0x");  // strip 0x if exist
 
+   
 	vector<CRecipient> vecSend;
 	CScript scriptData;
 	scriptData << OP_RETURN;
-	if (bBurnToSYSX)
-		scriptData << OP_TRUE;
+	if (bBurnToSYSX){
+		scriptData << OP_TRUE << ParseHex(ethAddress);
+    }
 	else
 		scriptData << OP_FALSE;
 
@@ -1306,8 +1298,8 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				return error(errorMessage.c_str());
 			}
 		}
-		const string &vchOwner = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.GetAddressString() : bech32::Encode(Params().Bech32HRP(),theAsset.vchAddress);
-		const string &user1 = dbAsset.IsNull()? vchOwner : bech32::Encode(Params().Bech32HRP(),dbAsset.vchAddress);
+		const vector<unsigned char> &vchOwner = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.vchAddress : theAsset.vchAddress;
+		const vector<unsigned char> &user1 = dbAsset.IsNull()? vchOwner : dbAsset.vchAddress;
 
 	
 		if (op == OP_ASSET_TRANSFER) {
@@ -1524,7 +1516,11 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	if (IsValidDestination(address)) {
 		strAddressFrom = strAddress;
 	}
-
+    UniValue detail = DescribeAddress(address);
+    if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
+        throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
+    string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
+        
 	CScript scriptPubKeyFromOrig;
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(address);
@@ -1539,7 +1535,7 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	newAsset.vchPubData = vchPubData;
     newAsset.vchContract = ParseHex(strContract);
     newAsset.vchBurnMethodSignature = ParseHex(strMethodSig);
-	newAsset.vchAddress = bech32::Decode(strAddress).second;
+	newAsset.vchAddress = ParseHex(witnessProgramHex);
 	newAsset.nBalance = nBalance;
 	newAsset.nMaxSupply = nMaxSupply;
 	newAsset.nPrecision = precision;
@@ -1618,7 +1614,7 @@ UniValue assetupdate(const JSONRPCRequest& request) {
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Could not find a asset with this key"));
 
 	string strAddressFrom;
-	const string& strAddress = bech32::Encode(Params().Bech32HRP(),theAsset.vchAddress);
+	const string& strAddress = witnessProgramToAddress(theAsset.vchAddress);
 	const CTxDestination &address = DecodeDestination(strAddress);
 	if (IsValidDestination(address)) {
 		strAddressFrom = strAddress;
@@ -1695,7 +1691,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2505 - " + _("Could not find a asset with this key"));
 	
 	string strAddressFrom;
-	const string& strAddress = bech32::Encode(Params().Bech32HRP(),theAsset.vchAddress);
+	const string& strAddress = witnessProgramToAddress(theAsset.vchAddress);
 	const CTxDestination addressFrom = DecodeDestination(strAddress);
 	if (IsValidDestination(addressFrom)) {
 		strAddressFrom = strAddress;
@@ -1707,7 +1703,11 @@ UniValue assettransfer(const JSONRPCRequest& request) {
 		scriptPubKeyOrig = GetScriptForDestination(addressTo);
 	}
 
-
+    UniValue detail = DescribeAddress(addressTo);
+    if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
+        throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
+    string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
+        
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(addressFrom);
 	}
@@ -1715,7 +1715,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
 	CAsset copyAsset = theAsset;
 	theAsset.ClearAsset();
     CScript scriptPubKey;
-	theAsset.vchAddress = bech32::Decode(vchAddressTo).second;
+	theAsset.vchAddress = ParseHex(witnessProgramHex);
 
 	vector<unsigned char> data;
 	theAsset.Serialize(data);
@@ -1762,7 +1762,7 @@ UniValue assetsend(const JSONRPCRequest& request) {
 		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2507 - " + _("Could not find a asset with this key"));
 
 	string strAddressFrom;
-	const string& strAddress = bech32::Encode(Params().Bech32HRP(),theAsset.vchAddress);
+	const string& strAddress = witnessProgramToAddress(theAsset.vchAddress);
 	const CTxDestination addressFrom = DecodeDestination(strAddress);
 	if (IsValidDestination(addressFrom)) {
 		strAddressFrom = strAddress;
@@ -1790,14 +1790,19 @@ UniValue assetsend(const JSONRPCRequest& request) {
         CTxDestination dest = DecodeDestination(toStr);
 		if(!IsValidDestination(dest))
 			throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2509 - " + _("Asset must be sent to a valid syscoin address"));
-	    vector<uint8_t> vchAddressTo = bech32::Decode(toStr).second;
-		
+
+        UniValue detail = DescribeAddress(dest);
+        if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
+            throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
+        string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
+            
+                		
 		UniValue amountObj = find_value(receiverObj, "amount");
 		if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, theAsset.nPrecision);
 			if (amount <= 0)
 				throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "amount must be positive");
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchAddressTo, amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(ParseHex(witnessProgramHex), amount));
 		}
 		else
 			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected amount as number in receiver array");
@@ -1845,10 +1850,11 @@ UniValue assetinfo(const JSONRPCRequest& request) {
 }
 bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
 {
+    LogPrintf("assetinfo owner hex %s size %d address %s\n", HexStr(asset.vchAddress).c_str(), asset.vchAddress.size(),witnessProgramToAddress(asset.vchAddress).c_str());
     oAsset.pushKV("_id", (int)asset.nAsset);
     oAsset.pushKV("txid", asset.txHash.GetHex());
 	oAsset.pushKV("publicvalue", stringFromVch(asset.vchPubData));
-	oAsset.pushKV("owner", bech32::Encode(Params().Bech32HRP(), asset.vchAddress));
+	oAsset.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
     oAsset.pushKV("contract", "0x"+HexStr(asset.vchContract));
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
 	oAsset.pushKV("total_supply", ValueFromAssetAmount(asset.nTotalSupply, asset.nPrecision));
@@ -1860,7 +1866,7 @@ bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
 bool BuildAssetIndexerJson(const CAsset& asset, UniValue& oAsset)
 {
 	oAsset.pushKV("_id", (int)asset.nAsset);
-	oAsset.pushKV("owner", bech32::Encode(Params().Bech32HRP(), asset.vchAddress));
+	oAsset.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
 	oAsset.pushKV("total_supply", ValueFromAssetAmount(asset.nTotalSupply, asset.nPrecision));
 	oAsset.pushKV("max_supply", ValueFromAssetAmount(asset.nMaxSupply, asset.nPrecision));
@@ -1888,7 +1894,7 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniV
         entry.pushKV("contract", "0x"+HexStr(asset.vchContract));       
         
 	if (!asset.vchAddress.empty() && dbAsset.vchAddress != asset.vchAddress)
-		entry.pushKV("owner", bech32::Encode(Params().Bech32HRP(), asset.vchAddress));
+		entry.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
 
 	if (asset.nUpdateFlags != dbAsset.nUpdateFlags)
 		entry.pushKV("update_flags", asset.nUpdateFlags);
@@ -1902,7 +1908,7 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniV
 		if (!assetallocation.listSendingAllocationAmounts.empty()) {
 			for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
 				UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-				oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromStringUint8("burn"))? "burn": bech32::Encode(Params().Bech32HRP(), amountTuple.first));
+				oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromString("burn"))? "burn": witnessProgramToAddress(amountTuple.first));
                 oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
 				oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
 			}
@@ -1990,7 +1996,7 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
 }
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
-	vector<vector<uint8_t> > vchAddresses;
+	vector<vector<unsigned char> > vchAddresses;
     uint32_t nAsset = 0;
 	if (!oOptions.isNull()) {
 		const UniValue &txid = find_value(oOptions, "txid");
@@ -2007,9 +2013,14 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 			const UniValue &ownersArray = owners.get_array();
 			for (unsigned int i = 0; i < ownersArray.size(); i++) {
 				const UniValue &owner = ownersArray[i].get_obj();
+                const CTxDestination &dest = DecodeDestination(owner.get_str());
+                UniValue detail = DescribeAddress(dest);
+                if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
+                    throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
+                string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
 				const UniValue &ownerStr = find_value(owner, "owner");
 				if (ownerStr.isStr()) {
-					vchAddresses.push_back(bech32::Decode(owner.get_str()).second);
+					vchAddresses.push_back(ParseHex(witnessProgramHex));
 				}
 			}
 		}

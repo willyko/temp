@@ -24,7 +24,8 @@ BOOST_AUTO_TEST_CASE(ethereum_parseabidata)
     uint32_t nAsset = 0;
     const std::vector<unsigned char> &expectedMethodHash = ParseHex("a82e762b");
     const std::vector<unsigned char> &rlpBytes = ParseHex("a82e762b00000000000000000000000000000000000000000000000000000000773594009591c8dc");
-    BOOST_CHECK(parseEthMethodInputData(expectedMethodHash, rlpBytes, outputAmount, nAsset));
+    std::vector<unsigned char> address;
+    BOOST_CHECK(parseEthMethodInputData(expectedMethodHash, rlpBytes, outputAmount, nAsset, address));
     BOOST_CHECK_EQUAL(outputAmount, 20*COIN);
     BOOST_CHECK_EQUAL(nAsset, 2509359324);
 }

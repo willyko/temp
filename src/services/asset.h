@@ -37,8 +37,6 @@ static CCriticalSection cs_ethsyncheight;
 std::string stringFromVch(const std::vector<unsigned char> &vch);
 std::vector<unsigned char> vchFromValue(const UniValue& value);
 std::vector<unsigned char> vchFromString(const std::string &str);
-std::vector<uint8_t> vchFromStringUint8(const std::string &str);
-std::string stringFromVchUint8(const std::vector<uint8_t> &vch);
 std::string stringFromValue(const UniValue& value);
 void CreateRecipient(const CScript& scriptPubKey, CRecipient& recipient);
 void CreateAssetRecipient(const CScript& scriptPubKey, CRecipient& recipient);
@@ -53,7 +51,7 @@ std::string GetSyscoinTransactionDescription(const CTransaction& tx, const int o
 bool IsOutpointMature(const COutPoint& outpoint);
 UniValue syscointxfund_helper(const std::string &vchWitness, std::vector<CRecipient> &vecSend, const int nVersion = SYSCOIN_TX_VERSION_ASSET);
 bool FlushSyscoinDBs();
-bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::string& ownerAddressToMatch);
+bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::vector<unsigned char>& ownerAddressToMatch);
 CWallet* GetDefaultWallet();
 CAmount GetFee(const size_t nBytes);
 bool DecodeAndParseAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char& type);
@@ -66,6 +64,7 @@ bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut
 void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
 std::string assetFromOp(int op);
 bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
+std::string witnessProgramToAddress(const std::vector<unsigned char>& witnessProgram);
 /** Upper bound for mantissa.
 * 10^18-1 is the largest arbitrary decimal that will fit in a signed 64-bit integer.
 * Larger integers cannot consist of arbitrary combinations of 0-9:
@@ -119,14 +118,14 @@ public:
 	inline void SerializationOp(Stream& s, Operation ser_action) {		
 		READWRITE(vchPubData);
 		READWRITE(txHash);
-		READWRITE(VARINT(nAsset));
+		READWRITE(nAsset);
 		READWRITE(vchAddress);
 		READWRITE(nBalance);
 		READWRITE(nTotalSupply);
 		READWRITE(nMaxSupply);
         READWRITE(nHeight);
-		READWRITE(VARINT(nUpdateFlags));
-		READWRITE(VARINT(nPrecision));
+		READWRITE(nUpdateFlags);
+		READWRITE(nPrecision);
 		READWRITE(vchContract); 
         READWRITE(vchBurnMethodSignature);     
 	}
@@ -182,7 +181,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {      
         READWRITE(vchValue);
         READWRITE(vchParentNodes);
-        READWRITE(VARINT(nBlockNumber));
+        READWRITE(nBlockNumber);
         READWRITE(vchTxRoot);
         READWRITE(vchPath);   
         READWRITE(assetAllocationTuple);  

@@ -138,7 +138,7 @@ bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedM
     int dataPos = 131;
     
     const unsigned char &dataLength = vchInputData[dataPos++];
-    if(dataLength != 20 || dataLength != 32)
+    if(dataLength != 20 && dataLength != 32)
         return false;
     // witness program starting at position dataPos till the end
     std::vector<unsigned char>::const_iterator firstWitness = vchInputData.begin()+dataPos;

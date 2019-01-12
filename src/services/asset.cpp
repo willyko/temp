@@ -233,13 +233,13 @@ bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op,
 }
 bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::vector<unsigned char> &witnessprogramToMatch) {
 	CTxDestination dest;
+    int witnessversion;
+    std::vector<unsigned char> witnessprogram;
 	for (unsigned int i = 0; i < tx.vin.size(); i++) {
 		const Coin& prevCoins = inputs.AccessCoin(tx.vin[i].prevout);
 		if (prevCoins.IsSpent()) {
 			continue;
 		}
-        int witnessversion;
-        std::vector<unsigned char> witnessprogram;
         if (prevCoins.out.scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram) && witnessprogramToMatch == witnessprogram)
             return true;
 	}

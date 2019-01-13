@@ -8,28 +8,19 @@
 #include "validation.h"
 #include "txmempool.h"
 #include "util.h"
-#include "random.h"
-#include "base58.h"
 #include "core_io.h"
-#include "rpc/server.h"
+#include "wallet/rpcwallet.cpp"
 #include "wallet/wallet.h"
 #include "chainparams.h"
-#include "wallet/coincontrol.h"
-#include <boost/algorithm/hex.hpp>
-#include <boost/algorithm/string/case_conv.hpp> // for to_lower()
-#include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 #include <boost/algorithm/string/predicate.hpp>
-#include <boost/range/adaptor/reversed.hpp>
 #include <boost/algorithm/string.hpp>
-#include <future>
-#include <boost/multiprecision/cpp_dec_float.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 #include <key_io.h>
-#include <bech32.h>
+#include <future>
 #include <rpc/util.h>
 using namespace std;
-using namespace boost::multiprecision;
 AssetAllocationIndexItemMap AssetAllocationIndex;
 AssetBalanceMap mempoolMapAssetBalances;
 ArrivalTimesMapImpl arrivalTimesMap;

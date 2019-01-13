@@ -184,37 +184,6 @@ public:
 bool IsDeprecatedRPCEnabled(const std::string& method);
 
 extern CRPCTable tableRPC;
-// SYSCOIN service rpc functions
-extern UniValue syscoinburn(const JSONRPCRequest& request);
-extern UniValue syscoinmint(const JSONRPCRequest& request);
-extern UniValue syscointxfund(const JSONRPCRequest& request);
-
-
-extern UniValue syscoinlistreceivedbyaddress(const JSONRPCRequest& request);
-extern UniValue sendrawtransaction(const JSONRPCRequest& request);
-extern UniValue createrawtransaction(const JSONRPCRequest& request);
-extern UniValue syscoindecoderawtransaction(const JSONRPCRequest& request);
-
-extern UniValue syscoinaddscript(const JSONRPCRequest& request);
-extern UniValue assetnew(const JSONRPCRequest& request);
-extern UniValue assetupdate(const JSONRPCRequest& request);
-extern UniValue addressbalance(const JSONRPCRequest& request);
-extern UniValue assettransfer(const JSONRPCRequest& request);
-extern UniValue assetsend(const JSONRPCRequest& request);
-extern UniValue assetinfo(const JSONRPCRequest& request);
-extern UniValue listassets(const JSONRPCRequest& request);
-extern UniValue assetallocationsend(const JSONRPCRequest& request);
-extern UniValue assetallocationmint(const JSONRPCRequest& request);
-extern UniValue assetallocationburn(const JSONRPCRequest& request);
-extern UniValue assetallocationinfo(const JSONRPCRequest& request);
-extern UniValue assetallocationsenderstatus(const JSONRPCRequest& request);
-extern UniValue listassetallocationtransactions(const JSONRPCRequest& request);
-extern UniValue listassetallocations(const JSONRPCRequest& request);
-extern UniValue tpstestinfo(const JSONRPCRequest& request);
-extern UniValue tpstestadd(const JSONRPCRequest& request);
-extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
-extern UniValue syscoinsetethstatus(const JSONRPCRequest& request);
-extern UniValue syscoinsetethheaders(const JSONRPCRequest& request);
     
 extern UniValue scantxoutset(const JSONRPCRequest& request);
 /**

@@ -4978,7 +4978,37 @@ extern UniValue importprunedfunds(const JSONRPCRequest& request);
 extern UniValue removeprunedfunds(const JSONRPCRequest& request);
 extern UniValue importmulti(const JSONRPCRequest& request);
 extern UniValue rescanblockchain(const JSONRPCRequest& request);
+// SYSCOIN service rpc functions
+extern UniValue syscoinburn(const JSONRPCRequest& request);
+extern UniValue syscoinmint(const JSONRPCRequest& request);
+extern UniValue syscointxfund(const JSONRPCRequest& request);
 
+
+extern UniValue syscoinlistreceivedbyaddress(const JSONRPCRequest& request);
+extern UniValue sendrawtransaction(const JSONRPCRequest& request);
+extern UniValue createrawtransaction(const JSONRPCRequest& request);
+extern UniValue syscoindecoderawtransaction(const JSONRPCRequest& request);
+
+extern UniValue syscoinaddscript(const JSONRPCRequest& request);
+extern UniValue assetnew(const JSONRPCRequest& request);
+extern UniValue assetupdate(const JSONRPCRequest& request);
+extern UniValue addressbalance(const JSONRPCRequest& request);
+extern UniValue assettransfer(const JSONRPCRequest& request);
+extern UniValue assetsend(const JSONRPCRequest& request);
+extern UniValue assetinfo(const JSONRPCRequest& request);
+extern UniValue listassets(const JSONRPCRequest& request);
+extern UniValue assetallocationsend(const JSONRPCRequest& request);
+extern UniValue assetallocationmint(const JSONRPCRequest& request);
+extern UniValue assetallocationburn(const JSONRPCRequest& request);
+extern UniValue assetallocationinfo(const JSONRPCRequest& request);
+extern UniValue assetallocationsenderstatus(const JSONRPCRequest& request);
+extern UniValue listassetallocationtransactions(const JSONRPCRequest& request);
+extern UniValue listassetallocations(const JSONRPCRequest& request);
+extern UniValue tpstestinfo(const JSONRPCRequest& request);
+extern UniValue tpstestadd(const JSONRPCRequest& request);
+extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
+extern UniValue syscoinsetethstatus(const JSONRPCRequest& request);
+extern UniValue syscoinsetethheaders(const JSONRPCRequest& request);
 static const CRPCCommand commands[] =
 { //  category              name                                actor (function)                argNames
     //  --------------------- ------------------------          -----------------------         ----------
@@ -5050,7 +5080,37 @@ static const CRPCCommand commands[] =
     { "wallet",             "listlabels",                       &listlabels,                    {"purpose"} },
     { "wallet",             "listreceivedbylabel",              &listreceivedbylabel,           {"minconf","include_empty","include_watchonly"} },
     { "wallet",             "setlabel",                         &setlabel,                      {"address","label"} },
+    // SYSCOIN rpc functions
+    { "wallet", "syscoinburn",          &syscoinburn, {} },
+    { "wallet", "syscoinmint",          &syscoinmint, {} }, 
+    { "wallet", "assetallocationburn",          &assetallocationburn, {} }, 
+    { "wallet", "assetallocationmint",          &syscoinmint, {} },     
+    { "wallet", "syscointxfund",          &syscointxfund, {}},
+    
+    { "wallet", "syscoinaddscript",        &syscoinaddscript,{} },
+    { "wallet", "syscoindecoderawtransaction",       &syscoindecoderawtransaction, {}},
+    { "wallet", "syscoinlistreceivedbyaddress",      &syscoinlistreceivedbyaddress, {}},
 
+    // assets using the blockchain, coins/points/service backed tokens
+    { "wallet", "assetnew",         &assetnew, {}},
+    { "wallet", "assetupdate",         &assetupdate, {}},
+    { "wallet", "addressbalance",         &addressbalance, {}},
+    { "wallet", "assettransfer",      &assettransfer, {}},
+    { "wallet", "assetsend",      &assetsend, {}},
+    { "wallet", "assetinfo",      &assetinfo, {}},
+    { "wallet", "listassets",      &listassets, {} },
+    { "wallet", "assetallocationsend",          &assetallocationsend, {}},
+    
+    { "wallet", "assetallocationinfo",          &assetallocationinfo, {}},
+    { "wallet", "assetallocationsenderstatus",          &assetallocationsenderstatus, {}},
+    { "wallet", "listassetallocationtransactions",          &listassetallocationtransactions, {} },
+    { "wallet", "listassetallocations",          &listassetallocations, {} },
+    { "wallet", "tpstestinfo",          &tpstestinfo, {} },
+    { "wallet", "tpstestadd",          &tpstestadd, {} },
+    { "wallet", "tpstestsetenabled",          &tpstestsetenabled, {} },
+    { "wallet", "syscoinsetethstatus",          &syscoinsetethstatus, {} },
+    { "wallet", "syscoinsetethheaders",          &syscoinsetethheaders, {} },
+    
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
     { "mining",             "getauxblock",                      &getauxblock,                   {"hash", "auxpow"} },
 };

@@ -261,36 +261,6 @@ static UniValue uptime(const JSONRPCRequest& jsonRequest)
 static const CRPCCommand vRPCCommands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
-    // SYSCOIN rpc functions
-    { "wallet", "syscoinburn",          &syscoinburn, {} },
-    { "wallet", "syscoinmint",          &syscoinmint, {} }, 
-    { "wallet", "assetallocationburn",          &assetallocationburn, {} }, 
-    { "wallet", "assetallocationmint",          &syscoinmint, {} },     
-    { "wallet", "syscointxfund",          &syscointxfund, {}},
-    
-	{ "wallet", "syscoinaddscript",        &syscoinaddscript,{} },
-    { "wallet", "syscoindecoderawtransaction",       &syscoindecoderawtransaction, {}},
-    { "wallet", "syscoinlistreceivedbyaddress",      &syscoinlistreceivedbyaddress, {}},
-
-    // assets using the blockchain, coins/points/service backed tokens
-    { "wallet", "assetnew",         &assetnew, {}},
-    { "wallet", "assetupdate",         &assetupdate, {}},
-    { "wallet", "addressbalance",         &addressbalance, {}},
-    { "wallet", "assettransfer",      &assettransfer, {}},
-    { "wallet", "assetsend",      &assetsend, {}},
-    { "wallet", "assetinfo",      &assetinfo, {}},
-    { "wallet", "listassets",      &listassets, {} },
-    { "wallet", "assetallocationsend",          &assetallocationsend, {}},
-    
-    { "wallet", "assetallocationinfo",          &assetallocationinfo, {}},
-    { "wallet", "assetallocationsenderstatus",          &assetallocationsenderstatus, {}},
-    { "wallet", "listassetallocationtransactions",          &listassetallocationtransactions, {} },
-    { "wallet", "listassetallocations",          &listassetallocations, {} },
-    { "wallet", "tpstestinfo",          &tpstestinfo, {} },
-    { "wallet", "tpstestadd",          &tpstestadd, {} },
-    { "wallet", "tpstestsetenabled",          &tpstestsetenabled, {} },
-    { "wallet", "syscoinsetethstatus",          &syscoinsetethstatus, {} },
-    { "wallet", "syscoinsetethheaders",          &syscoinsetethheaders, {} },
     
     /* Overall control/query calls */
     { "control",            "help",                   &help,                   {"command"}  },

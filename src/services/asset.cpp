@@ -7,26 +7,21 @@
 #include "init.h"
 #include "validation.h"
 #include "util.h"
-#include "random.h"
-#include "base58.h"
 #include "core_io.h"
-#include "rpc/server.h"
 #include "wallet/wallet.h"
 #include "chainparams.h"
-#include "wallet/coincontrol.h"
 #include <boost/algorithm/string/classification.hpp>
-#include <boost/algorithm/string/case_conv.hpp> // for to_upper()
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
 #include <chrono>
+#include "wallet/coincontrol.h"
 #include <rpc/util.h>
 #include <key_io.h>
 #include <policy/policy.h>
 #include <consensus/validation.h>
 #include <wallet/fees.h>
 #include <outputtype.h>
-#include <bech32.h>
 unsigned int MAX_UPDATES_PER_BLOCK = 2;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
@@ -249,7 +244,6 @@ void CreateAssetRecipient(const CScript& scriptPubKey, CRecipient& recipient)
 {
 	CRecipient recp = { scriptPubKey, recipient.nAmount, false };
 	recipient = recp;
-	CCoinControl coin_control;
 	const CAmount &minFee = GetFee(3000);
 	recipient.nAmount = minFee;
 }

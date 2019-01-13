@@ -5123,7 +5123,7 @@ static const CRPCCommand commands[] =
     { "syscoin",            "gobject",                          &gobject,                       {} },
     { "syscoin",            "voteraw",                          &voteraw,                       {"tx_index","time"} },   
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
-    { "mining",             "getauxblock",                      &getauxblock,                   {"hash", "auxpow"} },
+    { "mining",             "getauxblock",                      &getauxblock,                   {"hash","auxpow"} },
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)

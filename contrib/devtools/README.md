@@ -172,13 +172,3 @@ It will do the following automatically:
 
 See doc/translation-process.md for more information.
 
-circular-dependencies.py
-========================
-
-Run this script from the root of the source tree (`src/`) to find circular dependencies in the source code.
-This looks only at which files include other files, treating the `.cpp` and `.h` file as one unit.
-
-Example usage:
-
-    cd .../src
-    ../contrib/devtools/circular-dependencies.py {*,*/*,*/*/*}.{h,cpp}

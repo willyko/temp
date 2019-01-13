@@ -1849,7 +1849,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     
                     CAssetAllocation assetallocation(tx);
                     if (!assetallocation.IsNull()) {
-						const string& strAddress = assetallocation.assetAllocationTuple.GetAddressString();
+                        const string& strAddress = assetallocation.assetAllocationTuple.GetAddressString();
                         CCoinsViewCache inputs(pcoinsTip.get());
   
                         if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.vchAddress))
@@ -5089,24 +5089,24 @@ static const CRPCCommand commands[] =
     { "wallet",             "listreceivedbylabel",              &listreceivedbylabel,           {"minconf","include_empty","include_watchonly"} },
     { "wallet",             "setlabel",                         &setlabel,                      {"address","label"} },
     /* SYSCOIN rpc functions*/
-    { "syscoin",            "syscoinburn",                      &syscoinburn,                   {} },
-    { "syscoin",            "syscoinmint",                      &syscoinmint,                   {"amount","blocknumber"} }, 
+    { "syscoin",            "syscoinburn",                      &syscoinburn,                   {"amount","burn_to_sysx","ethereum_destination_address"} },
+    { "syscoin",            "syscoinmint",                      &syscoinmint,                   {"address","amount","blocknumber","tx_hex","txroot_hex","txmerkleproof_hex","txmerkleroofpath_hex","witness"} }, 
     { "syscoin",            "assetallocationburn",              &assetallocationburn,           {"asset","amount"} }, 
-    { "syscoin",            "assetallocationmint",              &assetallocationmint,           {"asset","amount","blocknumber"} },     
+    { "syscoin",            "assetallocationmint",              &assetallocationmint,           {"asset","owner","amount","blocknumber","tx_hex","txroot_hex","txmerkleproof_hex","txmerkleroofpath_hex","witness"} },     
     { "syscoin",            "syscointxfund",                    &syscointxfund,                 {"vout"}},
     { "syscoin",            "syscoinaddscript",                 &syscoinaddscript,              {} },
     { "syscoin",            "syscoindecoderawtransaction",      &syscoindecoderawtransaction,   {}},
     { "syscoin",            "syscoinlistreceivedbyaddress",     &syscoinlistreceivedbyaddress,  {}},
 
     /* assets using the blockchain, coins/points/service backed tokens*/
-    { "syscoin",            "assetnew",                         &assetnew,                      {"precision","update_flags"}},
-    { "syscoin",            "assetupdate",                      &assetupdate,                   {"asset","update_flags"}},
+    { "syscoin",            "assetnew",                         &assetnew,                      {"owner","public value","contract","burn_method_signature","precision","supply","max_supply","update_flags","witness"},
+    { "syscoin",            "assetupdate",                      &assetupdate,                   {"asset","public value","contract","burn_method_signature","supply","update_flags","witness"},
     { "syscoin",            "addressbalance",                   &addressbalance,                {}},
     { "syscoin",            "assettransfer",                    &assettransfer,                 {"asset"}},
     { "syscoin",            "assetsend",                        &assetsend,                     {"asset","inputs"}},
     { "syscoin",            "assetinfo",                        &assetinfo,                     {"asset"}},
     { "syscoin",            "listassets",                       &listassets,                    {"count","from","options"} },
-    { "syscoin",            "assetallocationsend",              &assetallocationsend,           {"asset","inputs"}},
+    { "syscoin",            "assetallocationsend",              &assetallocationsend,           {"asset","owner","inputs","witness"}},
     { "syscoin",            "assetallocationinfo",              &assetallocationinfo,           {"asset"}},
     { "syscoin",            "assetallocationsenderstatus",      &assetallocationsenderstatus,   {"asset"}},
     { "syscoin",            "listassetallocationtransactions",  &listassetallocationtransactions,{"count","from","options"} },
@@ -5121,7 +5121,7 @@ static const CRPCCommand commands[] =
     { "syscoin",            "getgovernanceinfo",                &getgovernanceinfo,             {} },
     { "syscoin",            "getsuperblockbudget",              &getsuperblockbudget,           {"index"} },
     { "syscoin",            "gobject",                          &gobject,                       {} },
-    { "syscoin",            "voteraw",                          &voteraw,                       {"tx_index","time"} },   
+    { "syscoin",            "voteraw",                          &voteraw,                       {"masternode-tx-hash","tx_index","governance-hash","vote-signal","vote","time","vote-sig"} },   
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
     { "mining",             "getauxblock",                      &getauxblock,                   {"hash","auxpow"} },
 };

@@ -632,7 +632,7 @@ void SyscoinGUI::createTrayIconMenu()
 #else
     // Note: On macOS, the Dock icon is used to provide the tray's functionality.
     MacDockIconHandler *dockIconHandler = MacDockIconHandler::instance();
-    connect(dockIconHandler, &MacDockIconHandler::dockIconClicked, this, &BitcoinGUI::macosDockIconActivated);
+    connect(dockIconHandler, &MacDockIconHandler::dockIconClicked, this, &SyscoinGUI::macosDockIconActivated);
 
     trayIconMenu = new QMenu(this);
     trayIconMenu->setAsDockMenu();
@@ -670,7 +670,7 @@ void SyscoinGUI::trayIconActivated(QSystemTrayIcon::ActivationReason reason)
     }
 }
 #else
-void BitcoinGUI::macosDockIconActivated()
+void SyscoinGUI::macosDockIconActivated()
 {
     show();
     activateWindow();

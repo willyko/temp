@@ -1816,7 +1816,7 @@ bool AppInitMain()
     if(fLiteMode && fMasternodeMode) {
         return InitError(_("You can not start a masternode in lite mode."));
     }
-
+    
     if(fMasternodeMode) {
         LogPrintf("MASTERNODE:\n");
         meminfo_t memInfo = parse_meminfo();
@@ -1828,6 +1828,11 @@ bool AppInitMain()
         LogPrintf("Total number of physical cores found %d\n", boost::thread::physical_concurrency());
         if(boost::thread::physical_concurrency() < 2)
             return InitError(_("Insufficient CPU cores, you need atleast 2 cores to run a masternode. Please see documentation."));
+
+        bool isRunning = (0 == ::system("pgrep syscoind > /dev/null"));
+        if(isRunning)
+            return InitError(_("Only one syscoind instance is allowed to run.")); 
+               
         std::string strMasterNodePrivKey = gArgs.GetArg("-masternodeprivkey", "");
         if(!strMasterNodePrivKey.empty()) {
             if(!CMessageSigner::GetKeysFromSecret(strMasterNodePrivKey, activeMasternode.keyMasternode, activeMasternode.pubKeyMasternode))

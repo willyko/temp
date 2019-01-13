@@ -5099,8 +5099,8 @@ static const CRPCCommand commands[] =
     { "syscoin",            "syscoinlistreceivedbyaddress",     &syscoinlistreceivedbyaddress,  {}},
 
     /* assets using the blockchain, coins/points/service backed tokens*/
-    { "syscoin",            "assetnew",                         &assetnew,                      {"owner","public value","contract","burn_method_signature","precision","supply","max_supply","update_flags","witness"},
-    { "syscoin",            "assetupdate",                      &assetupdate,                   {"asset","public value","contract","burn_method_signature","supply","update_flags","witness"},
+    { "syscoin",            "assetnew",                         &assetnew,                      {"owner","public value","contract","burn_method_signature","precision","supply","max_supply","update_flags","witness"}},
+    { "syscoin",            "assetupdate",                      &assetupdate,                   {"asset","public value","contract","burn_method_signature","supply","update_flags","witness"}},
     { "syscoin",            "addressbalance",                   &addressbalance,                {}},
     { "syscoin",            "assettransfer",                    &assettransfer,                 {"asset"}},
     { "syscoin",            "assetsend",                        &assetsend,                     {"asset","inputs"}},

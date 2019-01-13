@@ -1493,7 +1493,8 @@ UniValue assetnew(const JSONRPCRequest& request) {
     string strMethodSig = params[3].get_str();
     if(!strContract.empty())
          boost::erase_all(strContract, "0x");  // strip 0x in hex str if exist
-
+    if(!strMethodSig.empty())
+         boost::erase_all(strMethodSig, "0x");  // strip 0x in hex str if exist
    
 	int precision = params[4].get_int();
 	string vchWitness;
@@ -1844,12 +1845,12 @@ UniValue assetinfo(const JSONRPCRequest& request) {
 }
 bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
 {
-    LogPrintf("assetinfo owner hex %s size %d address %s\n", HexStr(asset.vchAddress).c_str(), asset.vchAddress.size(),witnessProgramToAddress(asset.vchAddress).c_str());
     oAsset.pushKV("_id", (int)asset.nAsset);
     oAsset.pushKV("txid", asset.txHash.GetHex());
 	oAsset.pushKV("publicvalue", stringFromVch(asset.vchPubData));
 	oAsset.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
     oAsset.pushKV("contract", "0x"+HexStr(asset.vchContract));
+    oAsset.pushKV("burnsig", HexStr(asset.vchBurnMethodSignature));
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
 	oAsset.pushKV("total_supply", ValueFromAssetAmount(asset.nTotalSupply, asset.nPrecision));
 	oAsset.pushKV("max_supply", ValueFromAssetAmount(asset.nMaxSupply, asset.nPrecision));
@@ -1885,7 +1886,10 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniV
 		entry.pushKV("publicvalue", stringFromVch(asset.vchPubData));
         
     if(!asset.vchContract.empty() && dbAsset.vchContract != asset.vchContract)
-        entry.pushKV("contract", "0x"+HexStr(asset.vchContract));       
+        entry.pushKV("contract", "0x"+HexStr(asset.vchContract));
+        
+    if(!asset.vchBurnMethodSignature.empty() && dbAsset.vchContract != asset.vchBurnMethodSignature)
+        entry.pushKV("contract", HexStr(asset.vchBurnMethodSignature));                  
         
 	if (!asset.vchAddress.empty() && dbAsset.vchAddress != asset.vchAddress)
 		entry.pushKV("owner", witnessProgramToAddress(asset.vchAddress));

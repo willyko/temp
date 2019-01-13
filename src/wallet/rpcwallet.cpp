@@ -5104,7 +5104,7 @@ static const CRPCCommand commands[] =
     { "syscoin",            "addressbalance",                   &addressbalance,                {}},
     { "syscoin",            "assettransfer",                    &assettransfer,                 {"asset"}},
     { "syscoin",            "assetsend",                        &assetsend,                     {"asset","inputs"}},
-    { "syscoin",            "assetinfo",                        &assetinfo,                     {"asset"},
+    { "syscoin",            "assetinfo",                        &assetinfo,                     {"asset"}},
     { "syscoin",            "listassets",                       &listassets,                    {"options"} },
     { "syscoin",            "assetallocationsend",              &assetallocationsend,           {"asset","inputs"}},
     { "syscoin",            "assetallocationinfo",              &assetallocationinfo,           {"asset"}},

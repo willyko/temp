@@ -208,7 +208,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "listassets", 1, "from" },
     { "listassets", 2, "options" },
     { "tpstestadd", 0, "starttime" },
-    { "tpstestadd", 1, "rawrxs" },
+    { "tpstestadd", 1, "rawtxs" },
     { "tpstestsetenabled", 0, "enabled" },
     { "syscoinsetethstatus", 1, "highestBlock" },
     { "syscoinsetethheaders", 0, "headers" },

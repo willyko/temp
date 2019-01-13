@@ -5009,6 +5009,14 @@ extern UniValue tpstestadd(const JSONRPCRequest& request);
 extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
 extern UniValue syscoinsetethstatus(const JSONRPCRequest& request);
 extern UniValue syscoinsetethheaders(const JSONRPCRequest& request);
+
+extern UniValue mnsync(const JSONRPCRequest& request);
+extern UniValue spork(const JSONRPCRequest& request);
+extern UniValue getgovernanceinfo(const JSONRPCRequest& request);
+extern UniValue getsuperblockbudget(const JSONRPCRequest& request);
+extern UniValue gobject(const JSONRPCRequest& request);
+extern UniValue voteraw(const JSONRPCRequest& request);
+
 static const CRPCCommand commands[] =
 { //  category              name                                actor (function)                argNames
     //  --------------------- ------------------------          -----------------------         ----------
@@ -5081,36 +5089,42 @@ static const CRPCCommand commands[] =
     { "wallet",             "listreceivedbylabel",              &listreceivedbylabel,           {"minconf","include_empty","include_watchonly"} },
     { "wallet",             "setlabel",                         &setlabel,                      {"address","label"} },
     // SYSCOIN rpc functions
-    { "wallet", "syscoinburn",          &syscoinburn, {} },
-    { "wallet", "syscoinmint",          &syscoinmint, {} }, 
-    { "wallet", "assetallocationburn",          &assetallocationburn, {} }, 
-    { "wallet", "assetallocationmint",          &syscoinmint, {} },     
-    { "wallet", "syscointxfund",          &syscointxfund, {}},
+    { "syscoin", "syscoinburn",          &syscoinburn, {} },
+    { "syscoin", "syscoinmint",          &syscoinmint, {"amount"} }, 
+    { "syscoin", "assetallocationburn",          &assetallocationburn, {"amount"} }, 
+    { "syscoin", "assetallocationmint",          &syscoinmint, {} },     
+    { "syscoin", "syscointxfund",          &syscointxfund, {"vout"}},
     
-    { "wallet", "syscoinaddscript",        &syscoinaddscript,{} },
-    { "wallet", "syscoindecoderawtransaction",       &syscoindecoderawtransaction, {}},
-    { "wallet", "syscoinlistreceivedbyaddress",      &syscoinlistreceivedbyaddress, {}},
+    { "syscoin", "syscoinaddscript",        &syscoinaddscript,{} },
+    { "syscoin", "syscoindecoderawtransaction",       &syscoindecoderawtransaction, {}},
+    { "syscoin", "syscoinlistreceivedbyaddress",      &syscoinlistreceivedbyaddress, {}},
 
     // assets using the blockchain, coins/points/service backed tokens
-    { "wallet", "assetnew",         &assetnew, {}},
-    { "wallet", "assetupdate",         &assetupdate, {}},
-    { "wallet", "addressbalance",         &addressbalance, {}},
-    { "wallet", "assettransfer",      &assettransfer, {}},
-    { "wallet", "assetsend",      &assetsend, {}},
-    { "wallet", "assetinfo",      &assetinfo, {}},
-    { "wallet", "listassets",      &listassets, {} },
-    { "wallet", "assetallocationsend",          &assetallocationsend, {}},
+    { "syscoin", "assetnew",         &assetnew, {}},
+    { "syscoin", "assetupdate",         &assetupdate, {"update_flags"}},
+    { "syscoin", "addressbalance",         &addressbalance, {}},
+    { "syscoin", "assettransfer",      &assettransfer, {}},
+    { "syscoin", "assetsend",      &assetsend, {}},
+    { "syscoin", "assetinfo",      &assetinfo, {}},
+    { "syscoin", "listassets",      &listassets, {"options"} },
+    { "syscoin", "assetallocationsend",          &assetallocationsend, {}},
     
-    { "wallet", "assetallocationinfo",          &assetallocationinfo, {}},
-    { "wallet", "assetallocationsenderstatus",          &assetallocationsenderstatus, {}},
-    { "wallet", "listassetallocationtransactions",          &listassetallocationtransactions, {} },
-    { "wallet", "listassetallocations",          &listassetallocations, {} },
-    { "wallet", "tpstestinfo",          &tpstestinfo, {} },
-    { "wallet", "tpstestadd",          &tpstestadd, {} },
-    { "wallet", "tpstestsetenabled",          &tpstestsetenabled, {} },
-    { "wallet", "syscoinsetethstatus",          &syscoinsetethstatus, {} },
-    { "wallet", "syscoinsetethheaders",          &syscoinsetethheaders, {} },
-    
+    { "syscoin", "assetallocationinfo",          &assetallocationinfo, {}},
+    { "syscoin", "assetallocationsenderstatus",          &assetallocationsenderstatus, {"asset"}},
+    { "syscoin", "listassetallocationtransactions",          &listassetallocationtransactions, {} },
+    { "syscoin", "listassetallocations",          &listassetallocations, {"options"} },
+    { "syscoin", "tpstestinfo",          &tpstestinfo, {} },
+    { "syscoin", "tpstestadd",          &tpstestadd, {"rawtxs","starttime"} },
+    { "syscoin", "tpstestsetenabled",          &tpstestsetenabled, {} },
+    { "syscoin", "syscoinsetethstatus",          &syscoinsetethstatus, {} },
+    { "syscoin", "syscoinsetethheaders",          &syscoinsetethheaders, {"headers"} },
+   
+    { "syscoin",               "mnsync",                 &mnsync,                 {} },
+    { "syscoin",               "spork",                  &spork,                  {"value"} },
+    { "syscoin",               "getgovernanceinfo",      &getgovernanceinfo,      {} },
+    { "syscoin",               "getsuperblockbudget",    &getsuperblockbudget,    {"index"} },
+    { "syscoin",               "gobject",                &gobject,                {} },
+    { "syscoin",               "voteraw",                &voteraw,                {"tx_index", "time"} },   
     { "generating",         "generate",                         &generate,                      {"nblocks","maxtries"} },
     { "mining",             "getauxblock",                      &getauxblock,                   {"hash", "auxpow"} },
 };

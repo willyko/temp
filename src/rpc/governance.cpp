@@ -997,20 +997,3 @@ UniValue getsuperblockbudget(const JSONRPCRequest& request)
 
     return strBudget;
 }
-
-static const CRPCCommand commands[] =
-{ //  category              name                      actor (function)         argNames
-  //  --------------------- ------------------------  -----------------------  ----------
-    /* Syscoin features */
-    { "syscoin",               "getgovernanceinfo",      &getgovernanceinfo,      {} },
-    { "syscoin",               "getsuperblockbudget",    &getsuperblockbudget,    {"index"} },
-    { "syscoin",               "gobject",                &gobject,                {} },
-    { "syscoin",               "voteraw",                &voteraw,                {} },
-
-};
-
-void RegisterGovernanceRPCCommands(CRPCTable &t)
-{
-    for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
-        t.appendCommand(commands[vcidx].name, &commands[vcidx]);
-}

@@ -1849,8 +1849,8 @@ bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
     oAsset.pushKV("txid", asset.txHash.GetHex());
 	oAsset.pushKV("publicvalue", stringFromVch(asset.vchPubData));
 	oAsset.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
-    oAsset.pushKV("contract", "0x"+HexStr(asset.vchContract));
-    oAsset.pushKV("burnsig", HexStr(asset.vchBurnMethodSignature));
+    oAsset.pushKV("contract", asset.vchContract.empty()? "" : "0x"+HexStr(asset.vchContract));
+    oAsset.pushKV("burnsig", asset.vchBurnMethodSignature.empty()? "" : HexStr(asset.vchBurnMethodSignature));
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
 	oAsset.pushKV("total_supply", ValueFromAssetAmount(asset.nTotalSupply, asset.nPrecision));
 	oAsset.pushKV("max_supply", ValueFromAssetAmount(asset.nMaxSupply, asset.nPrecision));

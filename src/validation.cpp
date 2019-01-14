@@ -644,32 +644,23 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
     CAmount outputAmount;
     uint32_t nAsset = 0;
     const std::vector<unsigned char> &rlpBytes = rlpValue[5].data().toBytes();
-    std::vector<unsigned char> vchAddress;
-    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && !parseEthMethodInputData(Params().GetConsensus().vchSYSXBurnMethodSignature, rlpBytes, outputAmount, nAsset, vchAddress)){
+    CWitnessAddress witnessAddress;
+    if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN && !parseEthMethodInputData(Params().GetConsensus().vchSYSXBurnMethodSignature, rlpBytes, outputAmount, nAsset, witnessAddress)){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
-    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && !parseEthMethodInputData(dbAsset.vchBurnMethodSignature, rlpBytes, outputAmount, nAsset, vchAddress)){
+    else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET && !parseEthMethodInputData(dbAsset.vchBurnMethodSignature, rlpBytes, outputAmount, nAsset, witnessAddress)){
         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not parse and validate transaction data");
         return state.DoS(100, false, REJECT_INVALID, errorMessage);
     }
     if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN) {
-        CTxDestination dest;
-        if (!ExtractDestination(tx.vout[0].scriptPubKey, dest)){
-            errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Could not extract address from mint transaction output");
-            return state.DoS(100, false, REJECT_INVALID, errorMessage);
-        }
-        if (auto witness_id = boost::get<WitnessV0KeyHash>(&dest)) {
-            if(ToByteVector(*witness_id) != vchAddress){
-                errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Witness key hash does not match extracted witness program from burn transaction");
+        int witnessversion;
+        std::vector<unsigned char> witnessprogram;
+        if (tx.vout[0].scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)){
+            if(witnessAddress.vchWitnessProgram != witnessprogram || witnessAddress.nVersion != (unsigned char)witnessversion){
+                errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Witness address does not match extracted witness address from burn transaction");
                 return state.DoS(100, false, REJECT_INVALID, errorMessage);
-            }  
-        }
-        else if(auto witness_id = boost::get<WitnessV0ScriptHash>(&dest)){
-            if(ToByteVector(*witness_id) != vchAddress){
-                errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Witness script hash does not match extracted witness program from burn transaction");
-                return state.DoS(100, false, REJECT_INVALID, errorMessage);
-            }  
+            }
         }
         else{
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Witness program not detected in the first output of the mint transaction");
@@ -679,7 +670,7 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
     }
     else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET)
     {
-        if(vchAddress != mintSyscoin.assetAllocationTuple.vchAddress){
+        if(witnessAddress != mintSyscoin.assetAllocationTuple.witnessAddress){
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Minting address does not match address passed into burn function");
             return state.DoS(100, false, REJECT_INVALID, errorMessage);
         }
@@ -726,7 +717,7 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
             return state.DoS(10, false, REJECT_INVALID, errorMessage);
         }        
         if (gArgs.IsArgSet("-zmqpubassetallocation") || fAssetAllocationIndex)
-            passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, tx.GetHash(), nHeight, dbAsset, 0, mintSyscoin.nValueAsset, vchFromString(""));
+            passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, tx.GetHash(), nHeight, dbAsset, 0, mintSyscoin.nValueAsset, CWitnessAddress());
         
         auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
         if (!rv.second)
@@ -2225,7 +2216,6 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
 {
     bool fClean = true;
-
     CBlockUndo blockUndo;
     if (!UndoReadFromDisk(blockUndo, pindex)) {
         error("DisconnectBlock(): failure reading undo data");

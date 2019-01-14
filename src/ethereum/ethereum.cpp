@@ -4,7 +4,7 @@
 
 #include "ethereum.h"
 #include "SHA3.h"
-
+#include <services/assetallocation.h>
 using namespace dev;
 
 
@@ -100,8 +100,9 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
  * @param nAsset The asset burned or 0 for SYS 
  * @return true if everything is valid
  */
-bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, const std::vector<unsigned char>& vchInputData, CAmount& outputAmount, uint32_t& nAsset, std::vector<unsigned char>& vchAddress) {
-    if(vchInputData.size() != 164) 
+bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedMethodHash, const std::vector<unsigned char>& vchInputData, CAmount& outputAmount, uint32_t& nAsset, CWitnessAddress& witnessAddress) {
+    // 132 for the varint position + 1 for varint + 1 for version + 2 minimum for witness program bytes
+    if(vchInputData.size() < 136) 
         return false;  
     // method hash is 4 bytes
     std::vector<unsigned char>::const_iterator first = vchInputData.begin();
@@ -136,13 +137,15 @@ bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedM
     
     // skip data position field (68 + 32) + 31 (offset to the varint byte)
     int dataPos = 131;
-    
     const unsigned char &dataLength = vchInputData[dataPos++];
-    if(dataLength != 20 && dataLength != 32)
+    // witness programs can extend to 40 bytes, plus 1 for version
+    if(dataLength > 41)
         return false;
-    // witness program starting at position dataPos till the end
+    // witness address information starting at position dataPos till the end
+    // get version proceeded by witness program bytes
+    const unsigned char& nVersion = vchInputData[dataPos++];
     std::vector<unsigned char>::const_iterator firstWitness = vchInputData.begin()+dataPos;
-    std::vector<unsigned char>::const_iterator lastWitness = firstWitness + dataLength;
-    vchAddress = std::vector<unsigned char>(firstWitness,lastWitness);
-    return true;
+    std::vector<unsigned char>::const_iterator lastWitness = firstWitness + (dataLength-1);
+    witnessAddress = CWitnessAddress(nVersion, std::vector<unsigned char>(firstWitness,lastWitness));
+    return witnessAddress.IsValid();
 }

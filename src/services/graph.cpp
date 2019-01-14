@@ -6,6 +6,7 @@
 using namespace boost;
 using namespace std;
 typedef typename std::vector<int> container;
+typedef std::map<CWitnessAddress, int> AddressMap;
 extern ArrivalTimesMapImpl arrivalTimesMap;
 bool OrderBasedOnArrivalTime(std::vector<CTransactionRef>& blockVtx) {
 	std::vector<vector<unsigned char> > vvchArgs;
@@ -67,7 +68,7 @@ bool CreateGraphFromVTX(const std::vector<CTransactionRef>& blockVtx, Graph &gra
 			{	
 				AddressMap::const_iterator it;
 				CAssetAllocation allocation(tx);
-				const std::vector<uint8_t> &sender = allocation.assetAllocationTuple.vchAddress;
+				const CWitnessAddress &sender = allocation.assetAllocationTuple.witnessAddress;
 				it = mapAddressIndex.find(sender);
 	
 				if (it == mapAddressIndex.end()) {
@@ -78,7 +79,7 @@ bool CreateGraphFromVTX(const std::vector<CTransactionRef>& blockVtx, Graph &gra
 				
 				if (!allocation.listSendingAllocationAmounts.empty()) {
 					for (auto& allocationInstance : allocation.listSendingAllocationAmounts) {
-						const std::vector<uint8_t>& receiver = allocationInstance.first;
+						const CWitnessAddress& receiver = allocationInstance.first;
 						AddressMap::const_iterator it = mapAddressIndex.find(receiver);
 						if (it == mapAddressIndex.end()) {
 							vertices.push_back(add_vertex(graph));

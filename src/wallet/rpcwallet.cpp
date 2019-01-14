@@ -1849,11 +1849,11 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     
                     CAssetAllocation assetallocation(tx);
                     if (!assetallocation.IsNull()) {
-                        const string& strAddress = assetallocation.assetAllocationTuple.GetAddressString();
+                        const string& strAddress = assetallocation.assetAllocationTuple.ToString();
                         CCoinsViewCache inputs(pcoinsTip.get());
   
-                        if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.vchAddress))
-                            ownerName = strAddress;                         
+                        if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
+                            ownerName = strAddress;    
                         if(ownerName.empty())
                             continue;
                         CAsset dbAsset;
@@ -1863,7 +1863,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                             for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                 UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                 // update to owner
-                                oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromString("burn"))? "burn": witnessProgramToAddress(amountTuple.first));
+                                oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
                                 oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                 oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                             }
@@ -1887,13 +1887,13 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     string strResponseEnglish = "";
                     string strResponseGUID = "";
                     strResponse = GetSyscoinTransactionDescription(tx, op, strResponseEnglish, type, strResponseGUID);
-                    const string& strAddress = mintsyscoin.assetAllocationTuple.GetAddressString();
+                    const string& strAddress = mintsyscoin.assetAllocationTuple.witnessAddress.ToString();
                     CAsset dbAsset;
                     GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
                    
                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                     // update to owner
-                    oAssetAllocationReceiversObj.pushKV("ownerto", mintsyscoin.assetAllocationTuple.GetAddressString());
+                    oAssetAllocationReceiversObj.pushKV("ownerto", strAddress);
                     oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                       
@@ -1965,8 +1965,8 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         CAssetAllocation assetallocation(tx);
                         if (!assetallocation.IsNull()) {
                             CCoinsViewCache inputs(pcoinsTip.get());
-                            const string& strAddress = assetallocation.assetAllocationTuple.GetAddressString();
-                            if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.vchAddress))
+                            const string& strAddress = assetallocation.assetAllocationTuple.ToString();
+                            if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
                                 ownerName = strAddress;
                             if (ownerName.empty())
                                 continue;
@@ -1976,7 +1976,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                                 for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                     // update to owner
-                                    oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromString("burn"))? "burn": witnessProgramToAddress(amountTuple.first));
+                                    oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
                                     oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                                 }
@@ -1996,13 +1996,13 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         string strResponseEnglish = "";
                         string strResponseGUID = "";
                         strResponse = GetSyscoinTransactionDescription(tx, op, strResponseEnglish, type, strResponseGUID);
-                        const string& strAddress = mintsyscoin.assetAllocationTuple.GetAddressString();
+                        const string& strAddress = mintsyscoin.assetAllocationTuple.witnessAddress.ToString();
                         CAsset dbAsset;
                         GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
                        
                         UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                         // update to owner
-                        oAssetAllocationReceiversObj.pushKV("ownerto", mintsyscoin.assetAllocationTuple.GetAddressString());
+                        oAssetAllocationReceiversObj.pushKV("ownerto", strAddress);
                         oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
                         oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                           

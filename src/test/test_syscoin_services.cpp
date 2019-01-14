@@ -592,7 +592,7 @@ string SyscoinMint(const string& node, const string& address, const string& amou
     // ensure that block number you claim the burn is atleast 1 hour old
     int randomBlockNumberPlus240 = 23232+ETHEREUM_CONFIRMS_REQUIRED;
     string headerStr = "\"[[" + boost::lexical_cast<string>(randomBlockNumber) + ",\\\"" + txroot_hex + "\\\"]]\"";
-    printf("headerStr %s\n", headerStr.c_str());
+ 
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsetethstatus synced " + boost::lexical_cast<string>(randomBlockNumberPlus240)));
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoinsetethheaders " + headerStr));
     if (!otherNode1.empty())
@@ -818,13 +818,13 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
         const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "ownerto").get_str());
         UniValue detail = DescribeAddress(dest);
         string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-                           
+        unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();                  
 		UniValue amountObj = find_value(receiverObj, "amount");
 		if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision);
 			inputamount += amount;
 			BOOST_CHECK(amount > 0);
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(ParseHex(witnessProgramHex), amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)), amount));
 		}
 
 
@@ -925,13 +925,13 @@ string AssetSend(const string& node, const string& guid, const string& inputs, c
         const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "ownerto").get_str());
         UniValue detail = DescribeAddress(dest);
         string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-        
+        unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();
 		UniValue amountObj = find_value(receiverObj, "amount");
         if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, nprecision);
 			inputamount += amount;
 			BOOST_CHECK(amount > 0);
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(ParseHex(witnessProgramHex), amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)), amount));
 		}
 
 

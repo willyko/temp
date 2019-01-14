@@ -24,39 +24,81 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 void AssetMintTxToJson(const CTransaction& tx, UniValue &entry);
 std::string assetAllocationFromOp(int op);
 bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
+class CWitnessAddress{
+public:
+    unsigned char nVersion;
+    std::vector<unsigned char> vchWitnessProgram;
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(nVersion);
+        READWRITE(vchWitnessProgram);
+    }
+    CWitnessAddress(const unsigned char &version, const std::vector<unsigned char> &vchWitnessProgram_) {
+        nVersion = version;
+        vchWitnessProgram = vchWitnessProgram_;
+    }
+    CWitnessAddress() {
+        SetNull();
+    }
+    inline CWitnessAddress operator=(const CWitnessAddress& other) {
+        this->nVersion = other.nVersion;
+        this->vchWitnessProgram = other.vchWitnessProgram;
+        return *this;
+    }
+    inline bool operator==(const CWitnessAddress& other) const {
+        return this->nVersion == other.nVersion && this->vchWitnessProgram == other.vchWitnessProgram;
+    }
+    inline bool operator!=(const CWitnessAddress& other) const {
+        return (this->nVersion != other.nVersion || this->vchWitnessProgram != other.vchWitnessProgram);
+    }
+    inline bool operator< (const CWitnessAddress& right) const
+    {
+        return ToString() < right.ToString();
+    }
+    inline void SetNull() {
+        nVersion = 0;
+        vchWitnessProgram.clear();
+    }
+    bool IsValid() const;
+    std::string ToString() const;
+    inline bool IsNull() const {
+        return (nVersion == 0 && vchWitnessProgram.empty());
+    }
+};
 class CAssetAllocationTuple {
 public:
 	uint32_t nAsset;
-	std::vector<unsigned char> vchAddress;
+	CWitnessAddress witnessAddress;
 	ADD_SERIALIZE_METHODS;
 
 	template <typename Stream, typename Operation>
 	inline void SerializationOp(Stream& s, Operation ser_action) {
 		READWRITE(nAsset);
-		READWRITE(vchAddress);
+		READWRITE(witnessAddress);
 	}
-	CAssetAllocationTuple(const uint32_t &asset, const std::vector<unsigned char> &vchAddress_) {
+	CAssetAllocationTuple(const uint32_t &asset, const CWitnessAddress &witnessAddress_) {
 		nAsset = asset;
-		vchAddress = vchAddress_;
+		witnessAddress = witnessAddress_;
 	}
 	CAssetAllocationTuple(const uint32_t &asset) {
 		nAsset = asset;
-		vchAddress.clear();
+		witnessAddress.SetNull();
 	}
 	CAssetAllocationTuple() {
 		SetNull();
 	}
-	std::string GetAddressString() const;
 	inline CAssetAllocationTuple operator=(const CAssetAllocationTuple& other) {
 		this->nAsset = other.nAsset;
-		this->vchAddress = other.vchAddress;
+		this->witnessAddress = other.witnessAddress;
 		return *this;
 	}
 	inline bool operator==(const CAssetAllocationTuple& other) const {
-		return this->nAsset == other.nAsset && this->vchAddress == other.vchAddress;
+		return this->nAsset == other.nAsset && this->witnessAddress == other.witnessAddress;
 	}
 	inline bool operator!=(const CAssetAllocationTuple& other) const {
-		return (this->nAsset != other.nAsset || this->vchAddress != other.vchAddress);
+		return (this->nAsset != other.nAsset || this->witnessAddress != other.witnessAddress);
 	}
 	inline bool operator< (const CAssetAllocationTuple& right) const
 	{
@@ -64,17 +106,17 @@ public:
 	}
 	inline void SetNull() {
 		nAsset = 0;
-		vchAddress.clear();
+		witnessAddress.SetNull();
 	}
 	std::string ToString() const;
 	inline bool IsNull() const {
-		return (nAsset == 0 && vchAddress.empty());
+		return (nAsset == 0 && witnessAddress.IsNull());
 	}
 };
 typedef std::unordered_map<std::string, CAmount> AssetBalanceMap;
 typedef std::unordered_map<uint256, int64_t,SaltedTxidHasher> ArrivalTimesMap;
 typedef std::unordered_map<std::string, ArrivalTimesMap> ArrivalTimesMapImpl;
-typedef std::vector<std::pair<std::vector<unsigned char>, CAmount > > RangeAmountTuples;
+typedef std::vector<std::pair<CWitnessAddress, CAmount > > RangeAmountTuples;
 typedef std::map<std::string, std::string> AssetAllocationIndexItem;
 typedef std::map<int, AssetAllocationIndexItem> AssetAllocationIndexItemMap;
 extern AssetAllocationIndexItemMap AssetAllocationIndex;
@@ -150,7 +192,7 @@ public:
     }
     bool Flush(const AssetAllocationMap &mapAssetAllocations);
     bool Flush(const AssetAllocationMap &mapAssetAllocations,const AssetAllocationMap &mapEraseAssetAllocations);
-	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::vector<unsigned char>& senderWitnessProgram);
+	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const CWitnessAddress& senderWitness);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {

@@ -27,14 +27,31 @@ ArrivalTimesMapImpl arrivalTimesMap;
 bool IsAssetAllocationOp(int op) {
 	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN;
 }
-string CAssetAllocationTuple::ToString() const {
-	return boost::lexical_cast<string>(nAsset) + "-" + GetAddressString();
+string CWitnessAddress::ToString() const {
+    if (vchWitnessProgram.size() <= 4 && stringFromVch(vchWitnessProgram) == "burn")
+        return "burn";
+    if(nVersion == 0){
+        if (vchWitnessProgram.size() == WITNESS_V0_KEYHASH_SIZE) {
+            return EncodeDestination(WitnessV0KeyHash(vchWitnessProgram));
+        }
+        else if (vchWitnessProgram.size() == WITNESS_V0_SCRIPTHASH_SIZE) {
+            return EncodeDestination(WitnessV0ScriptHash(vchWitnessProgram));
+        }
+    }
+    return "";
 }
-string CAssetAllocationTuple::GetAddressString() const {
-	if (vchAddress.size() <= 4 && stringFromVch(vchAddress) == "burn")
-		return "burn";
-	else
-		return witnessProgramToAddress(vchAddress);
+bool CWitnessAddress::IsValid() const {
+    const size_t& size = vchWitnessProgram.size();
+    if(size < 2 || size > 40){
+        return false;
+    }
+    if(nVersion == 0){
+        return (size == WITNESS_V0_KEYHASH_SIZE || size == WITNESS_V0_SCRIPTHASH_SIZE);
+    }
+    return true;
+}
+string CAssetAllocationTuple::ToString() const {
+	return boost::lexical_cast<string>(nAsset) + "-" + witnessAddress.ToString();
 }
 string assetAllocationFromOp(int op) {
     switch (op) {
@@ -78,24 +95,16 @@ void CAssetAllocation::Serialize( vector<unsigned char> &vchData) {
 	vchData = vector<unsigned char>(dsAsset.begin(), dsAsset.end());
 
 }
-std::string witnessProgramToAddress(const std::vector<unsigned char>& witnessProgram){
-    if (witnessProgram.size() == WITNESS_V0_KEYHASH_SIZE) {
-        return EncodeDestination(WitnessV0KeyHash(witnessProgram));
-    }
-    else if (witnessProgram.size() == WITNESS_V0_SCRIPTHASH_SIZE) {
-        return EncodeDestination(WitnessV0ScriptHash(witnessProgram));
-    } 
-    return "";
-}
-void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocation& assetallocation, const uint256 &txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::vector<unsigned char>& senderWitnessProgram) {
+
+void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocation& assetallocation, const uint256 &txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const CWitnessAddress& senderWitness) {
 	if (gArgs.IsArgSet("-zmqpubassetallocation") || fAssetAllocationIndex) {
 		UniValue oName(UniValue::VOBJ);
 		bool isMine = true;
         string strSender = "";
-        if(senderWitnessProgram.size() > 0){
-            strSender = witnessProgramToAddress(senderWitnessProgram);
+        if(!senderWitness.IsNull()){
+            strSender = senderWitness.ToString();
         }
-        const string& strReceiver = assetallocation.assetAllocationTuple.GetAddressString();
+        const string& strReceiver = assetallocation.assetAllocationTuple.ToString();
 		if (BuildAssetAllocationIndexerJson(assetallocation, asset, nSenderBalance, nAmount, strSender, strReceiver, isMine, oName)) {
 			const string& strObj = oName.write();
 			GetMainSignals().NotifySyscoinUpdate(strObj.c_str(), "assetallocation");
@@ -404,7 +413,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 			return error(errorMessage.c_str());
 		}
 	}
-	const vector<unsigned char> &user1 = theAssetAllocation.assetAllocationTuple.vchAddress;
+
+	const CWitnessAddress &user1 = theAssetAllocation.assetAllocationTuple.witnessAddress;
 	const CAssetAllocationTuple &assetAllocationTuple = theAssetAllocation.assetAllocationTuple;
     const string & senderTupleStr = assetAllocationTuple.ToString();
 
@@ -474,7 +484,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Invalid amount entered in the script output");
             return error(errorMessage.c_str());
         }   
-        if(amountTuple.first != vchFromString("burn"))
+        if(amountTuple.first.ToString() != "burn")
         {
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Must send output to burn address");
             return error(errorMessage.c_str());
@@ -665,7 +675,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 		for (const auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
            
 			CAssetAllocation receiverAllocation;
-			if (amountTuple.first == theAssetAllocation.assetAllocationTuple.vchAddress) {
+			if (amountTuple.first == theAssetAllocation.assetAllocationTuple.witnessAddress) {
 				errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1022 - " + _("Cannot send an asset allocation to yourself");
 				return error(errorMessage.c_str());
 			}
@@ -759,7 +769,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
         }
         else {
     		theAssetAllocation.listSendingAllocationAmounts.clear();
-            passetallocationdb->WriteAssetAllocationIndex(theAssetAllocation, txHash, nHeight, dbAsset, theAssetAllocation.nBalance, 0, vchFromString("")); 
+            passetallocationdb->WriteAssetAllocationIndex(theAssetAllocation, txHash, nHeight, dbAsset, theAssetAllocation.nBalance, 0, CWitnessAddress()); 
             auto rv = mapAssetAllocations.emplace(std::move(senderTupleStr), std::move(theAssetAllocation));
             if (!rv.second)
                 rv.first->second = std::move(theAssetAllocation);
@@ -917,9 +927,9 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
     if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
     string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-                	
+    unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();            	
 	CAssetAllocation theAssetAllocation;
-	const CAssetAllocationTuple assetAllocationTuple(nAsset, ParseHex(witnessProgramHex));
+	const CAssetAllocationTuple assetAllocationTuple(nAsset, CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)));
 	if (!GetAssetAllocation(assetAllocationTuple, theAssetAllocation))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1500 - " + _("Could not find a asset allocation with this key"));
 
@@ -937,8 +947,8 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
     boost::erase_all(ethAddress, "0x");  // strip 0x if exist
 	theAssetAllocation.ClearAssetAllocation();
 	theAssetAllocation.assetAllocationTuple = assetAllocationTuple;
-    string burnAddr = "burn";
-	theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(vchFromString("burn"), amount));
+
+	theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(CWitnessAddress(0, vchFromString("burn")), amount));
 
     vector<unsigned char> data;
     theAssetAllocation.Serialize(data);
@@ -999,11 +1009,11 @@ UniValue assetallocationmint(const JSONRPCRequest& request) {
     if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
     string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-    
+    unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();
     vector<CRecipient> vecSend;
     
     CMintSyscoin mintSyscoin;
-    mintSyscoin.assetAllocationTuple = CAssetAllocationTuple(nAsset, ParseHex(witnessProgramHex));
+    mintSyscoin.assetAllocationTuple = CAssetAllocationTuple(nAsset, CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)));
     mintSyscoin.nValueAsset = nAmount;
     mintSyscoin.vchTxRoot = ParseHex(vchTxRoot);
     mintSyscoin.vchValue = ParseHex(vchValue);
@@ -1049,6 +1059,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 	const string &strAddress = vchAddressFrom;
     CTxDestination addressFrom;
     string witnessProgramHex;
+    unsigned char witnessVersion = 0;
     if(strAddress != "burn"){
 	    addressFrom = DecodeDestination(strAddress);
     	if (IsValidDestination(addressFrom)) {
@@ -1057,12 +1068,13 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
             UniValue detail = DescribeAddress(addressFrom);
             if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
                 throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
-            witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();     
+            witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str(); 
+            witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();    
         }  
     }
     
 	CAssetAllocation theAssetAllocation;
-	const CAssetAllocationTuple assetAllocationTuple(nAsset, strAddress == "burn"? vchFromString("burn"): ParseHex(witnessProgramHex));
+	const CAssetAllocationTuple assetAllocationTuple(nAsset, CWitnessAddress(witnessVersion, strAddress == "burn"? vchFromString("burn"): ParseHex(witnessProgramHex)));
 	if (!GetAssetAllocation(assetAllocationTuple, theAssetAllocation))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1500 - " + _("Could not find a asset allocation with this key"));
 
@@ -1089,14 +1101,14 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
         if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
             throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
         string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-    
+        unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();
         	
 		UniValue amountObj = find_value(receiverObj, "amount");
 		if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, theAsset.nPrecision);
 			if (amount <= 0)
 				throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "amount must be positive");
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(ParseHex(witnessProgramHex), amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(CWitnessAddress(witnessVersion,ParseHex(witnessProgramHex)), amount));
 		}
 		else
 			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected amount as number in receiver array");
@@ -1155,15 +1167,17 @@ UniValue assetallocationinfo(const JSONRPCRequest& request) {
     const int &nAsset = params[0].get_int();
 	string strAddressFrom = params[1].get_str();
     string witnessProgramHex = "";
+    unsigned char witnessVersion = 0;
     if(strAddressFrom != "burn"){
         const CTxDestination &dest = DecodeDestination(strAddressFrom);
         UniValue detail = DescribeAddress(dest);
         if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
             throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
         witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
+        witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();
     }
 	UniValue oAssetAllocation(UniValue::VOBJ);
-	const CAssetAllocationTuple assetAllocationTuple(nAsset, strAddressFrom == "burn"? vchFromString("burn"): ParseHex(witnessProgramHex));
+	const CAssetAllocationTuple assetAllocationTuple(nAsset, CWitnessAddress(witnessVersion, strAddressFrom == "burn"? vchFromString("burn"): ParseHex(witnessProgramHex)));
 	CAssetAllocation txPos;
 	if (passetallocationdb == nullptr || !passetallocationdb->ReadAssetAllocation(assetAllocationTuple, txPos))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1507 - " + _("Failed to read from assetallocation DB"));
@@ -1211,10 +1225,10 @@ int DetectPotentialAssetAllocationSenderConflicts(const CAssetAllocationTuple& a
 	// go through arrival times and check that balances don't overrun the POW balance
 	pair<uint256, int64_t> lastArrivalTime;
 	lastArrivalTime.second = GetTimeMillis();
-	map<std::vector<unsigned char>, CAmount> mapBalances;
+	map<CWitnessAddress, CAmount> mapBalances;
 	// init sender balance, track balances by address
 	// this is important because asset allocations can be sent/received within blocks and will overrun balances prematurely if not tracked properly, for example pow balance 3, sender sends 3, gets 2 sends 2 (total send 3+2=5 > balance of 3 from last stored state, this is a valid scenario and shouldn't be flagged)
-	CAmount &senderBalance = mapBalances[assetAllocationTupleSender.vchAddress];
+	CAmount &senderBalance = mapBalances[assetAllocationTupleSender.witnessAddress];
 	senderBalance = dbAssetAllocation.nBalance;
 	int minLatency = ZDAG_MINIMUM_LATENCY_SECONDS * 1000;
 	if (fUnitTest)
@@ -1274,7 +1288,7 @@ UniValue assetallocationsenderstatus(const JSONRPCRequest& request) {
     if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
     string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-    
+    unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();
 	uint256 txid;
 	txid.SetNull();
 	if(!params[2].get_str().empty())
@@ -1284,7 +1298,7 @@ UniValue assetallocationsenderstatus(const JSONRPCRequest& request) {
     LOCK(cs_assetallocationarrival);
     
     const int64_t & nNow = GetTimeMillis();
-	const CAssetAllocationTuple assetAllocationTupleSender(nAsset, ParseHex(witnessProgramHex));
+	const CAssetAllocationTuple assetAllocationTupleSender(nAsset, CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)));
     
     // if arrival times have expired, then expire any conflicting status for this sender as well
     const ArrivalTimesMap &arrivalTimes = arrivalTimesMap[assetAllocationTupleSender.ToString()];
@@ -1326,7 +1340,7 @@ bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& a
     }
     oAssetAllocation.pushKV("_id", allocationTupleStr);
 	oAssetAllocation.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
-	oAssetAllocation.pushKV("owner",  assetallocation.assetAllocationTuple.GetAddressString());
+	oAssetAllocation.pushKV("owner",  allocationTupleStr);
 	oAssetAllocation.pushKV("balance", ValueFromAssetAmount(assetallocation.nBalance, asset.nPrecision));
     oAssetAllocation.pushKV("balance_zdag", ValueFromAssetAmount(nBalanceZDAG, asset.nPrecision));
 	return true;
@@ -1377,12 +1391,12 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 	entry.pushKV("txtype", opName);
 	entry.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
 	entry.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
-	entry.pushKV("owner", assetallocation.assetAllocationTuple.GetAddressString());
+	entry.pushKV("owner", assetallocation.assetAllocationTuple.ToString());
 	UniValue oAssetAllocationReceiversArray(UniValue::VARR);
 	if (!assetallocation.listSendingAllocationAmounts.empty()) {
 		for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
 			UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-			oAssetAllocationReceiversObj.pushKV("owner", witnessProgramToAddress(amountTuple.first));
+			oAssetAllocationReceiversObj.pushKV("owner", amountTuple.first.ToString());
 			oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
 			oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
 		}
@@ -1403,7 +1417,7 @@ void AssetMintTxToJson(const CTransaction& tx, UniValue &entry){
         GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
        
         UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-        oAssetAllocationReceiversObj.pushKV("owner", mintsyscoin.assetAllocationTuple.GetAddressString());
+        oAssetAllocationReceiversObj.pushKV("owner", mintsyscoin.assetAllocationTuple.ToString());
         oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
         oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
     
@@ -1513,7 +1527,7 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations, co
 }
 bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
-	vector<vector<unsigned char> > vchAddresses;
+	vector<CWitnessAddress> vecWitnessAddresses;
 	uint32_t nAsset = 0;
 	if (!oOptions.isNull()) {
 		const UniValue &assetObj = find_value(oOptions, "asset");
@@ -1533,7 +1547,8 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
                     if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
                         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
                     string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-					vchAddresses.push_back(ParseHex(witnessProgramHex));
+                    unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();
+					vecWitnessAddresses.push_back(CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)));
 				}
 			}
 		}
@@ -1550,7 +1565,7 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 		try {
 			if (pcursor->GetKey(key) && (nAsset == 0 || nAsset != key.nAsset)) {
 				pcursor->GetValue(txPos);
-				if (!vchAddresses.empty() && std::find(vchAddresses.begin(), vchAddresses.end(), txPos.assetAllocationTuple.vchAddress) == vchAddresses.end())
+				if (!vecWitnessAddresses.empty() && std::find(vecWitnessAddresses.begin(), vecWitnessAddresses.end(), txPos.assetAllocationTuple.witnessAddress) == vecWitnessAddresses.end())
 				{
 					pcursor->Next();
 					continue;

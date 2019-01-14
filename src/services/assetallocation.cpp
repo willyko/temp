@@ -30,6 +30,7 @@ bool IsAssetAllocationOp(int op) {
 string CWitnessAddress::ToString() const {
     if (vchWitnessProgram.size() <= 4 && stringFromVch(vchWitnessProgram) == "burn")
         return "burn";
+    
     if(nVersion == 0){
         if (vchWitnessProgram.size() == WITNESS_V0_KEYHASH_SIZE) {
             return EncodeDestination(WitnessV0KeyHash(vchWitnessProgram));
@@ -42,12 +43,15 @@ string CWitnessAddress::ToString() const {
 }
 bool CWitnessAddress::IsValid() const {
     const size_t& size = vchWitnessProgram.size();
+    // this is a hard limit 2->40
     if(size < 2 || size > 40){
         return false;
     }
+    // BIP 142, version 0 must be of p2wpkh or p2wpsh size
     if(nVersion == 0){
         return (size == WITNESS_V0_KEYHASH_SIZE || size == WITNESS_V0_SCRIPTHASH_SIZE);
     }
+    // otherwise mark as valid for future softfork expansion
     return true;
 }
 string CAssetAllocationTuple::ToString() const {

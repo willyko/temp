@@ -51,7 +51,7 @@ std::string GetSyscoinTransactionDescription(const CTransaction& tx, const int o
 bool IsOutpointMature(const COutPoint& outpoint);
 UniValue syscointxfund_helper(const std::string &vchWitness, std::vector<CRecipient> &vecSend, const int nVersion = SYSCOIN_TX_VERSION_ASSET);
 bool FlushSyscoinDBs();
-bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::vector<unsigned char>& ownerAddressToMatch);
+bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const CWitnessAddress& witnessAddressToMatch);
 CWallet* GetDefaultWallet();
 CAmount GetFee(const size_t nBytes);
 bool DecodeAndParseAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char& type);
@@ -64,7 +64,6 @@ bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut
 void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
 std::string assetFromOp(int op);
 bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
-std::string witnessProgramToAddress(const std::vector<unsigned char>& witnessProgram);
 /** Upper bound for mantissa.
 * 10^18-1 is the largest arbitrary decimal that will fit in a signed 64-bit integer.
 * Larger integers cannot consist of arbitrary combinations of 0-9:
@@ -87,7 +86,7 @@ enum {
 class CAsset {
 public:
 	uint32_t nAsset;
-	std::vector<uint8_t> vchAddress;
+	CWitnessAddress witnessAddress;
 	std::vector<unsigned char> vchContract;
     std::vector<unsigned char> vchBurnMethodSignature;
     uint256 txHash;
@@ -108,9 +107,9 @@ public:
 	inline void ClearAsset()
 	{
 		vchPubData.clear();
-		vchAddress.clear();
 		vchContract.clear();
         vchBurnMethodSignature.clear();
+        witnessAddress.SetNull();
 
 	}
 	ADD_SERIALIZE_METHODS;
@@ -119,7 +118,7 @@ public:
 		READWRITE(vchPubData);
 		READWRITE(txHash);
 		READWRITE(nAsset);
-		READWRITE(vchAddress);
+		READWRITE(witnessAddress);
 		READWRITE(nBalance);
 		READWRITE(nTotalSupply);
 		READWRITE(nMaxSupply);
@@ -138,7 +137,7 @@ public:
     inline CAsset operator=(const CAsset &b) {
 		vchPubData = b.vchPubData;
 		txHash = b.txHash;
-		vchAddress = b.vchAddress;
+		witnessAddress = b.witnessAddress;
 		nAsset = b.nAsset;
 		nBalance = b.nBalance;
 		nTotalSupply = b.nTotalSupply;
@@ -154,7 +153,7 @@ public:
     inline friend bool operator!=(const CAsset &a, const CAsset &b) {
         return !(a == b);
     }
-	inline void SetNull() { vchBurnMethodSignature.clear(); nHeight = 0;vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); vchAddress.clear(); vchPubData.clear(); }
+	inline void SetNull() { vchBurnMethodSignature.clear(); nHeight = 0;vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); witnessAddress.SetNull(); vchPubData.clear(); }
     inline bool IsNull() const { return (nAsset == 0); }
     bool UnserializeFromTx(const CTransaction &tx);
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);

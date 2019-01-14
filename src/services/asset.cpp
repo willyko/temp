@@ -226,7 +226,7 @@ bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op,
 		DecodeAndParseAssetAllocationTx(tx, op, vvch, type)
 		|| DecodeAndParseAssetTx(tx, op, vvch, type);
 }
-bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const std::vector<unsigned char> &witnessprogramToMatch) {
+bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const CWitnessAddress &witnessAddressToMatch) {
 	CTxDestination dest;
     int witnessversion;
     std::vector<unsigned char> witnessprogram;
@@ -235,7 +235,7 @@ bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, c
 		if (prevCoins.IsSpent()) {
 			continue;
 		}
-        if (prevCoins.out.scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram) && witnessprogramToMatch == witnessprogram)
+        if (prevCoins.out.scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram) && witnessAddressToMatch.vchWitnessProgram == witnessprogram && witnessAddressToMatch.nVersion == (unsigned char)witnessversion)
             return true;
 	}
 	return false;
@@ -727,6 +727,7 @@ UniValue syscoinmint(const JSONRPCRequest& request) {
     
 	vector<CRecipient> vecSend;
 	const CTxDestination &dest = DecodeDestination(vchAddress);
+    
 	CScript scriptPubKeyFromOrig = GetScriptForDestination(dest);
 
 	CMutableTransaction txNew;
@@ -1239,9 +1240,9 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2015 - " + _("Total supply cannot exceed maximum supply");
 				return error(errorMessage.c_str());
 			}
-            if (theAsset.vchAddress.empty())
+            if (!theAsset.witnessAddress.IsValid())
             {
-                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2015 - " + _("No address specified as owner in the transaction payload");
+                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2015 - " + _("Address specified is invalid");
                 return error(errorMessage.c_str());
             }
 			break;
@@ -1292,8 +1293,8 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				return error(errorMessage.c_str());
 			}
 		}
-		const vector<unsigned char> &vchOwner = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.vchAddress : theAsset.vchAddress;
-		const vector<unsigned char> &user1 = dbAsset.IsNull()? vchOwner : dbAsset.vchAddress;
+		const CWitnessAddress &witnessAddressOwner = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.witnessAddress : theAsset.witnessAddress;
+		const CWitnessAddress &user1 = dbAsset.IsNull()? witnessAddressOwner : dbAsset.witnessAddress;
 
 	
 		if (op == OP_ASSET_TRANSFER) {
@@ -1340,7 +1341,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		}
 
 		if (op == OP_ASSET_SEND) {
-			if (dbAsset.vchAddress != theAssetAllocation.assetAllocationTuple.vchAddress || !FindAssetOwnerInTx(inputs, tx, user1))
+			if (dbAsset.witnessAddress != theAssetAllocation.assetAllocationTuple.witnessAddress || !FindAssetOwnerInTx(inputs, tx, user1))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot send this asset. Asset owner must sign off on this change");
 				return error(errorMessage.c_str());
@@ -1397,8 +1398,8 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 			// these fields cannot change after activation
 
 			theAsset.nPrecision = dbAsset.nPrecision;
-			if (theAsset.vchAddress.empty())
-				theAsset.vchAddress = dbAsset.vchAddress;
+			if (theAsset.witnessAddress.IsNull())
+				theAsset.witnessAddress = dbAsset.witnessAddress;
 			if (theAsset.vchPubData.empty())
 				theAsset.vchPubData = dbAsset.vchPubData;
 			else if (!(dbAsset.nUpdateFlags & ASSET_UPDATE_DATA))
@@ -1515,7 +1516,7 @@ UniValue assetnew(const JSONRPCRequest& request) {
     if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
     string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-        
+    unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();   
 	CScript scriptPubKeyFromOrig;
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(address);
@@ -1530,7 +1531,7 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	newAsset.vchPubData = vchPubData;
     newAsset.vchContract = ParseHex(strContract);
     newAsset.vchBurnMethodSignature = ParseHex(strMethodSig);
-	newAsset.vchAddress = ParseHex(witnessProgramHex);
+	newAsset.witnessAddress = CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex));
 	newAsset.nBalance = nBalance;
 	newAsset.nMaxSupply = nMaxSupply;
 	newAsset.nPrecision = precision;
@@ -1609,7 +1610,7 @@ UniValue assetupdate(const JSONRPCRequest& request) {
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Could not find a asset with this key"));
 
 	string strAddressFrom;
-	const string& strAddress = witnessProgramToAddress(theAsset.vchAddress);
+	const string& strAddress = theAsset.witnessAddress.ToString();
 	const CTxDestination &address = DecodeDestination(strAddress);
 	if (IsValidDestination(address)) {
 		strAddressFrom = strAddress;
@@ -1686,7 +1687,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2505 - " + _("Could not find a asset with this key"));
 	
 	string strAddressFrom;
-	const string& strAddress = witnessProgramToAddress(theAsset.vchAddress);
+	const string& strAddress = theAsset.witnessAddress.ToString();
 	const CTxDestination addressFrom = DecodeDestination(strAddress);
 	if (IsValidDestination(addressFrom)) {
 		strAddressFrom = strAddress;
@@ -1702,7 +1703,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
     if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
     string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-        
+    unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();   
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(addressFrom);
 	}
@@ -1710,7 +1711,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
 	CAsset copyAsset = theAsset;
 	theAsset.ClearAsset();
     CScript scriptPubKey;
-	theAsset.vchAddress = ParseHex(witnessProgramHex);
+	theAsset.witnessAddress = CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex));
 
 	vector<unsigned char> data;
 	theAsset.Serialize(data);
@@ -1757,7 +1758,7 @@ UniValue assetsend(const JSONRPCRequest& request) {
 		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2507 - " + _("Could not find a asset with this key"));
 
 	string strAddressFrom;
-	const string& strAddress = witnessProgramToAddress(theAsset.vchAddress);
+	const string& strAddress = theAsset.witnessAddress.ToString();
 	const CTxDestination addressFrom = DecodeDestination(strAddress);
 	if (IsValidDestination(addressFrom)) {
 		strAddressFrom = strAddress;
@@ -1772,7 +1773,7 @@ UniValue assetsend(const JSONRPCRequest& request) {
 
 
 	CAssetAllocation theAssetAllocation;
-	theAssetAllocation.assetAllocationTuple = CAssetAllocationTuple(nAsset, theAsset.vchAddress);
+	theAssetAllocation.assetAllocationTuple = CAssetAllocationTuple(nAsset, theAsset.witnessAddress);
 
 	UniValue receivers = valueTo.get_array();
 	for (unsigned int idx = 0; idx < receivers.size(); idx++) {
@@ -1790,14 +1791,14 @@ UniValue assetsend(const JSONRPCRequest& request) {
         if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
             throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
         string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
-            
+        unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();    
                 		
 		UniValue amountObj = find_value(receiverObj, "amount");
 		if (amountObj.isNum()) {
 			const CAmount &amount = AssetAmountFromValue(amountObj, theAsset.nPrecision);
 			if (amount <= 0)
 				throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "amount must be positive");
-			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(ParseHex(witnessProgramHex), amount));
+			theAssetAllocation.listSendingAllocationAmounts.push_back(make_pair(CWitnessAddress(witnessVersion,ParseHex(witnessProgramHex)), amount));
 		}
 		else
 			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected amount as number in receiver array");
@@ -1848,7 +1849,7 @@ bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
     oAsset.pushKV("_id", (int)asset.nAsset);
     oAsset.pushKV("txid", asset.txHash.GetHex());
 	oAsset.pushKV("publicvalue", stringFromVch(asset.vchPubData));
-	oAsset.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
+	oAsset.pushKV("owner", asset.witnessAddress.ToString());
     oAsset.pushKV("contract", asset.vchContract.empty()? "" : "0x"+HexStr(asset.vchContract));
     oAsset.pushKV("burnsig", asset.vchBurnMethodSignature.empty()? "" : HexStr(asset.vchBurnMethodSignature));
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
@@ -1861,7 +1862,7 @@ bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
 bool BuildAssetIndexerJson(const CAsset& asset, UniValue& oAsset)
 {
 	oAsset.pushKV("_id", (int)asset.nAsset);
-	oAsset.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
+	oAsset.pushKV("owner", asset.witnessAddress.ToString());
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
 	oAsset.pushKV("total_supply", ValueFromAssetAmount(asset.nTotalSupply, asset.nPrecision));
 	oAsset.pushKV("max_supply", ValueFromAssetAmount(asset.nMaxSupply, asset.nPrecision));
@@ -1891,8 +1892,8 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniV
     if(!asset.vchBurnMethodSignature.empty() && dbAsset.vchContract != asset.vchBurnMethodSignature)
         entry.pushKV("contract", HexStr(asset.vchBurnMethodSignature));                  
         
-	if (!asset.vchAddress.empty() && dbAsset.vchAddress != asset.vchAddress)
-		entry.pushKV("owner", witnessProgramToAddress(asset.vchAddress));
+	if (!asset.witnessAddress.IsNull() && dbAsset.witnessAddress != asset.witnessAddress)
+		entry.pushKV("owner", asset.witnessAddress.ToString());
 
 	if (asset.nUpdateFlags != dbAsset.nUpdateFlags)
 		entry.pushKV("update_flags", asset.nUpdateFlags);
@@ -1906,7 +1907,7 @@ void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniV
 		if (!assetallocation.listSendingAllocationAmounts.empty()) {
 			for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
 				UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-				oAssetAllocationReceiversObj.pushKV("ownerto", (amountTuple.first.size() <= 4 && amountTuple.first == vchFromString("burn"))? "burn": witnessProgramToAddress(amountTuple.first));
+				oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
                 oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
 				oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
 			}
@@ -1994,7 +1995,7 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
 }
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
-	vector<vector<unsigned char> > vchAddresses;
+	vector<CWitnessAddress > vecWitnessAddresses;
     uint32_t nAsset = 0;
 	if (!oOptions.isNull()) {
 		const UniValue &txid = find_value(oOptions, "txid");
@@ -2016,10 +2017,10 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
                 if(find_value(detail.get_obj(), "iswitness").get_bool() == false)
                     throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
                 string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
+                unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();   
 				const UniValue &ownerStr = find_value(owner, "owner");
-				if (ownerStr.isStr()) {
-					vchAddresses.push_back(ParseHex(witnessProgramHex));
-				}
+				if (ownerStr.isStr()) 
+					vecWitnessAddresses.push_back(CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)));
 			}
 		}
 	}
@@ -2038,7 +2039,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 					pcursor->Next();
 					continue;
 				}
-				if (!vchAddresses.empty() && std::find(vchAddresses.begin(), vchAddresses.end(), txPos.vchAddress) == vchAddresses.end())
+				if (!vecWitnessAddresses.empty() && std::find(vecWitnessAddresses.begin(), vecWitnessAddresses.end(), txPos.witnessAddress) == vecWitnessAddresses.end())
 				{
 					pcursor->Next();
 					continue;

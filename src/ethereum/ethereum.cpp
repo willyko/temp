@@ -29,9 +29,9 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
         const int len = parentNodes.itemCount();
         dev::RLP nodeKey = root;       
         int pathPtr = 0;
-        printf("length %d\n", len);
+
     	const std::string pathString = toHex(path);
-        printf("pathString %s\n", pathString.c_str());
+  
         int nibbles;
         char pathPtrInt[2];
         for (int i = 0 ; i < len ; i++) {
@@ -39,38 +39,38 @@ bool VerifyProof(bytesConstRef path, const RLP& value, const RLP& parentNodes, c
           if(!nodeKey.payload().contentsEqual(sha3(currentNode.data()).ref().toVector())){
             return false;
           } 
-          printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
+
           if(pathPtr > (int)pathString.size()){
             return false;
           }
-          printf("currentNode.itemCount() %d\n", currentNode.itemCount());
+
           switch(currentNode.itemCount()){
             case 17://branch node
               if(pathPtr == (int)pathString.size()){
                 if(currentNode[16].payload().contentsEqual(value.data().toVector())){
-                    printf("17 equals ret true\n");
+    
                   return true;
                 }else{
                   return false;
                 }
               }
-              printf("pathPtr %d pathString[pathPtr] %c\n", pathPtr, pathString[pathPtr]);
+          
               pathPtrInt[0] = pathString[pathPtr];
               pathPtrInt[1] = '\0';
-              printf("strtol(pathPtrInt, NULL, 16) %d \n", strtol(pathPtrInt, NULL, 16));
+
               nodeKey = currentNode[strtol(pathPtrInt, NULL, 16)]; //must == sha3(rlp.encode(currentNode[path[pathptr]]))
               pathPtr += 1;
               break;
             case 2:
               nibbles = nibblesToTraverse(toHex(currentNode[0].payload()), pathString, pathPtr);
-              printf("nibbles %d\n", nibbles);
+
               if(nibbles <= -1)
                 return false;
               pathPtr += nibbles;
-              printf("pathPtr %d pathString.size() %d\n", pathPtr, pathString.size());
+      
               if(pathPtr == (int)pathString.size()) { //leaf node
                 if(currentNode[1].payload().contentsEqual(value.data().toVector())){
-                    printf("2 equals ret true\n");
+         
                   return true;
                 } else {
                   return false;

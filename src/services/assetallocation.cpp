@@ -108,7 +108,7 @@ void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocation& asset
         if(!senderWitness.IsNull()){
             strSender = senderWitness.ToString();
         }
-        const string& strReceiver = assetallocation.assetAllocationTuple.ToString();
+        const string& strReceiver = assetallocation.assetAllocationTuple.witnessAddress.ToString();
 		if (BuildAssetAllocationIndexerJson(assetallocation, asset, nSenderBalance, nAmount, strSender, strReceiver, isMine, oName)) {
 			const string& strObj = oName.write();
 			GetMainSignals().NotifySyscoinUpdate(strObj.c_str(), "assetallocation");
@@ -306,6 +306,7 @@ bool DisconnectMintAsset(const CTransaction &tx){
     return true; 
 }
 bool DisconnectAssetAllocation(const CTransaction &tx){
+    LogPrintf("DisconnectAssetAllocation txid %s\n", tx.GetHash().GetHex().c_str());
     AssetAllocationMap mapAssetAllocations;
     AssetAllocationMap mapEraseAssetAllocations;
     AssetMap mapAssets; 
@@ -1512,7 +1513,7 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations){
         batch.Write(key.second.assetAllocationTuple, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing %d asset allocations\n", mapAssetAllocations.size());
-    return WriteBatch(batch);
+    return WriteBatch(batch, true);
 }
 bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations, const AssetAllocationMap &mapEraseAssetAllocations){
     if(mapAssetAllocations.empty() && mapEraseAssetAllocations.empty())
@@ -1527,7 +1528,7 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations, co
             batch.Write(key.second.assetAllocationTuple, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing %d asset allocations written and %d asset allocations deleted\n", mapAssetAllocations.size(), mapEraseAssetAllocations.size());
-    return WriteBatch(batch);
+    return WriteBatch(batch, true);
 }
 bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";

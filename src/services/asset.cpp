@@ -223,7 +223,8 @@ bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op,
 	vector<vector<unsigned char> >& vvch, char& type)
 {
 	return
-		DecodeAndParseAssetAllocationTx(tx, op, vvch, type)
+		DecodeAndParseAssetAllocationTx
+        (tx, op, vvch, type)
 		|| DecodeAndParseAssetTx(tx, op, vvch, type);
 }
 bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, const CWitnessAddress &witnessAddressToMatch) {
@@ -1089,6 +1090,7 @@ bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
 	return true;
 }
 bool DisconnectAssetSend(const CTransaction &tx){
+LogPrintf("DisconnectAssetSend txid %s\n", tx.GetHash().GetHex().c_str());
     AssetAllocationMap mapAssetAllocations;
     AssetAllocationMap mapEraseAssetAllocations;
     AssetMap mapAssets; 
@@ -1139,6 +1141,7 @@ bool DisconnectAssetSend(const CTransaction &tx){
     return true;  
 }
 bool DisconnectAssetUpdate(const CTransaction &tx){
+LogPrintf("DisconnectAssetUpdate txid %s\n", tx.GetHash().GetHex().c_str());
     AssetMap mapAssets; 
     CAsset dbAsset;
     CAsset theAsset(tx);
@@ -1245,6 +1248,10 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
                 errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2015 - " + _("Address specified is invalid");
                 return error(errorMessage.c_str());
             }
+            if(theAsset.nUpdateFlags > ASSET_UPDATE_ALL){
+                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Invalid update flags");
+                return error(errorMessage.c_str());
+            }          
 			break;
 
 		case OP_ASSET_UPDATE:
@@ -1262,7 +1269,11 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
             {
                 errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2005 - " + _("Contract address not proper size");
                 return error(errorMessage.c_str());
-            }    
+            }  
+            if(theAsset.nUpdateFlags > ASSET_UPDATE_ALL){
+                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Invalid update flags");
+                return error(errorMessage.c_str());
+            }           
 			break;
             
 		case OP_ASSET_SEND:
@@ -1991,7 +2002,7 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
         batch.Write(key.first, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing %d assets\n", mapAssets.size());
-    return WriteBatch(batch);
+    return WriteBatch(batch, true);
 }
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
@@ -2213,7 +2224,7 @@ bool CEthereumTxRootsDB::FlushErase(const std::vector<uint32_t> &vecHeightKeys){
         batch.Erase(key);
     }
     LogPrint(BCLog::SYS, "Flushing, erasing %d ethereum tx roots\n", vecHeightKeys.size());
-    return WriteBatch(batch);
+    return WriteBatch(batch, true);
 }
 bool CEthereumTxRootsDB::FlushWrite(const EthereumTxRootMap &mapTxRoots){
     if(mapTxRoots.empty())
@@ -2223,5 +2234,5 @@ bool CEthereumTxRootsDB::FlushWrite(const EthereumTxRootMap &mapTxRoots){
         batch.Write(key.first, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing, writing %d ethereum tx roots\n", mapTxRoots.size());
-    return WriteBatch(batch);
+    return WriteBatch(batch, true);
 }

@@ -1344,7 +1344,7 @@ bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& a
     }
     oAssetAllocation.pushKV("_id", allocationTupleStr);
 	oAssetAllocation.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
-	oAssetAllocation.pushKV("owner",  allocationTupleStr);
+	oAssetAllocation.pushKV("owner",  assetallocation.assetAllocationTuple.witnessAddress.ToString());
 	oAssetAllocation.pushKV("balance", ValueFromAssetAmount(assetallocation.nBalance, asset.nPrecision));
     oAssetAllocation.pushKV("balance_zdag", ValueFromAssetAmount(nBalanceZDAG, asset.nPrecision));
 	return true;
@@ -1395,7 +1395,7 @@ void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vch
 	entry.pushKV("txtype", opName);
 	entry.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
 	entry.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
-	entry.pushKV("owner", assetallocation.assetAllocationTuple.ToString());
+	entry.pushKV("owner", assetallocation.assetAllocationTuple.witnessAddress.ToString());
 	UniValue oAssetAllocationReceiversArray(UniValue::VARR);
 	if (!assetallocation.listSendingAllocationAmounts.empty()) {
 		for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
@@ -1421,7 +1421,7 @@ void AssetMintTxToJson(const CTransaction& tx, UniValue &entry){
         GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
        
         UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-        oAssetAllocationReceiversObj.pushKV("owner", mintsyscoin.assetAllocationTuple.ToString());
+        oAssetAllocationReceiversObj.pushKV("owner", mintsyscoin.assetAllocationTuple.witnessAddress.ToString());
         oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
         oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
     

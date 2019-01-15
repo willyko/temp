@@ -92,9 +92,9 @@ bin_PROGRAMS += syscoinbench
 .PHONY: FORCE check-symbols check-security
 # syscoin core #
 SYSCOIN_CORE_H = \
-  graph.h \
-  asset.h \
-  assetallocation.h \
+  services/graph.h \
+  services/asset.h \
+  services/assetallocation.h \
   thread_pool/fixed_function.hpp \
   thread_pool/mpmc_bounded_queue.hpp \
   thread_pool/thread_pool.hpp \

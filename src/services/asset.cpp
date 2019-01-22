@@ -1066,11 +1066,10 @@ bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
 	return true;
 }
 bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations){
-LogPrintf("DisconnectAssetSend txid %s\n", tx.GetHash().GetHex().c_str());
 
     CAsset dbAsset;
     CAssetAllocation theAssetAllocation(tx);
-    if(theAssetAllocation.IsNull()){
+    if(theAssetAllocation.assetAllocationTuple.IsNull()){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset allocation in asset send\n");
         return false;
     } 
@@ -1116,7 +1115,6 @@ LogPrintf("DisconnectAssetSend txid %s\n", tx.GetHash().GetHex().c_str());
     return true;  
 }
 bool DisconnectAssetUpdate(const CTransaction &tx, AssetMap &mapAssets){
-LogPrintf("DisconnectAssetUpdate txid %s\n", tx.GetHash().GetHex().c_str());
     CAsset dbAsset;
     CAsset theAsset(tx);
     if(theAsset.IsNull()){
@@ -1245,7 +1243,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2017 - " + _("Balance must be greator than or equal to 0");
 				return error(errorMessage.c_str());
 			}
-            if (!theAssetAllocation.IsNull())
+            if (!theAssetAllocation.assetAllocationTuple.IsNull())
             {
                 errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2019 - " + _("Cannot update allocations");
                 return error(errorMessage.c_str());
@@ -1313,7 +1311,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot update this asset. Asset owner must sign off on this change");
 				return error(errorMessage.c_str());
 			}
-            LogPrintf("theAsset.nBalance %lld storedSenderAssetRef.nUpdateFlags %d\n", theAsset.nBalance, storedSenderAssetRef.nUpdateFlags);
+
 			if (theAsset.nBalance > 0 && !(storedSenderAssetRef.nUpdateFlags & ASSET_UPDATE_SUPPLY))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update supply");

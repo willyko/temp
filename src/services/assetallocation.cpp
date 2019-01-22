@@ -304,10 +304,9 @@ bool DisconnectMintAsset(const CTransaction &tx, AssetMap &mapAssets, AssetAlloc
     return true; 
 }
 bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAssetAllocations){
-    LogPrintf("DisconnectAssetAllocation txid %s\n", tx.GetHash().GetHex().c_str());
     CAssetAllocation theAssetAllocation(tx);
     const std::string &senderTupleStr = theAssetAllocation.assetAllocationTuple.ToString();
-    if(theAssetAllocation.IsNull()){
+    if(theAssetAllocation.assetAllocationTuple.IsNull()){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset allocation\n");
         return false;
     }
@@ -330,9 +329,9 @@ bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAs
         const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
         CAssetAllocation receiverAllocation;
         
-        auto result = mapAssetAllocations.emplace(receiverTupleStr, emptyAllocation);
-        auto mapAssetAllocationReceiver = result.first;
-        const bool& mapAssetAllocationReceiverNotFound = result.second;
+        auto result1 = mapAssetAllocations.emplace(receiverTupleStr, emptyAllocation);
+        auto mapAssetAllocationReceiver = result1.first;
+        const bool& mapAssetAllocationReceiverNotFound = result1.second;
         if(mapAssetAllocationReceiverNotFound){
             GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
             if (receiverAllocation.assetAllocationTuple.IsNull()) {
@@ -345,7 +344,6 @@ bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAs
         // reverse allocations
         storedReceiverAllocationRef.nBalance -= amountTuple.second;
         storedSenderAllocationRef.nBalance += amountTuple.second; 
-        LogPrintf("reversing %lld recver new balance %lld\n", amountTuple.second, storedReceiverAllocationRef.nBalance);
         if(storedReceiverAllocationRef.nBalance < 0) {
             LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",receiverTupleStr, storedReceiverAllocationRef.nBalance);
             return false;
@@ -654,7 +652,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             passetallocationdb->WriteAssetAllocationIndex(storedSenderAllocationRef.assetAllocationTuple, txHash, nHeight, dbAsset, 0, CWitnessAddress());
             {
                 LOCK(cs_assetallocation);
-                LogPrintf("setting new sender balance to %lld\n", mapBalanceSenderCopy);
                 mapBalanceSender->second = std::move(mapBalanceSenderCopy);
             }
         }
@@ -1085,6 +1082,7 @@ UniValue assetallocationinfo(const JSONRPCRequest& request) {
     return oAssetAllocation;
 }
 int DetectPotentialAssetAllocationSenderConflicts(const CAssetAllocationTuple& assetAllocationTupleSender, const uint256& lookForTxHash) {
+    LOCK(cs_assetallocationarrival);
 	CAssetAllocation dbAssetAllocation;
 	// get last POW asset allocation balance to ensure we use POW balance to check for potential conflicts in mempool (real-time balances).
 	// The idea is that real-time spending amounts can in some cases overrun the POW balance safely whereas in some cases some of the spends are 
@@ -1397,11 +1395,9 @@ bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations){
     CDBBatch batch(*this);
     for (const auto &key : mapAssetAllocations) {
         if(key.second.IsNull()){
-        LogPrintf("erasing key.second.assetAllocationTuple %s\n", key.second.assetAllocationTuple.ToString().c_str());
             batch.Erase(key.second.assetAllocationTuple);
         }
         else{
-        LogPrintf("writing key.second.assetAllocationTuple %s amount %lld\n", key.second.assetAllocationTuple.ToString().c_str(), key.second.nBalance);
             batch.Write(key.second.assetAllocationTuple, key.second);
         }
     }
@@ -1448,6 +1444,11 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 		try {
 			if (pcursor->GetKey(key) && (nAsset == 0 || nAsset != key.nAsset)) {
 				pcursor->GetValue(txPos);
+                if (!GetAsset(key.nAsset, theAsset))
+                {
+                    pcursor->Next();
+                    continue;
+                }               
 				if (!vecWitnessAddresses.empty() && std::find(vecWitnessAddresses.begin(), vecWitnessAddresses.end(), txPos.assetAllocationTuple.witnessAddress) == vecWitnessAddresses.end())
 				{
 					pcursor->Next();

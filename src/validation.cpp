@@ -585,7 +585,6 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
        
         // validate that the block passed is commited to by the tx root he also passes in, then validate the spv proof to the tx root below  
         if(!pethereumtxrootsdb || !pethereumtxrootsdb->ReadTxRoot(mintSyscoin.nBlockNumber, vchTxRoot) || mintSyscoin.vchTxRoot != vchTxRoot){
-            LogPrintf("mintSyscoin.vchTxRoot %s vchTxRoot %s\n", HexStr(mintSyscoin.vchTxRoot).c_str(), HexStr(vchTxRoot).c_str());
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Invalid transaction root for SPV proof");
             return state.DoS(100, false, REJECT_INVALID, errorMessage);
         }  
@@ -733,7 +732,6 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
 }
 bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
 {
-
     AssetAllocationMap mapAssetAllocations;
     AssetMap mapAssets;
     std::vector<std::vector<unsigned char> > vvchArgs;
@@ -823,6 +821,7 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
                 errorMessage = "Error flushing to asset dbs";
             }
             mapAssetAllocations.clear();
+            mapAssets.clear();
             mempoolMapAssetBalances.clear();
         }        
         if (!good || !errorMessage.empty())

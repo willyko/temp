@@ -1848,28 +1848,27 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                 if (op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN || op == OP_ASSET_SEND) {
                     
                     CAssetAllocation assetallocation(tx);
-                    if (!assetallocation.IsNull()) {
-                        const string& strAddress = assetallocation.assetAllocationTuple.ToString();
-                        CCoinsViewCache inputs(pcoinsTip.get());
-  
-                        if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
-                            ownerName = strAddress;    
-                        if(ownerName.empty())
-                            continue;
-                        CAsset dbAsset;
-                        GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
-                        strResponse = strResponseEnglish;
-                        if (!assetallocation.listSendingAllocationAmounts.empty()) {
-                            for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
-                                UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-                                // update to owner
-                                oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
-                                oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
-                                oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
-                            }
+                    const string& strAddress = assetallocation.assetAllocationTuple.ToString();
+                    CCoinsViewCache inputs(pcoinsTip.get());
 
+                    if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
+                        ownerName = strAddress;    
+                    if(ownerName.empty())
+                        continue;
+                    CAsset dbAsset;
+                    GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
+                    strResponse = strResponseEnglish;
+                    if (!assetallocation.listSendingAllocationAmounts.empty()) {
+                        for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
+                            UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+                            // update to owner
+                            oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
+                            oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
+                            oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                         }
+
                     }
+                    
                 }
                 entry.pushKV("systx", strResponse);
                 entry.pushKV("systype", strResponseEnglish);
@@ -1963,25 +1962,25 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     if (op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN || op == OP_ASSET_SEND) {
                         
                         CAssetAllocation assetallocation(tx);
-                        if (!assetallocation.IsNull()) {
-                            CCoinsViewCache inputs(pcoinsTip.get());
-                            const string& strAddress = assetallocation.assetAllocationTuple.ToString();
-                            if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
-                                ownerName = strAddress;
-                            if (ownerName.empty())
-                                continue;
-                            CAsset dbAsset;
-                            GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
-                            if (!assetallocation.listSendingAllocationAmounts.empty()) {
-                                for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
-                                    UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-                                    // update to owner
-                                    oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
-                                    oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
-                                    oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
-                                }
+                      
+                        CCoinsViewCache inputs(pcoinsTip.get());
+                        const string& strAddress = assetallocation.assetAllocationTuple.ToString();
+                        if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
+                            ownerName = strAddress;
+                        if (ownerName.empty())
+                            continue;
+                        CAsset dbAsset;
+                        GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
+                        if (!assetallocation.listSendingAllocationAmounts.empty()) {
+                            for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
+                                UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+                                // update to owner
+                                oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
+                                oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
+                                oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                             }
                         }
+                        
                     }             
                     entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
                     entry.pushKV("sysowner", ownerName);
@@ -5093,7 +5092,7 @@ static const CRPCCommand commands[] =
     { "syscoin",            "syscoinmint",                      &syscoinmint,                   {"address","amount","blocknumber","tx_hex","txroot_hex","txmerkleproof_hex","txmerkleroofpath_hex","witness"} }, 
     { "syscoin",            "assetallocationburn",              &assetallocationburn,           {"asset","owner","amount","ethereum_destination_address"} }, 
     { "syscoin",            "assetallocationmint",              &assetallocationmint,           {"asset","owner","amount","blocknumber","tx_hex","txroot_hex","txmerkleproof_hex","txmerkleroofpath_hex","witness"} },     
-    { "syscoin",            "syscointxfund",                    &syscointxfund,                 {"hexstring","address","txid","vout"}},
+    { "syscoin",            "syscointxfund",                    &syscointxfund,                 {"hexstring","address","output_index"}},
     { "syscoin",            "syscoinaddscript",                 &syscoinaddscript,              {} },
     { "syscoin",            "syscoindecoderawtransaction",      &syscoindecoderawtransaction,   {}},
     { "syscoin",            "syscoinlistreceivedbyaddress",     &syscoinlistreceivedbyaddress,  {}},

@@ -1799,6 +1799,8 @@ bool AppInitMain()
     fConcurrentProcessing = gArgs.GetBoolArg("-concurrentprocessing", true);
     fLogThreadpool = LogAcceptCategory(BCLog::THREADPOOL);
     fAssetAllocationIndex = gArgs.GetBoolArg("-assetallocationindex", false);
+    fZMQAssetAllocation = gArgs.IsArgSet("-zmqpubassetallocation");
+    fZMQAsset = gArgs.IsArgSet("-zmqpubassetrecord");
     // TODO: masternode should have no wallet
 
     //lite mode disables all Syscoin-specific functionality

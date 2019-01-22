@@ -446,18 +446,17 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
 	std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
 	CWallet* const pwallet = wallet.get();
 	const UniValue &params = request.params;
-	if (request.fHelp || 1 > params.size() || 4 < params.size())
+	if (request.fHelp || 1 > params.size() || 3 < params.size())
 		throw runtime_error(
 			"syscointxfund\n"
 			"\nFunds a new syscoin transaction with inputs used from wallet or an array of addresses specified.\n"
 			"\nArguments:\n"
 			"  \"hexstring\" (string, required) The raw syscoin transaction output given from rpc (ie: assetnew, assetupdate)\n"
 			"  \"address\"  (string, required) Address belonging to this asset transaction. \n"
-			"  \"txid\"  (string, optional) Pass in a txid/vout to fund the transaction with. Leave empty to use address. \n"
-			"  \"vout\"  (number, optional) If txid is passed in you should also pass in the output index into the transaction for the UTXO to fund this transaction with. \n"
+			"  \"output_index\"  (number, optional) Output index from available UTXOs in address. Defaults to selecting all that are needed to fund the transaction. \n"
 			"\nExamples:\n"
 			+ HelpExampleCli("syscointxfund", " <hexstring> \"175tWpb8K1S7NmH4Zx6rewF9WQrcZv245W\"")
-			+ HelpExampleCli("syscointxfund", " <hexstring> \"175tWpb8K1S7NmH4Zx6rewF9WQrcZv245W\" \"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\" 0")
+			+ HelpExampleCli("syscointxfund", " <hexstring> \"175tWpb8K1S7NmH4Zx6rewF9WQrcZv245W\" 0")
 			+ HelpRequiringPassphrase(pwallet));
 
 	const string &hexstring = params[0].get_str();
@@ -468,38 +467,16 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
 		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5500 - " + _("Could not send raw transaction: Cannot decode transaction from hex string: ") + hexstring);
 
 	UniValue addressArray(UniValue::VARR);	
-	bool bFunded = false;
+	int output_index = -1;
     if (params.size() > 2) {
-        COutPoint fundOut;
-        fundOut.hash.SetHex(params[2].get_str());
-        fundOut.n = params[3].get_int();
-        Coin coin;
-        if (!GetUTXOCoin(fundOut, coin))
-            throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5501 - " + _("No unspent outputs found in txid/vout information you provided: ") + fundOut.ToStringShort());
-        tx.vin.push_back(CTxIn(fundOut, coin.out.scriptPubKey));
-        // ensure the address extracted matches the adddress passed in
-        CTxDestination destination;
-        if(!ExtractDestination(coin.out.scriptPubKey, destination) || EncodeDestination(destination) != strAddress)
-            throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5500 - " + _("Transaction output address does not match first address parameter passed in"));
-        // if we pass in a txid/vout we probably assume the one input is enough to fund it, this is an optimal path anyway for efficiency. If you don't have enough don't pass it in, the logic below will fall through and find outputs based on the address.
-        bFunded = true;
+        output_index = params[2].get_int();
     }
-    else{
-        CRecipient addressRecipient;
-        CScript scriptPubKeyFromOrig = GetScriptForDestination(DecodeDestination(strAddress));
-        CreateAssetRecipient(scriptPubKeyFromOrig, addressRecipient);  
-        addressArray.push_back("addr(" + strAddress + ")");
-        COutPoint addressOutPoint;
-        unsigned int unspentcount = addressunspent(strAddress, addressOutPoint);
-        if (unspentcount <= 0 && !fTPSTestEnabled && tx.nVersion != SYSCOIN_TX_VERSION_MINT_SYSCOIN && tx.nVersion != SYSCOIN_TX_VERSION_MINT_ASSET)
-        {
-            for (unsigned int i = 0; i < MAX_UPDATES_PER_BLOCK; i++)
-                tx.vout.push_back(CTxOut(addressRecipient.nAmount, addressRecipient.scriptPubKey));
-        }
-        Coin pcoin;
-        if (GetUTXOCoin(addressOutPoint, pcoin))
-            tx.vin.push_back(CTxIn(addressOutPoint, pcoin.out.scriptPubKey));   
-    }
+ 
+    CRecipient addressRecipient;
+    CScript scriptPubKeyFromOrig = GetScriptForDestination(DecodeDestination(strAddress));
+    CreateAssetRecipient(scriptPubKeyFromOrig, addressRecipient);  
+    addressArray.push_back("addr(" + strAddress + ")"); 
+    
     
     CTransaction txIn_t(tx);    
  
@@ -530,109 +507,120 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
     }
     
     
-	if(!bFunded){
-    	UniValue paramsBalance(UniValue::VARR);
-    	paramsBalance.push_back("start");
-    	paramsBalance.push_back(addressArray);
-    	JSONRPCRequest request1;
-    	request1.params = paramsBalance;
+	UniValue paramsBalance(UniValue::VARR);
+	paramsBalance.push_back("start");
+	paramsBalance.push_back(addressArray);
+	JSONRPCRequest request1;
+	request1.params = paramsBalance;
 
-    	UniValue resUTXOs = scantxoutset(request1);
-    	UniValue utxoArray(UniValue::VARR);
-    	if (resUTXOs.isObject()) {
-    		const UniValue& resUtxoUnspents = find_value(resUTXOs.get_obj(), "unspents");
-    		if (!resUtxoUnspents.isArray())
-    			throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5501 - " + _("No unspent outputs found in addresses provided"));
-    		utxoArray = resUtxoUnspents.get_array();
-    	}
-    	else
-    		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5501 - " + _("No funds found in addresses provided"));
- 
-        const CAmount &minFee = GetFee(3000);
-        if (nCurrentAmount < (nDesiredAmount + nFees)) {
-            // only look for small inputs if addresses were passed in, if looking through wallet we do not want to fund via small inputs as we may end up spending small inputs inadvertently
-            if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && params.size() > 1) {
-                LOCK(mempool.cs);
-                // fund with small inputs first
-                for (unsigned int i = 0; i < utxoArray.size(); i++)
-                {
-                    const UniValue& utxoObj = utxoArray[i].get_obj();
-                    const string &strTxid = find_value(utxoObj, "txid").get_str();
-                    const uint256& txid = uint256S(strTxid);
-                    const int& nOut = find_value(utxoObj, "vout").get_int();
-                    const std::vector<unsigned char> &data(ParseHex(find_value(utxoObj, "scriptPubKey").get_str()));
-                    const CScript& scriptPubKey = CScript(data.begin(), data.end());
-                    const CAmount &nValue = AmountFromValue(find_value(utxoObj, "amount"));
-                    const CTxIn txIn(txid, nOut, scriptPubKey);
-                    const COutPoint outPoint(txid, nOut);
-                    if (std::find(tx.vin.begin(), tx.vin.end(), txIn) != tx.vin.end())
+	UniValue resUTXOs = scantxoutset(request1);
+	UniValue utxoArray(UniValue::VARR);
+	if (resUTXOs.isObject()) {
+		const UniValue& resUtxoUnspents = find_value(resUTXOs.get_obj(), "unspents");
+		if (!resUtxoUnspents.isArray())
+			throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5501 - " + _("No unspent outputs found in addresses provided"));
+		utxoArray = resUtxoUnspents.get_array();
+	}
+	else
+		throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 5501 - " + _("No funds found in addresses provided"));
+
+    const CAmount &minFee = GetFee(3000);
+    if (nCurrentAmount < (nDesiredAmount + nFees)) {
+        // only look for small inputs if addresses were passed in, if looking through wallet we do not want to fund via small inputs as we may end up spending small inputs inadvertently
+        if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && params.size() > 1) {
+            LOCK(mempool.cs);
+            int countInputs = 0;
+            // fund with small inputs first
+            for (unsigned int i = 0; i < utxoArray.size(); i++)
+            {
+                bool bOutputIndex = i == output_index || output_index < 0;
+                const UniValue& utxoObj = utxoArray[i].get_obj();
+                const string &strTxid = find_value(utxoObj, "txid").get_str();
+                const uint256& txid = uint256S(strTxid);
+                const int& nOut = find_value(utxoObj, "vout").get_int();
+                const std::vector<unsigned char> &data(ParseHex(find_value(utxoObj, "scriptPubKey").get_str()));
+                const CScript& scriptPubKey = CScript(data.begin(), data.end());
+                const CAmount &nValue = AmountFromValue(find_value(utxoObj, "amount"));
+                const CTxIn txIn(txid, nOut, scriptPubKey);
+                const COutPoint outPoint(txid, nOut);
+                if (std::find(tx.vin.begin(), tx.vin.end(), txIn) != tx.vin.end())
+                    continue;
+                // look for small inputs only, if not selecting all
+                if (nValue <= minFee || (output_index >= 0 && output_index == i)) {
+
+                    if (mempool.mapNextTx.find(outPoint) != mempool.mapNextTx.end())
                         continue;
-                    // look for small inputs only, if not selecting all
-                    if (nValue <= minFee) {
-
-                        if (mempool.mapNextTx.find(outPoint) != mempool.mapNextTx.end())
+                    {
+                        LOCK(pwallet->cs_wallet);
+                        if (pwallet->IsLockedCoin(txid, nOut))
                             continue;
-                        {
-                            LOCK(pwallet->cs_wallet);
-                            if (pwallet->IsLockedCoin(txid, nOut))
-                                continue;
-                        }
-                        if (!IsOutpointMature(outPoint))
-                            continue;
-                        int numSigs = 0;
-                        CCountSigsVisitor(*pwallet, numSigs).Process(scriptPubKey);
-                        // add fees to account for every input added to this transaction
-                        nFees += GetFee(numSigs * 200);
-                        tx.vin.push_back(txIn);
-                        nCurrentAmount += nValue;
-                        if (nCurrentAmount >= (nDesiredAmount + nFees)) {
-                            break;
-                        }
+                    }
+                    if (!IsOutpointMature(outPoint))
+                        continue;
+                    int numSigs = 0;
+                    CCountSigsVisitor(*pwallet, numSigs).Process(scriptPubKey);
+                    // add fees to account for every input added to this transaction
+                    nFees += GetFee(numSigs * 200);
+                    tx.vin.push_back(txIn);
+                    countInputs++;
+                    nCurrentAmount += nValue;
+                    if (nCurrentAmount >= (nDesiredAmount + nFees) || (output_index >= 0 && output_index == i)) {
+                        break;
                     }
                 }
-            }   
-   
-    		if (nCurrentAmount < (nDesiredAmount + nFees)) {
+            }
+            if (countInputs <= 0 && !fTPSTestEnabled && tx.nVersion != SYSCOIN_TX_VERSION_MINT_SYSCOIN && tx.nVersion != SYSCOIN_TX_VERSION_MINT_ASSET)
+            {
+                for (unsigned int i = 0; i < MAX_UPDATES_PER_BLOCK; i++){
+                    nDesiredAmount += addressRecipient.nAmount;
+                    CTxOut out(addressRecipient.nAmount, addressRecipient.scriptPubKey);
+                    const unsigned int nBytes = ::GetSerializeSize(out, SER_NETWORK, PROTOCOL_VERSION);
+                    nFees += GetFee(nBytes);
+                    tx.vout.push_back(out);
+                }
+            }
+        }   
+		if (nCurrentAmount < (nDesiredAmount + nFees)) {
 
-    			LOCK(mempool.cs);
-    			for (unsigned int i = 0; i < utxoArray.size(); i++)
-    			{
-    				const UniValue& utxoObj = utxoArray[i].get_obj();
-    				const string &strTxid = find_value(utxoObj, "txid").get_str();
-    				const uint256& txid = uint256S(strTxid);
-    				const int& nOut = find_value(utxoObj, "vout").get_int();
-    				const std::vector<unsigned char> &data(ParseHex(find_value(utxoObj, "scriptPubKey").get_str()));
-    				const CScript& scriptPubKey = CScript(data.begin(), data.end());
-    				const CAmount &nValue = AmountFromValue(find_value(utxoObj, "amount"));
-    				const CTxIn txIn(txid, nOut, scriptPubKey);
-    				const COutPoint outPoint(txid, nOut);
-    				if (std::find(tx.vin.begin(), tx.vin.end(), txIn) != tx.vin.end())
-    					continue;
-                    // look for bigger inputs
-                    if (nValue <= minFee)
-                        continue;
-    				if (mempool.mapNextTx.find(outPoint) != mempool.mapNextTx.end())
-    					continue;
-    				{
-    					LOCK(pwallet->cs_wallet);
-    					if (pwallet->IsLockedCoin(txid, nOut))
-    						continue;
-    				}
-    				if (!IsOutpointMature(outPoint))
-    					continue;
-    				int numSigs = 0;
-    				CCountSigsVisitor(*pwallet, numSigs).Process(scriptPubKey);
-    				// add fees to account for every input added to this transaction
-    				nFees += GetFee(numSigs * 200);
-    				tx.vin.push_back(txIn);
-    				nCurrentAmount += nValue;
-    				if (nCurrentAmount >= (nDesiredAmount + nFees)) {
-    					break;
-    				}
-    			}
-    		}
-    	}
-    }
+			LOCK(mempool.cs);
+			for (unsigned int i = 0; i < utxoArray.size(); i++)
+			{
+				const UniValue& utxoObj = utxoArray[i].get_obj();
+				const string &strTxid = find_value(utxoObj, "txid").get_str();
+				const uint256& txid = uint256S(strTxid);
+				const int& nOut = find_value(utxoObj, "vout").get_int();
+				const std::vector<unsigned char> &data(ParseHex(find_value(utxoObj, "scriptPubKey").get_str()));
+				const CScript& scriptPubKey = CScript(data.begin(), data.end());
+				const CAmount &nValue = AmountFromValue(find_value(utxoObj, "amount"));
+				const CTxIn txIn(txid, nOut, scriptPubKey);
+				const COutPoint outPoint(txid, nOut);
+				if (std::find(tx.vin.begin(), tx.vin.end(), txIn) != tx.vin.end())
+					continue;
+                // look for bigger inputs
+                if (nValue <= minFee)
+                    continue;
+				if (mempool.mapNextTx.find(outPoint) != mempool.mapNextTx.end())
+					continue;
+				{
+					LOCK(pwallet->cs_wallet);
+					if (pwallet->IsLockedCoin(txid, nOut))
+						continue;
+				}
+				if (!IsOutpointMature(outPoint))
+					continue;
+				int numSigs = 0;
+				CCountSigsVisitor(*pwallet, numSigs).Process(scriptPubKey);
+				// add fees to account for every input added to this transaction
+				nFees += GetFee(numSigs * 200);
+				tx.vin.push_back(txIn);
+				nCurrentAmount += nValue;
+				if (nCurrentAmount >= (nDesiredAmount + nFees)) {
+					break;
+				}
+			}
+		}
+	}
+    
   
 	const CAmount &nChange = nCurrentAmount - nDesiredAmount - nFees;
 	if (nChange < 0)
@@ -646,19 +634,7 @@ UniValue syscointxfund(const JSONRPCRequest& request) {
 	if (!IsDust(changeOut, dustRelayFee))
 		tx.vout.push_back(changeOut);
 	
-
-	if ((tx.nVersion == SYSCOIN_TX_VERSION_ASSET || tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN ||  tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && !fTPSTestEnabled) {
-        CValidationState state;
-		// call this twice, with fJustCheck and !fJustCheck both with bSanity enabled so it doesn't actually write out to the databases just does the checks
-	    if (!CheckSyscoinInputs(false, tx, state, view, true, 0, CBlock(), true))
-		    throw runtime_error(FormatStateMessage(state));
-		CBlock block;
-		CMutableTransaction coinbasetx;
-		block.vtx.push_back(MakeTransactionRef(coinbasetx));
-		block.vtx.push_back(MakeTransactionRef(tx));
-		if (!CheckSyscoinInputs(false, tx, state, view, false, 0, block, true))
-			throw runtime_error(FormatStateMessage(state));
-	}
+    
 	// pass back new raw transaction
 	UniValue res(UniValue::VARR);
 	res.push_back(EncodeHexTx(tx));
@@ -920,7 +896,7 @@ string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, st
 		}
 		if (op == OP_ASSET_SEND) {
 			CAssetAllocation assetallocation(tx);
-			if (!assetallocation.IsNull()) {
+			if (!assetallocation.assetAllocationTuple.IsNull()) {
 				responseGUID = assetallocation.assetAllocationTuple.ToString();
 			}
 		}
@@ -937,7 +913,7 @@ string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, st
 			strResponse = _("Asset Allocation Sent");
 			responseEnglish = "Asset Allocation Sent";
             CAssetAllocation assetallocation(tx);
-            if (!assetallocation.IsNull()) {
+            if (!assetallocation.assetAllocationTuple.IsNull()) {
                 responseGUID = assetallocation.assetAllocationTuple.ToString();
             } 
 		}
@@ -945,7 +921,7 @@ string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, st
 			strResponse = _("Asset Allocation Burned");
 			responseEnglish = "Asset Allocation Burned";
             CAssetAllocation assetallocation(tx);
-            if (!assetallocation.IsNull()) {
+            if (!assetallocation.assetAllocationTuple.IsNull()) {
                 responseGUID = assetallocation.assetAllocationTuple.ToString();
             }            
 		}
@@ -987,7 +963,7 @@ void CMintSyscoin::Serialize( vector<unsigned char> &vchData) {
 
 }
 void CAssetDB::WriteAssetIndex(const CAsset& asset, const int& op) {
-	if (gArgs.IsArgSet("-zmqpubassetrecord")) {
+	if (fZMQAsset) {
 		UniValue oName(UniValue::VOBJ);
 		if (BuildAssetIndexerJson(asset, oName)) {
 			GetMainSignals().NotifySyscoinUpdate(oName.write().c_str(), "assetrecord");
@@ -1089,103 +1065,112 @@ bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
 	scriptOut = CScript(pc, scriptIn.end());
 	return true;
 }
-bool DisconnectAssetSend(const CTransaction &tx){
+bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations){
 LogPrintf("DisconnectAssetSend txid %s\n", tx.GetHash().GetHex().c_str());
-    AssetAllocationMap mapAssetAllocations;
-    AssetAllocationMap mapEraseAssetAllocations;
-    AssetMap mapAssets; 
+
     CAsset dbAsset;
     CAssetAllocation theAssetAllocation(tx);
     if(theAssetAllocation.IsNull()){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset allocation in asset send\n");
         return false;
     } 
-    if (!GetAsset(theAssetAllocation.assetAllocationTuple.nAsset, dbAsset)) {
-        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAssetAllocation.assetAllocationTuple.nAsset);
-        return false;               
-    }                 
+    auto result  = mapAssets.emplace(theAssetAllocation.assetAllocationTuple.nAsset, emptyAsset);
+    auto mapAsset = result.first;
+    const bool& mapAssetNotFound = result.second;
+    if(mapAssetNotFound){
+        if (!GetAsset(theAssetAllocation.assetAllocationTuple.nAsset, dbAsset)) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAssetAllocation.assetAllocationTuple.nAsset);
+            return false;               
+        } 
+        mapAsset->second = std::move(dbAsset);                   
+    }
+    CAsset& storedSenderRef = mapAsset->second;
+               
+               
     for(const auto& amountTuple:theAssetAllocation.listSendingAllocationAmounts){
         const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
         const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
         CAssetAllocation receiverAllocation;
-        if (!GetAssetAllocation(receiverAllocationTuple, receiverAllocation)) {
-            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get receiver allocation %s\n",receiverAllocationTuple.ToString());
-            return false;               
+        auto result = mapAssetAllocations.emplace(receiverTupleStr, emptyAllocation);
+        auto mapAssetAllocation = result.first;
+        const bool &mapAssetAllocationNotFound = result.second;
+        if(mapAssetAllocationNotFound){
+            GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
+            if (receiverAllocation.assetAllocationTuple.IsNull()) {
+                receiverAllocation.assetAllocationTuple = receiverAllocationTuple;
+            } 
+            mapAssetAllocation->second = std::move(receiverAllocation);                 
         }
+        CAssetAllocation& storedReceiverAllocationRef = mapAssetAllocation->second;
+                    
+
         // reverse allocation
-        receiverAllocation.nBalance -= amountTuple.second;
-        dbAsset.nBalance += amountTuple.second;      
-        if(receiverAllocation.nBalance < 0) {
-            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance in assetsend of %s is negative: %lld\n",receiverTupleStr, receiverAllocation.nBalance);
-            return false;
-        }
-        else if(receiverAllocation.nBalance == 0){
-            auto rv = mapEraseAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
-            if (!rv.second)
-                rv.first->second = std::move(receiverAllocation);            
-        }    
-        else{            
-            auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
-            if (!rv.second)
-                rv.first->second = std::move(receiverAllocation);    
-        }                                 
-    }
-    auto rv = mapAssets.emplace(std::move(theAssetAllocation.assetAllocationTuple.nAsset), std::move(dbAsset));
-    if (!rv.second)
-        rv.first->second = std::move(dbAsset);
-        
-    if(!passetallocationdb->Flush(mapAssetAllocations, mapEraseAssetAllocations) || !passetdb->Flush(mapAssets)){
-       LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
-       return false;
-    }      
+        if(storedReceiverAllocationRef.nBalance >= amountTuple.second){
+            storedReceiverAllocationRef.nBalance -= amountTuple.second;
+            storedSenderRef.nBalance += amountTuple.second;
+        } 
+        if(storedReceiverAllocationRef.nBalance == 0){
+            storedReceiverAllocationRef.SetNull();       
+        }                                    
+    }       
     return true;  
 }
-bool DisconnectAssetUpdate(const CTransaction &tx){
+bool DisconnectAssetUpdate(const CTransaction &tx, AssetMap &mapAssets){
 LogPrintf("DisconnectAssetUpdate txid %s\n", tx.GetHash().GetHex().c_str());
-    AssetMap mapAssets; 
     CAsset dbAsset;
     CAsset theAsset(tx);
     if(theAsset.IsNull()){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset\n");
         return false;
     }
-    if (!GetAsset(theAsset.nAsset, dbAsset)) {
-        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAsset.nAsset);
-        return false;               
-    }            
+    auto result = mapAssets.emplace(theAsset.nAsset, emptyAsset);
+    auto mapAsset = result.first;
+    const bool &mapAssetNotFound = result.second;
+    if(mapAssetNotFound){
+        if (!GetAsset(theAsset.nAsset, dbAsset)) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAsset.nAsset);
+            return false;               
+        } 
+        mapAsset->second = std::move(dbAsset);                   
+    }
+    CAsset& storedSenderRef = mapAsset->second;   
+           
     if(theAsset.nBalance > 0){
         // reverse asset minting by the issuer
-        dbAsset.nBalance -= theAsset.nBalance;
-        dbAsset.nTotalSupply -= theAsset.nBalance;
-        if(dbAsset.nBalance < 0 || dbAsset.nTotalSupply < 0) {
-            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Asset cannot be negative: Balance %lld, Supply: %lld\n",dbAsset.nBalance, dbAsset.nTotalSupply);
+        storedSenderRef.nBalance -= theAsset.nBalance;
+        storedSenderRef.nTotalSupply -= theAsset.nBalance;
+        if(storedSenderRef.nBalance < 0 || storedSenderRef.nTotalSupply < 0) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Asset cannot be negative: Balance %lld, Supply: %lld\n",storedSenderRef.nBalance, storedSenderRef.nTotalSupply);
             return false;
-        }                   
-        auto rv = mapAssets.emplace(std::move(theAsset.nAsset), std::move(dbAsset));
-        if (!rv.second)
-            rv.first->second = std::move(dbAsset);                        
+        }                                          
     } 
         
-    if(!passetdb->Flush(mapAssets)){
-       LogPrint(BCLog::SYS, "Error flushing to asset dbs on disconnect\n");
-       return false;
-    }      
+      
     return true;  
 }
-bool DisconnectAssetActivate(const CTransaction &tx){
+bool DisconnectAssetActivate(const CTransaction &tx, AssetMap &mapAssets){
     CAsset theAsset(tx);
+    
     if(theAsset.IsNull()){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset in asset activate\n");
         return false;
     }
-    if(!passetdb->EraseAsset(theAsset.nAsset)){
-        LogPrint(BCLog::SYS, "Error erasing asset\n");
-        return false;
-    }   
+    auto result = mapAssets.emplace(theAsset.nAsset, emptyAsset);
+    auto mapAsset = result.first;
+    const bool &mapAssetNotFound = result.second;
+    if(mapAssetNotFound){
+        CAsset dbAsset;
+        if (!GetAsset(theAsset.nAsset, dbAsset)) {
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not get asset %d\n",theAsset.nAsset);
+            return false;               
+        } 
+        mapAsset->second = std::move(dbAsset);                   
+    }
+    mapAsset->second.SetNull();  
     return true;  
 }
 bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const vector<vector<unsigned char> > &vvchArgs,
-        bool fJustCheck, int nHeight, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, string &errorMessage, bool bSanityCheck) {
+        bool fJustCheck, int nHeight, AssetMap& mapAssets, AssetAllocationMap &mapAssetAllocations, string &errorMessage, bool bSanityCheck) {
 	if (passetdb == nullptr)
 		return false;
 	const uint256& txHash = tx.GetHash();
@@ -1199,8 +1184,8 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 	CAssetAllocation theAssetAllocation;
 	vector<unsigned char> vchData;
 
-	int nDataOut, tmpOp;
-	if(!GetSyscoinData(tx, vchData, nDataOut, tmpOp) || (op != OP_ASSET_SEND && (tmpOp != OP_SYSCOIN_ASSET || !theAsset.UnserializeFromData(vchData))) || (op == OP_ASSET_SEND && (tmpOp != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData))))
+	int nDataOut, type;
+	if(!GetSyscoinData(tx, vchData, nDataOut, type) || (op != OP_ASSET_SEND && (type != OP_SYSCOIN_ASSET || !theAsset.UnserializeFromData(vchData))) || (op == OP_ASSET_SEND && (type != OP_SYSCOIN_ASSET_ALLOCATION || !theAssetAllocation.UnserializeFromData(vchData))))
 	{
 		errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR ERRCODE: 2000 - " + _("Cannot unserialize data inside of this transaction relating to an asset");
 		return error(errorMessage.c_str());
@@ -1295,22 +1280,27 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 			return error(errorMessage.c_str());
 		}
 	}
-	if (!fJustCheck) {
+	if (!fJustCheck || bSanityCheck) {
 		CAsset dbAsset;
-		if (!GetAsset(op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.nAsset : theAsset.nAsset, dbAsset))
+        const uint32_t &nAsset = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.nAsset : theAsset.nAsset;
+        auto result = mapAssets.emplace(nAsset, emptyAsset);
+        auto mapAsset = result.first;
+        const bool & mapAssetNotFound = result.second; 
+		if (mapAssetNotFound)
 		{
-			if (op != OP_ASSET_ACTIVATE) {
-				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2024 - " + _("Failed to read from asset DB");
-				return error(errorMessage.c_str());
-			}
-		}
-		const CWitnessAddress &witnessAddressOwner = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.witnessAddress : theAsset.witnessAddress;
-		const CWitnessAddress &user1 = dbAsset.IsNull()? witnessAddressOwner : dbAsset.witnessAddress;
-
-	
+            if(!GetAsset(nAsset, dbAsset)){
+    			if (op != OP_ASSET_ACTIVATE) {
+    				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2024 - " + _("Failed to read from asset DB");
+    				return error(errorMessage.c_str());
+    			}
+		    }
+            else
+                mapAsset->second = std::move(dbAsset); 
+        }
+        CAsset &storedSenderAssetRef = mapAsset->second;
 		if (op == OP_ASSET_TRANSFER) {
 		
-            if (!FindAssetOwnerInTx(inputs, tx, user1))
+            if (!FindAssetOwnerInTx(inputs, tx, storedSenderAssetRef.witnessAddress))
             {
                 errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot transfer this asset. Asset owner must sign off on this change");
                 return error(errorMessage.c_str());
@@ -1318,47 +1308,40 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		}
 
 		if (op == OP_ASSET_UPDATE) {
-			if (!FindAssetOwnerInTx(inputs, tx, user1))
+			if (!FindAssetOwnerInTx(inputs, tx, storedSenderAssetRef.witnessAddress))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot update this asset. Asset owner must sign off on this change");
 				return error(errorMessage.c_str());
 			}
-			if (theAsset.nBalance > 0 && !(dbAsset.nUpdateFlags & ASSET_UPDATE_SUPPLY))
+            LogPrintf("theAsset.nBalance %lld storedSenderAssetRef.nUpdateFlags %d\n", theAsset.nBalance, storedSenderAssetRef.nUpdateFlags);
+			if (theAsset.nBalance > 0 && !(storedSenderAssetRef.nUpdateFlags & ASSET_UPDATE_SUPPLY))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update supply");
 				return error(errorMessage.c_str());
 			}          
             // increase total supply
-            theAsset.nTotalSupply += theAsset.nBalance;
-			theAsset.nBalance += dbAsset.nBalance;
+            storedSenderAssetRef.nTotalSupply += theAsset.nBalance;
+			storedSenderAssetRef.nBalance += theAsset.nBalance;
 
-			if (!AssetRange(theAsset.nTotalSupply, dbAsset.nPrecision))
+			if (!AssetRange(storedSenderAssetRef.nTotalSupply, storedSenderAssetRef.nPrecision))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2029 - " + _("Total supply out of money range");
 				return error(errorMessage.c_str());
 			}
-			if (theAsset.nTotalSupply > dbAsset.nMaxSupply)
+			if (storedSenderAssetRef.nTotalSupply > storedSenderAssetRef.nMaxSupply)
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2030 - " + _("Total supply cannot exceed maximum supply");
 				return error(errorMessage.c_str());
 			}
 
-		}
-		else if (op != OP_ASSET_ACTIVATE) {
-			// these fields cannot change after activation
-			theAsset.nBalance = dbAsset.nBalance;
-			theAsset.nTotalSupply = dbAsset.nBalance;
-			theAsset.nMaxSupply = dbAsset.nMaxSupply;
-		}
-
+		}      
 		if (op == OP_ASSET_SEND) {
-			if (dbAsset.witnessAddress != theAssetAllocation.assetAllocationTuple.witnessAddress || !FindAssetOwnerInTx(inputs, tx, user1))
+			if (storedSenderAssetRef.witnessAddress != theAssetAllocation.assetAllocationTuple.witnessAddress || !FindAssetOwnerInTx(inputs, tx, storedSenderAssetRef.witnessAddress))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot send this asset. Asset owner must sign off on this change");
 				return error(errorMessage.c_str());
 			}
-			theAsset = dbAsset;
-			
+	
 			// check balance is sufficient on sender
 			CAmount nTotal = 0;
 			for (const auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
@@ -1369,7 +1352,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 					return error(errorMessage.c_str());
 				}
 			}
-			if (theAsset.nBalance < nTotal) {
+			if (storedSenderAssetRef.nBalance < nTotal) {
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2033 - " + _("Sender balance is insufficient");
 				return error(errorMessage.c_str());
 			}
@@ -1379,101 +1362,89 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 					CAssetAllocation receiverAllocation;
 					const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
                     const string& receiverTupleStr = receiverAllocationTuple.ToString();
-					// don't need to check for existance of allocation because it may not exist, may be creating it here for the first time for receiver
-					GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
-					if (receiverAllocation.IsNull()) {
-						receiverAllocation.assetAllocationTuple = receiverAllocationTuple;
-					} 
-                    
-                    AssetBalanceMap::iterator mapBalanceReceiver = blockMapAssetBalances.find(receiverTupleStr);
-                    if(mapBalanceReceiver == blockMapAssetBalances.end()){
-                        receiverAllocation.nBalance += amountTuple.second;
-                        blockMapAssetBalances.emplace(std::move(receiverTupleStr), receiverAllocation.nBalance); 
+                    auto result = mapAssetAllocations.emplace(receiverTupleStr, emptyAllocation);
+                    auto mapAssetAllocation = result.first;
+                    const bool& mapAssetAllocationNotFound = result.second;
+                   
+                    if(mapAssetAllocationNotFound){
+                        GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
+                        if (receiverAllocation.assetAllocationTuple.IsNull()) {
+                            receiverAllocation.assetAllocationTuple = receiverAllocationTuple;
+                        } 
+                        mapAssetAllocation->second = std::move(receiverAllocation);                
                     }
-                    else{
-                        mapBalanceReceiver->second += amountTuple.second;
-                        receiverAllocation.nBalance = mapBalanceReceiver->second;
-                    } 
+                    
+                    CAssetAllocation& storedReceiverAllocationRef = mapAssetAllocation->second;
+                    
+                    storedReceiverAllocationRef.nBalance += amountTuple.second;
                                             
 					// adjust sender balance
-					theAsset.nBalance -= amountTuple.second;
-                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocation, txHash, nHeight, dbAsset, dbAsset.nBalance - nTotal, amountTuple.second, user1);
-                    auto rv = mapAssetAllocations.emplace(std::move(receiverTupleStr), std::move(receiverAllocation));
-                    if (!rv.second)
-                        rv.first->second = std::move(receiverAllocation);                                  
+					storedSenderAssetRef.nBalance -= amountTuple.second;
+                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocationTuple, txHash, nHeight, storedSenderAssetRef, amountTuple.second, storedSenderAssetRef.witnessAddress);                                
 				}
 			}
 		}
 		else if (op != OP_ASSET_ACTIVATE)
-		{
-			// these fields cannot change after activation
-
-			theAsset.nPrecision = dbAsset.nPrecision;
-			if (theAsset.witnessAddress.IsNull())
-				theAsset.witnessAddress = dbAsset.witnessAddress;
-			if (theAsset.vchPubData.empty())
-				theAsset.vchPubData = dbAsset.vchPubData;
-			else if (!(dbAsset.nUpdateFlags & ASSET_UPDATE_DATA))
+		{         
+			if (!theAsset.witnessAddress.IsNull())
+				storedSenderAssetRef.witnessAddress = theAsset.witnessAddress;
+			if (!theAsset.vchPubData.empty())
+				storedSenderAssetRef.vchPubData = theAsset.vchPubData;
+			else if (!(storedSenderAssetRef.nUpdateFlags & ASSET_UPDATE_DATA))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update public data");
 				return error(errorMessage.c_str());
 			}
-            
-			if (theAsset.vchBurnMethodSignature.empty())
-				theAsset.vchBurnMethodSignature = dbAsset.vchBurnMethodSignature;				
-			else if (!(dbAsset.nUpdateFlags & ASSET_UPDATE_CONTRACT))
+                     
+			if (!theAsset.vchBurnMethodSignature.empty() && op != OP_ASSET_TRANSFER)
+				storedSenderAssetRef.vchBurnMethodSignature = theAsset.vchBurnMethodSignature;				
+			else if (!(storedSenderAssetRef.nUpdateFlags & ASSET_UPDATE_CONTRACT))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update smart contract burn method signature");
 				return error(errorMessage.c_str());
 			}
             
-            if (theAsset.vchContract.empty())
-                theAsset.vchContract = dbAsset.vchContract;             
-            else if (!(dbAsset.nUpdateFlags & ASSET_UPDATE_CONTRACT))
+            if (!theAsset.vchContract.empty() && op != OP_ASSET_TRANSFER)
+                storedSenderAssetRef.vchContract = theAsset.vchContract;             
+            else if (!(storedSenderAssetRef.nUpdateFlags & ASSET_UPDATE_CONTRACT))
             {
                 errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2026 - " + _("Insufficient privileges to update smart contract");
                 return error(errorMessage.c_str());
             }    
                   
-			if (theAsset.nUpdateFlags != dbAsset.nUpdateFlags && (!(dbAsset.nUpdateFlags & (ASSET_UPDATE_FLAGS | ASSET_UPDATE_ADMIN)))) {
+			if (theAsset.nUpdateFlags != storedSenderAssetRef.nUpdateFlags && (!(storedSenderAssetRef.nUpdateFlags & (ASSET_UPDATE_FLAGS | ASSET_UPDATE_ADMIN)))) {
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2040 - " + _("Insufficient privileges to update flags");
 				return error(errorMessage.c_str());
 			}
-			if (op == OP_ASSET_TRANSFER)
-			{
-				// cannot adjust these upon transfer
-				theAsset.vchContract = dbAsset.vchContract;
-			}
+            storedSenderAssetRef.nUpdateFlags = theAsset.nUpdateFlags;
+
 
 		}
 		if (op == OP_ASSET_ACTIVATE)
 		{
-			if (!FindAssetOwnerInTx(inputs, tx, user1))
+            storedSenderAssetRef = theAsset;
+			if (!FindAssetOwnerInTx(inputs, tx, storedSenderAssetRef.witnessAddress))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot create this asset. Asset owner must sign off on this change");
 				return error(errorMessage.c_str());
 			}
-			if (GetAsset(theAsset.nAsset, theAsset))
+			if (GetAsset(nAsset, theAsset))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2041 - " + _("Asset already exists");
 				return error(errorMessage.c_str());
 			}
 			// starting supply is the supplied balance upon init
-			theAsset.nTotalSupply = theAsset.nBalance;
+			storedSenderAssetRef.nTotalSupply = storedSenderAssetRef.nBalance;
 		}
 		// set the asset's txn-dependent values
-        theAsset.nHeight = nHeight;
-		theAsset.txHash = txHash;
+        storedSenderAssetRef.nHeight = nHeight;
+		storedSenderAssetRef.txHash = txHash;
 		// write asset, if asset send, only write on pow since asset -> asset allocation is not 0-conf compatible
 		if (!bSanityCheck) {
-            passetdb->WriteAssetIndex(theAsset, op); 
-            auto rv = mapAssets.emplace(std::move(theAsset.nAsset), std::move(theAsset));
-            if (!rv.second)
-                rv.first->second = std::move(theAsset);    
-		
+            passetdb->WriteAssetIndex(storedSenderAssetRef, op);
 			LogPrint(BCLog::SYS,"CONNECTED ASSET: op=%s symbol=%d hash=%s height=%d fJustCheck=%d\n",
 					assetFromOp(op).c_str(),
-					theAsset.nAsset,
+					nAsset,
 					txHash.ToString().c_str(),
 					nHeight,
 					fJustCheck ? 1 : 0);
@@ -1999,10 +1970,13 @@ bool CAssetDB::Flush(const AssetMap &mapAssets){
         return true;
     CDBBatch batch(*this);
     for (const auto &key : mapAssets) {
-        batch.Write(key.first, key.second);
+        if(key.second.IsNull())
+            batch.Erase(key.first);
+        else
+            batch.Write(key.first, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing %d assets\n", mapAssets.size());
-    return WriteBatch(batch, true);
+    return WriteBatch(batch);
 }
 bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
@@ -2163,7 +2137,7 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
 
     EthereumTxRootMap txRootMap;       
     const UniValue &headerArray = params[0].get_array();
-    for(int i =0;i<headerArray.size();i++){
+    for(size_t i =0;i<headerArray.size();i++){
         const UniValue &tupleArray = headerArray[i].get_array();
         if(tupleArray.size() != 2)
             throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("Invalid size in a blocknumber/txroot tuple, should be size of 2"));
@@ -2224,7 +2198,7 @@ bool CEthereumTxRootsDB::FlushErase(const std::vector<uint32_t> &vecHeightKeys){
         batch.Erase(key);
     }
     LogPrint(BCLog::SYS, "Flushing, erasing %d ethereum tx roots\n", vecHeightKeys.size());
-    return WriteBatch(batch, true);
+    return WriteBatch(batch);
 }
 bool CEthereumTxRootsDB::FlushWrite(const EthereumTxRootMap &mapTxRoots){
     if(mapTxRoots.empty())
@@ -2234,5 +2208,5 @@ bool CEthereumTxRootsDB::FlushWrite(const EthereumTxRootMap &mapTxRoots){
         batch.Write(key.first, key.second);
     }
     LogPrint(BCLog::SYS, "Flushing, writing %d ethereum tx roots\n", mapTxRoots.size());
-    return WriteBatch(batch, true);
+    return WriteBatch(batch);
 }

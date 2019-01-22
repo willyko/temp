@@ -156,7 +156,6 @@ public:
 	}
 	inline void ClearAssetAllocation()
 	{
-		assetAllocationTuple.SetNull();
 		listSendingAllocationAmounts.clear();
 	}
 	ADD_SERIALIZE_METHODS;
@@ -176,8 +175,8 @@ public:
 	inline friend bool operator!=(const CAssetAllocation &a, const CAssetAllocation &b) {
 		return !(a == b);
 	}
-	inline void SetNull() { nBalance = 0; listSendingAllocationAmounts.clear(); assetAllocationTuple.SetNull(); }
-	inline bool IsNull() const { return (assetAllocationTuple.IsNull()); }
+	inline void SetNull() { ClearAssetAllocation(); nBalance = 0;}
+	inline bool IsNull() const { return (nBalance == 0); }
 	bool UnserializeFromTx(const CTransaction &tx);
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);
 	void Serialize(std::vector<unsigned char>& vchData);
@@ -191,8 +190,7 @@ public:
         return Read(assetAllocationTuple, assetallocation);
     }
     bool Flush(const AssetAllocationMap &mapAssetAllocations);
-    bool Flush(const AssetAllocationMap &mapAssetAllocations,const AssetAllocationMap &mapEraseAssetAllocations);
-	void WriteAssetAllocationIndex(const CAssetAllocation& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const CWitnessAddress& senderWitness);
+	void WriteAssetAllocationIndex(const CAssetAllocationTuple& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nAmount, const CWitnessAddress& senderWitness);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {
@@ -209,10 +207,9 @@ public:
 	}
 	bool ScanAssetAllocationIndex(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
-bool DisconnectAssetAllocation(const CTransaction &tx);
-bool DisconnectMintAsset(const CTransaction &tx);
-bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, std::string &errorMessage, bool bSanityCheck = false, bool bMiner = false);
+static CAssetAllocation emptyAllocation;
+bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, std::string &errorMessage, bool bSanityCheck = false, bool bMiner = false);
 bool GetAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple,CAssetAllocation& txPos);
 bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& asset, UniValue& oName);
-bool BuildAssetAllocationIndexerJson(const CAssetAllocation& assetallocation, const CAsset& asset, const CAmount& nSenderBalance, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver, bool &isMine, UniValue& oAssetAllocation);
+bool BuildAssetAllocationIndexerJson(const CAssetAllocationTuple& assetallocation, const CAsset& asset, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver, bool &isMine, UniValue& oAssetAllocation);
 #endif // ASSETALLOCATION_H

@@ -107,7 +107,7 @@ void StopNodes()
 void StartNode(const string &dataDir, bool regTest, const string& extraArgs)
 {
 	boost::filesystem::path fpath = boost::filesystem::system_complete("../syscoind");
-	string nodePath = fpath.string() + string(" -unittest -tpstest -daemon -server -debug=0 -concurrentprocessing=1 -datadir=") + dataDir;
+	string nodePath = fpath.string() + string(" -unittest -tpstest -daemon -server -debug=1 -concurrentprocessing=1 -datadir=") + dataDir;
 	if (regTest)
 		nodePath += string(" -regtest");
 	if (!extraArgs.empty())
@@ -236,7 +236,6 @@ UniValue CallExtRPC(const string &node, const string& command, const string& arg
 	if (errorValue.isObject()) {
 		throw runtime_error(find_value(errorValue.get_obj(), "message").get_str());
 	}
-
 	return find_value(val.get_obj(), "result");
 }
 UniValue CallRPC(const string &dataDir, const string& commandWithArgs, bool regTest, bool readJson)
@@ -613,7 +612,9 @@ string SyscoinMint(const string& node, const string& address, const string& amou
     arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
     string hex_str = find_value(r.get_obj(), "hex").get_str();
-    BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "testmempoolaccept \"[\\\"" + hex_str + "\\\"]\""));
+    BOOST_CHECK(find_value(r.get_array()[0].get_obj(), "allowed").get_bool());     
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));  
     GenerateBlocks(5, node);
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "addressbalance " + address));
     arr = r.get_array();
@@ -635,7 +636,9 @@ string AssetNew(const string& node, const string& address, const string& pubdata
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "testmempoolaccept \"[\\\"" + hex_str + "\\\"]\""));
+    BOOST_CHECK(find_value(r.get_array()[0].get_obj(), "allowed").get_bool());     
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false)); 
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 	
 	GenerateBlocks(5, node);
@@ -724,11 +727,13 @@ void AssetUpdate(const string& node, const string& guid, const string& pubdata, 
 	// increase supply to new amount if we passed in a supply value
 	newsupply = supply == "''" ? oldsupply : ValueFromAssetAmount(newamount, nprecision).write();
     UniValue arr = r.get_array();
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + oldaddress));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + oldaddress));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "testmempoolaccept \"[\\\"" + hex_str + "\\\"]\""));
+    BOOST_CHECK(find_value(r.get_array()[0].get_obj(), "allowed").get_bool());     
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false)); 
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 
 	GenerateBlocks(5, node);
@@ -773,10 +778,12 @@ void AssetTransfer(const string& node, const string &tonode, const string& guid,
 	// "assettransfer [asset] [address] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assettransfer " + guid + " " + toaddress + " " + witness));
     UniValue arr = r.get_array();
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + oldaddress));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + oldaddress));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "testmempoolaccept \"[\\\"" + hex_str + "\\\"]\""));
+    BOOST_CHECK(find_value(r.get_array()[0].get_obj(), "allowed").get_bool());     
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 
@@ -839,17 +846,23 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
         balance = find_value(r.get_obj(), "balance_zdag");
     else
         balance = find_value(r.get_obj(), "balance");
-	CAmount newfromamount = AssetAmountFromValue(balance, nprecision) - inputamount;
-
+	CAmount newfromamount;
+    try{
+        newfromamount  = AssetAmountFromValue(balance, nprecision) - inputamount;
+    }
+    catch(...){
+        newfromamount = 0;
+    }
 	// "assetallocationsend [asset] [ownerfrom] ( [{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationsend " + guid + " " + fromaddress + " " + inputs + " " + witness));
     UniValue arr = r.get_array();
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + fromaddress));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + fromaddress));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
 
-
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "testmempoolaccept \"[\\\"" + hex_str + "\\\"]\""));
+    BOOST_CHECK(find_value(r.get_array()[0].get_obj(), "allowed").get_bool()); 
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscoindecoderawtransaction " + hex_str));
 	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "txtype").get_str(), "assetallocationsend");
@@ -863,13 +876,20 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
 	}
     else
         GenerateBlocks(1, node);
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " " + fromaddress));
-    if(usezdag)
-	    balance = find_value(r.get_obj(), "balance_zdag");
-    else
-        balance = find_value(r.get_obj(), "balance");
-	if (newfromamount > 0)
-		BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision), newfromamount);
+    if (newfromamount > 0 || usezdag)
+    {
+    	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " " + fromaddress));
+        if(usezdag)
+    	    balance = find_value(r.get_obj(), "balance_zdag");
+        else
+            balance = find_value(r.get_obj(), "balance");
+    	if(newfromamount <= 0)
+            BOOST_CHECK_EQUAL(0, newfromamount);
+        else
+		    BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, nprecision), newfromamount);
+    }
+    else if(!usezdag)
+        BOOST_CHECK_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " " + fromaddress), runtime_error);
 	return txid;
 }
 void BurnAssetAllocation(const string& node, const string &guid, const string &address,const string &amount, bool confirm){
@@ -887,11 +907,13 @@ void BurnAssetAllocation(const string& node, const string &guid, const string &a
     
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationburn " + guid + " " + address + " " + amount + " 0x931D387731bBbC988B312206c74F77D004D6B84b"));
     UniValue arr = r.get_array();
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + address));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + address));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hexStr = find_value(r.get_obj(), "hex").get_str();
-	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hexStr, true, false));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "testmempoolaccept \"[\\\"" + hexStr + "\\\"]\""));
+    BOOST_CHECK(find_value(r.get_array()[0].get_obj(), "allowed").get_bool());     
+	BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hexStr, true, false));  
     if(confirm){
     	GenerateBlocks(5, "node1");
     	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationinfo " + guid + " burn"));
@@ -947,12 +969,14 @@ string AssetSend(const string& node, const string& guid, const string& inputs, c
 	// "assetsend [asset] ( [{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetsend " + guid + " " + inputs + " " + witness));
     UniValue arr = r.get_array();
-    BOOST_CHECK_NO_THROW(r = CallRPC("node1", "syscointxfund " + arr[0].get_str() + " " + fromAddress));
+    BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + fromAddress));
     arr = r.get_array();
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "signrawtransactionwithwallet " + arr[0].get_str()));
 	string hex_str = find_value(r.get_obj(), "hex").get_str();
 	if (completetx) {
-		BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false));
+        BOOST_CHECK_NO_THROW(r = CallRPC(node, "testmempoolaccept \"[\\\"" + hex_str + "\\\"]\""));
+        BOOST_CHECK(find_value(r.get_array()[0].get_obj(), "allowed").get_bool());     
+		BOOST_CHECK_NO_THROW(r = CallRPC(node, "sendrawtransaction " + hex_str, true, false)); 
 		BOOST_CHECK_NO_THROW(r = CallRPC(node, "decoderawtransaction " + hex_str + " true"));
 
 		GenerateBlocks(11, node);

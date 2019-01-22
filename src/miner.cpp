@@ -100,7 +100,7 @@ void BlockAssembler::resetBlock()
     nFees = 0;
 }
 
-std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& scriptPubKeyIn, bool fMineWitnessTx)
+std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& scriptPubKeyIn, bool fMineWitnessTx, std::vector<uint256> &txsToRemove)
 {
     int64_t nTimeStart = GetTimeMicros();
 
@@ -151,7 +151,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+    addPackageTxs(nPackagesSelected, nDescendantsUpdated, txsToRemove);
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -197,27 +197,15 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     // SYSCOIN remove bad burn transactions prior to accepting block                      
     CCoinsViewCache viewOld(pcoinsTip.get());
-    std::vector<uint256> txsToRemove;         
+             
     CValidationState stateInputs;
-    if (!CheckSyscoinInputs(false, *pblock->vtx[0], stateInputs, viewOld, false, nHeight, *pblock, false, true, txsToRemove) && !txsToRemove.empty())
-    {
-        for(unsigned int i =0; i< pblock->vtx.size();i++){
-            const uint256& hash = pblock->vtx[i]->GetHash();
-            if(std::find(txsToRemove.begin(), txsToRemove.end(), hash) != txsToRemove.end()){
-                CTxMemPool::txiter it = mempool.mapTx.find(hash);
-                if(it != mempool.mapTx.end()){
-                    mempool.removeRecursive(it->GetTx(), MemPoolRemovalReason::UNKNOWN);
-                    mempool.ClearPrioritisation(hash);
-                }                    
-            }       
-        }
-        if(!txsToRemove.empty())
-            LogPrint(BCLog::SYS, "Check syscoin error removing %d txs\n", txsToRemove.size());
-    }
+    txsToRemove.clear();
+    CheckSyscoinInputs(false, *pblock->vtx[0], stateInputs, viewOld, false, nHeight, *pblock, false, true, txsToRemove);
     
 
     if(!txsToRemove.empty()){
-        return CreateNewBlock(scriptPubKeyIn, fMineWitnessTx);
+        LogPrint(BCLog::SYS, "CreateNewBlock: CheckSyscoinInputs failed removed %d transactions and trying again...\n", txsToRemove.size());
+        return CreateNewBlock(scriptPubKeyIn, fMineWitnessTx, txsToRemove);
     }
     LogPrintf("CreateNewBlock(): block weight: %u txs: %u fees: %ld sigops %d\n", GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost);
 
@@ -268,12 +256,15 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost
 // - transaction finality (locktime)
 // - premature witness (in case segwit transactions are added to mempool before
 //   segwit activation)
-bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& package)
+bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& package,std::vector<uint256> &txsToRemove)
 {
     for (CTxMemPool::txiter it : package) {
         if (!IsFinalTx(it->GetTx(), nHeight, nLockTimeCutoff))
             return false;
         if (!fIncludeWitness && it->GetTx().HasWitness())
+            return false;
+        // SYSCOIN
+        if(std::find(txsToRemove.begin(), txsToRemove.end(), it->GetTx().GetHash()) != txsToRemove.end())
             return false;
     }
     return true;
@@ -361,7 +352,7 @@ void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, std::ve
 // Each time through the loop, we compare the best transaction in
 // mapModifiedTxs with the next transaction in the mempool to decide what
 // transaction package to work on next.
-void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated)
+void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated, std::vector<uint256> &txsToRemove)
 {
     // mapModifiedTx will store sorted packages after they are modified
     // because some of their txs are already in the block
@@ -463,7 +454,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         ancestors.insert(iter);
 
         // Test if all tx's are Final
-        if (!TestPackageTransactions(ancestors)) {
+        if (!TestPackageTransactions(ancestors, txsToRemove)) {
             if (fUsingModified) {
                 mapModifiedTx.get<ancestor_score>().erase(modit);
                 failedTx.insert(iter);

@@ -48,6 +48,8 @@ extern bool fUnitTest;
 extern bool fTPSTest;
 extern bool fTPSTestEnabled;
 extern bool fAssetAllocationIndex;
+extern bool fZMQAssetAllocation;
+extern bool fZMQAsset;
 extern bool fConcurrentProcessing;
 extern bool fLiteMode;
 extern uint32_t fGethSyncHeight;

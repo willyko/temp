@@ -179,7 +179,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "syscoinburn", 1, "burn_to_sysx"},
     { "syscoinmint", 1, "amount" },
     { "syscoinmint", 2, "blocknumber" },
-    { "syscointxfund", 3, "vout" },
+    { "syscointxfund", 2, "output_index" },
     { "assetallocationsend", 0, "asset" },
     { "assetallocationsend", 2, "inputs" },
     { "assetallocationburn", 0, "asset" },

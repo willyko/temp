@@ -99,9 +99,11 @@ public:
 	unsigned char nUpdateFlags;
     CAsset() {
         SetNull();
+        nAsset = 0;
     }
     CAsset(const CTransaction &tx) {
         SetNull();
+        nAsset = 0;
         UnserializeFromTx(tx);
     }
 	inline void ClearAsset()
@@ -110,6 +112,7 @@ public:
 		vchContract.clear();
         vchBurnMethodSignature.clear();
         witnessAddress.SetNull();
+        txHash.SetNull();
 
 	}
 	ADD_SERIALIZE_METHODS;
@@ -153,8 +156,8 @@ public:
     inline friend bool operator!=(const CAsset &a, const CAsset &b) {
         return !(a == b);
     }
-	inline void SetNull() { vchBurnMethodSignature.clear(); nHeight = 0;vchContract.clear(); nPrecision = 8; nUpdateFlags = 0; nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; nAsset= 0; txHash.SetNull(); witnessAddress.SetNull(); vchPubData.clear(); }
-    inline bool IsNull() const { return (nAsset == 0); }
+	inline void SetNull() { ClearAsset(); nMaxSupply = 0; nTotalSupply = 0; nBalance = 0; }
+    inline bool IsNull() const { return (nBalance == 0 && nTotalSupply == 0 && nMaxSupply == 0); }
     bool UnserializeFromTx(const CTransaction &tx);
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);
 	void Serialize(std::vector<unsigned char>& vchData);
@@ -218,6 +221,7 @@ public:
 	bool ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
     bool Flush(const AssetMap &mapAssets);
 };
+static CAsset emptyAsset;
 bool GetAsset(const int &nAsset,CAsset& txPos);
 bool BuildAssetJson(const CAsset& asset, UniValue& oName);
 bool BuildAssetIndexerJson(const CAsset& asset,UniValue& oName);
@@ -225,10 +229,12 @@ UniValue ValueFromAssetAmount(const CAmount& amount, int precision);
 CAmount AssetAmountFromValue(UniValue& value, int precision);
 CAmount AssetAmountFromValueNonNeg(const UniValue& value, int precision);
 bool AssetRange(const CAmount& amountIn, int precision);
-bool DisconnectAssetActivate(const CTransaction &tx);
-bool DisconnectAssetSend(const CTransaction &tx);
-bool DisconnectAssetUpdate(const CTransaction &tx);
-bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations, AssetBalanceMap &blockMapAssetBalances, std::string &errorMessage, bool bSanityCheck=false);
+bool DisconnectAssetActivate(const CTransaction &tx, AssetMap &mapAssets);
+bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations);
+bool DisconnectAssetUpdate(const CTransaction &tx, AssetMap &mapAssets);
+bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAssetAllocations);
+bool DisconnectMintAsset(const CTransaction &tx, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations);
+bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations, std::string &errorMessage, bool bSanityCheck=false);
 bool DecodeAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch);
 extern std::unique_ptr<CAssetDB> passetdb;
 extern std::unique_ptr<CAssetAllocationDB> passetallocationdb;

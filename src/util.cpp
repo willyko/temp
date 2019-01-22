@@ -88,6 +88,8 @@ bool fTPSTestEnabled = false;
 bool fAssetAllocationIndex = false;
 bool fConcurrentProcessing = true;
 bool fLiteMode = false;
+bool fZMQAssetAllocation = false;
+bool fZMQAsset = false;
 uint32_t fGethSyncHeight;
 std::string fGethSyncStatus;
 bool fGethSynced = false;

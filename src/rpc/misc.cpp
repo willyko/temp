@@ -35,6 +35,8 @@
 // SYSCOIN
 #include <masternode-sync.h>
 #include <spork.h>
+extern UniValue mnsync(const JSONRPCRequest& request);
+extern UniValue spork(const JSONRPCRequest& request);
 UniValue mnsync(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)

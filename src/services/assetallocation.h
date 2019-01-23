@@ -42,10 +42,26 @@ public:
     CWitnessAddress() {
         SetNull();
     }
-    inline CWitnessAddress operator=(const CWitnessAddress& other) {
+
+    CWitnessAddress(CWitnessAddress && other){
+        nVersion = std::move(other.nVersion);
+        vchWitnessProgram = std::move(other.vchWitnessProgram);
+    }
+    
+    
+    CWitnessAddress& operator=(const CWitnessAddress& other) {
         this->nVersion = other.nVersion;
         this->vchWitnessProgram = other.vchWitnessProgram;
         return *this;
+    }
+    CWitnessAddress& operator=(CWitnessAddress&& other){
+    
+       if (this != &other)
+       {
+          nVersion = std::move(other.nVersion);
+          vchWitnessProgram = std::move(other.vchWitnessProgram);
+       }
+       return *this;
     }
     inline bool operator==(const CWitnessAddress& other) const {
         return this->nVersion == other.nVersion && this->vchWitnessProgram == other.vchWitnessProgram;
@@ -89,11 +105,11 @@ public:
 	CAssetAllocationTuple() {
 		SetNull();
 	}
-	inline CAssetAllocationTuple operator=(const CAssetAllocationTuple& other) {
-		this->nAsset = other.nAsset;
-		this->witnessAddress = other.witnessAddress;
-		return *this;
-	}
+    CAssetAllocationTuple(CAssetAllocationTuple & other) = delete;
+    CAssetAllocationTuple(CAssetAllocationTuple && other) = default;
+    CAssetAllocationTuple& operator=(CAssetAllocationTuple& other) = delete;
+    CAssetAllocationTuple& operator=(CAssetAllocationTuple&& other) = default;
+    
 	inline bool operator==(const CAssetAllocationTuple& other) const {
 		return this->nAsset == other.nAsset && this->witnessAddress == other.witnessAddress;
 	}
@@ -121,7 +137,6 @@ typedef std::map<std::string, std::string> AssetAllocationIndexItem;
 typedef std::map<int, AssetAllocationIndexItem> AssetAllocationIndexItemMap;
 extern AssetAllocationIndexItemMap AssetAllocationIndex;
 static const int ZDAG_MINIMUM_LATENCY_SECONDS = 10;
-static const int MAX_MEMO_LENGTH = 128;
 static const int ONE_YEAR_IN_BLOCKS = 525600;
 static const int ONE_HOUR_IN_BLOCKS = 60;
 static const int ONE_MONTH_IN_BLOCKS = 43800;
@@ -164,14 +179,11 @@ public:
 		return (a.assetAllocationTuple == b.assetAllocationTuple
 			);
 	}
-
-	inline CAssetAllocation operator=(const CAssetAllocation &b) {
-		assetAllocationTuple = b.assetAllocationTuple;
-		listSendingAllocationAmounts = b.listSendingAllocationAmounts;
-		nBalance = b.nBalance;
-		return *this;
-	}
-
+    CAssetAllocation(const CAssetAllocation&) = delete;
+    CAssetAllocation(CAssetAllocation && other) = default;
+    CAssetAllocation& operator=( CAssetAllocation& a ) = delete;
+	CAssetAllocation& operator=( CAssetAllocation&& a ) = default;
+ 
 	inline friend bool operator!=(const CAssetAllocation &a, const CAssetAllocation &b) {
 		return !(a == b);
 	}
@@ -181,7 +193,7 @@ public:
 	bool UnserializeFromData(const std::vector<unsigned char> &vchData);
 	void Serialize(std::vector<unsigned char>& vchData);
 };
-typedef std::unordered_map<std::string, CAssetAllocation> AssetAllocationMap;
+typedef std::unordered_map<std::string, CAssetAllocation > AssetAllocationMap;
 class CAssetAllocationDB : public CDBWrapper {
 public:
 	CAssetAllocationDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocations", nCacheSize, fMemory, fWipe) {}

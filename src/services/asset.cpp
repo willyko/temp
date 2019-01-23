@@ -304,7 +304,7 @@ UniValue SyscoinListReceived(bool includeempty = true, bool includechange = fals
 		LOCK(pwallet->cs_wallet);
 		pwallet->AvailableCoins(vecOutputs, true, nullptr, 1, MAX_MONEY, MAX_MONEY, 0, 0, 9999999, ALL_COINS);
 	}
-	BOOST_FOREACH(const COutput& out, vecOutputs) {
+	for(const COutput& out: vecOutputs) {
 		CTxDestination address;
 		if (!ExtractDestination(out.tx->tx->vout[out.i].scriptPubKey, address))
 			continue;
@@ -412,7 +412,7 @@ public:
 		std::vector<CTxDestination> vDest;
 		int nRequired;
 		if (ExtractDestinations(script, type, vDest, nRequired)) {
-			BOOST_FOREACH(const CTxDestination &dest, vDest)
+			for(const CTxDestination &dest: vDest)
 				boost::apply_visitor(*this, dest);
 		}
 	}

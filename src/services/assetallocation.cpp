@@ -9,7 +9,6 @@
 #include "txmempool.h"
 #include "util.h"
 #include "core_io.h"
-#include "wallet/rpcwallet.cpp"
 #include "wallet/wallet.h"
 #include "chainparams.h"
 #include <boost/lexical_cast.hpp>
@@ -20,6 +19,21 @@
 #include <key_io.h>
 #include <future>
 #include <rpc/util.h>
+// SYSCOIN service rpc functions
+extern UniValue sendrawtransaction(const JSONRPCRequest& request);
+
+extern UniValue assetallocationsend(const JSONRPCRequest& request);
+extern UniValue assetallocationmint(const JSONRPCRequest& request);
+extern UniValue assetallocationburn(const JSONRPCRequest& request);
+extern UniValue assetallocationinfo(const JSONRPCRequest& request);
+extern UniValue assetallocationsenderstatus(const JSONRPCRequest& request);
+extern UniValue listassetallocationtransactions(const JSONRPCRequest& request);
+extern UniValue listassetallocations(const JSONRPCRequest& request);
+extern UniValue tpstestinfo(const JSONRPCRequest& request);
+extern UniValue tpstestadd(const JSONRPCRequest& request);
+extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
+
+
 using namespace std;
 AssetAllocationIndexItemMap AssetAllocationIndex GUARDED_BY(cs_assetallocationindex);
 AssetBalanceMap mempoolMapAssetBalances GUARDED_BY(cs_assetallocation);

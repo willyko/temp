@@ -27,6 +27,27 @@ std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
 std::unique_ptr<CEthereumTxRootsDB> pethereumtxrootsdb;
+// SYSCOIN service rpc functions
+extern UniValue syscoinburn(const JSONRPCRequest& request);
+extern UniValue syscoinmint(const JSONRPCRequest& request);
+extern UniValue syscointxfund(const JSONRPCRequest& request);
+
+
+extern UniValue syscoinlistreceivedbyaddress(const JSONRPCRequest& request);
+extern UniValue sendrawtransaction(const JSONRPCRequest& request);
+extern UniValue syscoindecoderawtransaction(const JSONRPCRequest& request);
+
+extern UniValue syscoinaddscript(const JSONRPCRequest& request);
+extern UniValue assetnew(const JSONRPCRequest& request);
+extern UniValue assetupdate(const JSONRPCRequest& request);
+extern UniValue addressbalance(const JSONRPCRequest& request);
+extern UniValue assettransfer(const JSONRPCRequest& request);
+extern UniValue assetsend(const JSONRPCRequest& request);
+extern UniValue assetinfo(const JSONRPCRequest& request);
+extern UniValue listassets(const JSONRPCRequest& request);
+extern UniValue syscoinsetethstatus(const JSONRPCRequest& request);
+extern UniValue syscoinsetethheaders(const JSONRPCRequest& request);
+
 using namespace std::chrono;
 using namespace std;
 

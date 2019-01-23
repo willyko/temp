@@ -1083,6 +1083,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
     // process, and the child's PID in the parent (or negative on error).
     pid = fork() ;
     if( pid < 0 ) {
+        LogPrintf("Could not start Geth, pid < 0 %d\n", pid);
         return false;
     }
 

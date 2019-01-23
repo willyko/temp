@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // user modifiable variables
 
     // for every asset you add numberOfAssetSendsPerBlock tx's effectively
-    int numAssets = 10;
+    int numAssets = 100;
     BOOST_CHECK(numAssets >= 1);
 
     int numberOfAssetSendsPerBlock = 250;
@@ -232,6 +232,21 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 	int microsInSecond = 1000 * 1000;
 	tpstarttime = tpstarttime + 1 * microsInSecond;
 	printf("Adding assetsend transactions to queue on sender nodes...\n");
+    // ensure mnsync isn't doing its thing before the test starts
+    for (auto &sender : senders){
+        BOOST_CHECK_NO_THROW(CallRPC(sender, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(sender, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(sender, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(sender, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(sender, "mnsync next", true, false));
+    }
+    for (auto &receiver : receivers){
+        BOOST_CHECK_NO_THROW(CallRPC(receiver, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(receiver, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(receiver, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(receiver, "mnsync next", true, false));
+        BOOST_CHECK_NO_THROW(CallRPC(receiver, "mnsync next", true, false));
+    }
 	for (auto &sender : senders){
 		BOOST_CHECK_NO_THROW(CallExtRPC(sender, "tpstestadd",  boost::lexical_cast<string>(tpstarttime)));
         BOOST_CHECK_NO_THROW(r = CallExtRPC(sender, "tpstestinfo"));

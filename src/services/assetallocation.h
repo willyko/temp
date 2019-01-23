@@ -10,6 +10,7 @@
 #include "primitives/transaction.h"
 #include <unordered_map>
 #include "services/graph.h"
+#include <txmempool.h>
 class CTransaction;
 class CReserveKey;
 class CCoinsViewCache;

@@ -55,7 +55,6 @@
 #include <masternode-payments.h>
 #include <services/asset.h>
 #include <services/assetallocation.h>
-#include <services/graph.h>
 #include <thread_pool/thread_pool.hpp>
 #include <ethereum/ethereum.h>
 #include <ethereum/Address.h>
@@ -765,22 +764,12 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
             return CheckSyscoinMint(ibd, tx, state, fJustCheck, nHeight, mapAssets, mapAssetAllocations);
     }
     else if (!block.vtx.empty()) {
-
-        CBlock sortedBlock;
-        Graph graph;
-        std::vector<vertex_descriptor> vertices;
-        IndexMap mapTxIndex;
-        if (CreateGraphFromVTX(block.vtx, graph, vertices, mapTxIndex)) {
-            std::vector<int> conflictedIndexes;
-            GraphRemoveCycles(block.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
-            DAGTopologicalSort(block.vtx, sortedBlock.vtx, conflictedIndexes, graph, mapTxIndex);
-        }
-        const CBlock& processBlock = sortedBlock.vtx.empty()? block: sortedBlock;
-        for (unsigned int i = 0; i < processBlock.vtx.size(); i++)
+    
+        for (unsigned int i = 0; i < block.vtx.size(); i++)
         {
 
             good = true;
-            const CTransaction &tx = *(processBlock.vtx[i]);
+            const CTransaction &tx = *(block.vtx[i]);
             if(tx.IsCoinBase())
                 continue;
             if((tx.nVersion == SYSCOIN_TX_VERSION_MINT_SYSCOIN || tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET) && !CheckSyscoinMint(ibd, tx, state, false, nHeight, mapAssets, mapAssetAllocations))
@@ -2210,10 +2199,14 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
  *  When FAILED is returned, view is left in an indeterminate state. */
 DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
 {
+    // SYSCOIN
     if(!passetdb || !passetallocationdb){
         error("DisconnectBlock(): Syscoin dbs do not exist");
         return DISCONNECT_FAILED;
     }
+    AssetMap mapAssets;
+    AssetAllocationMap mapAssetAllocations;
+    
     bool fClean = true;
     CBlockUndo blockUndo;
     if (!UndoReadFromDisk(blockUndo, pindex)) {
@@ -2259,26 +2252,11 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
             }
             // At this point, all of txundo.vprevout should have been moved out.
         }
-    }
-    // SYSCOIN
-    CBlock sortedBlock;
-    Graph graph;
-    std::vector<vertex_descriptor> vertices;
-    IndexMap mapTxIndex;
-    if (CreateGraphFromVTX(block.vtx, graph, vertices, mapTxIndex)) {
-        std::vector<int> conflictedIndexes;
-        GraphRemoveCycles(block.vtx, conflictedIndexes, graph, vertices, mapTxIndex);
-        DAGTopologicalSort(block.vtx, sortedBlock.vtx, conflictedIndexes, graph, mapTxIndex);
-    }  
-    const CBlock& processBlock = sortedBlock.vtx.empty()? block: sortedBlock;
-    AssetMap mapAssets;
-    AssetAllocationMap mapAssetAllocations;
-    // undo transactions in reverse order
-    for (int i = processBlock.vtx.size() - 1; i >= 0; i--) {
-        const CTransaction &tx = *(processBlock.vtx[i]);
+        // SYSCOIN
         if(!DisconnectSyscoinTransaction(tx, pindex, view, mapAssets, mapAssetAllocations))
             fClean = false;
-    }      
+    } 
+    // SYSCOIN 
     if(!passetallocationdb->Flush(mapAssetAllocations) || !passetdb->Flush(mapAssets)){
        error("DisconnectBlock(): Error flushing to asset dbs on disconnect");
        return DISCONNECT_FAILED;

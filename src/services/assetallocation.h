@@ -5,7 +5,6 @@
 #ifndef ASSETALLOCATION_H
 #define ASSETALLOCATION_H
 
-#include "rpc/server.h"
 #include "dbwrapper.h"
 #include "primitives/transaction.h"
 #include <unordered_map>

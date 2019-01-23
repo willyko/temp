@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Dogecoin Core developers
+﻿// Copyright (c) 2017 The Dogecoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -135,7 +135,7 @@ bool parseEthMethodInputData(const std::vector<unsigned char>& vchInputExpectedM
     nAsset |= static_cast<uint32_t>(vchInputData[37]) << 16;
     nAsset |= static_cast<uint32_t>(vchInputData[36]) << 24;
     
-    // skip data position field (68 + 32) + 31 (offset to the varint byte)
+    // skip data position field (68 + 32) + 31 (offset to the varint _byte)
     int dataPos = 131;
     const unsigned char &dataLength = vchInputData[dataPos++];
     // witness programs can extend to 40 bytes, plus 1 for version, min length is 2 for min witness program + 1 for version

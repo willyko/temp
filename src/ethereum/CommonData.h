@@ -1,4 +1,4 @@
-/*
+﻿/*
 	This file is part of cpp-ethereum.
 
 	cpp-ethereum is free software: you can redistribute it and/or modify
@@ -34,7 +34,7 @@
 namespace dev
 {
 
-// String conversion functions, mainly to/from hex/nibble/byte representations.
+// String conversion functions, mainly to/from hex/nibble/_byte representations.
 
 enum class WhenError
 {
@@ -46,7 +46,7 @@ template <class Iterator>
 std::string toHex(Iterator _it, Iterator _end, std::string const& _prefix)
 {
 	typedef std::iterator_traits<Iterator> traits;
-	static_assert(sizeof(typename traits::value_type) == 1, "toHex needs byte-sized element type");
+	static_assert(sizeof(typename traits::value_type) == 1, "toHex needs _byte-sized element type");
 
 	static char const* hexdigits = "0123456789abcdef";
 	size_t off = _prefix.size();
@@ -74,7 +74,7 @@ template <class T> std::string toHexPrefixed(T const& _data)
 	return toHex(_data.begin(), _data.end(), "0x");
 }
 
-/// Converts a (printable) ASCII hex string into the corresponding byte stream.
+/// Converts a (printable) ASCII hex string into the corresponding _byte stream.
 /// @example fromHex("41626261") == asBytes("Abba")
 /// If _throw = ThrowType::DontThrow, it replaces bad hex characters with 0's, otherwise it will throw an exception.
 bytes fromHex(std::string const& _s, WhenError _throw = WhenError::DontThrow);
@@ -88,24 +88,24 @@ template <class T> static bool isHash(std::string const& _hash)
 	return (_hash.size() == T::size * 2 || (_hash.size() == T::size * 2 + 2 && _hash.substr(0, 2) == "0x")) && isHex(_hash);
 }
 
-/// Converts byte array to a string containing the same (binary) data. Unless
-/// the byte array happens to contain ASCII data, this won't be printable.
+/// Converts _byte array to a string containing the same (binary) data. Unless
+/// the _byte array happens to contain ASCII data, this won't be printable.
 inline std::string asString(bytes const& _b)
 {
 	return std::string((char const*)_b.data(), (char const*)(_b.data() + _b.size()));
 }
 
-/// Converts byte array ref to a string containing the same (binary) data. Unless
-/// the byte array happens to contain ASCII data, this won't be printable.
+/// Converts _byte array ref to a string containing the same (binary) data. Unless
+/// the _byte array happens to contain ASCII data, this won't be printable.
 inline std::string asString(bytesConstRef _b)
 {
 	return std::string((char const*)_b.data(), (char const*)(_b.data() + _b.size()));
 }
 
-/// Converts a string to a byte array containing the string's (byte) data.
+/// Converts a string to a _byte array containing the string's (_byte) data.
 inline bytes asBytes(std::string const& _b)
 {
-	return bytes((byte const*)_b.data(), (byte const*)(_b.data() + _b.size()));
+	return bytes((_byte const*)_b.data(), (_byte const*)(_b.data() + _b.size()));
 }
 
 /// Converts a string into the big-endian base-16 stream of integers (NOT ASCII).
@@ -115,7 +115,7 @@ bytes asNibbles(bytesConstRef const& _s);
 
 // Big-endian to/from host endian conversion functions.
 
-/// Converts a templated integer value to the big-endian byte-stream represented on a templated collection.
+/// Converts a templated integer value to the big-endian _byte-stream represented on a templated collection.
 /// The size of the collection object will be unchanged. If it is too small, it will not represent the
 /// value properly, if too big then the additional elements will be zeroed out.
 /// @a Out will typically be either std::string or bytes.
@@ -131,7 +131,7 @@ inline void toBigEndian(T _val, Out& o_out)
 	}
 }
 
-/// Converts a big-endian byte-stream represented on a templated collection to a templated integer value.
+/// Converts a big-endian _byte-stream represented on a templated collection to a templated integer value.
 /// @a _In will typically be either std::string or bytes.
 /// @a T will typically by unsigned, u160, u256 or bigint.
 template <class T, class _In>
@@ -139,7 +139,7 @@ inline T fromBigEndian(_In const& _bytes)
 {
 	T ret = (T)0;
 	for (auto i: _bytes)
-		ret = (T)((ret << 8) | (byte)(typename std::make_unsigned<decltype(i)>::type)i);
+		ret = (T)((ret << 8) | (_byte)(typename std::make_unsigned<decltype(i)>::type)i);
 	return ret;
 }
 
@@ -150,7 +150,7 @@ inline bytes toBigEndian(u256 _val) { bytes ret(32); toBigEndian(_val, ret); ret
 inline bytes toBigEndian(u160 _val) { bytes ret(20); toBigEndian(_val, ret); return ret; }
 
 /// Convenience function for toBigEndian.
-/// @returns a byte array just big enough to represent @a _val.
+/// @returns a _byte array just big enough to represent @a _val.
 template <class T>
 inline bytes toCompactBigEndian(T _val, unsigned _min = 0)
 {
@@ -161,7 +161,7 @@ inline bytes toCompactBigEndian(T _val, unsigned _min = 0)
 	toBigEndian(_val, ret);
 	return ret;
 }
-inline bytes toCompactBigEndian(byte _val, unsigned _min = 0)
+inline bytes toCompactBigEndian(_byte _val, unsigned _min = 0)
 {
 	return (_min || _val) ? bytes{ _val } : bytes{};
 }

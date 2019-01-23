@@ -1,4 +1,4 @@
-/*
+﻿/*
 	This file is part of cpp-ethereum.
 
 	cpp-ethereum is free software: you can redistribute it and/or modify
@@ -111,7 +111,7 @@ bytes dev::fromHex(std::string const& _s, WhenError _throw)
 		int h = fromHexChar(_s[i]);
 		int l = fromHexChar(_s[i + 1]);
 		if (h != -1 && l != -1)
-			ret.push_back((byte)(h * 16 + l));
+			ret.push_back((_byte)(h * 16 + l));
 		else if (_throw == WhenError::Throw)
 			BOOST_THROW_EXCEPTION(BadHexCharacter());
 		else

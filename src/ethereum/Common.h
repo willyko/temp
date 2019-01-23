@@ -1,4 +1,4 @@
-/*
+﻿/*
 	This file is part of cpp-ethereum.
 
 	cpp-ethereum is free software: you can redistribute it and/or modify
@@ -52,8 +52,8 @@
 #pragma warning(pop)
 #pragma GCC diagnostic pop
 #include "vector_ref.h"
-// CryptoPP defines byte in the global namespace, so must we.
-using byte = uint8_t;
+// CryptoPP defines _byte in the global namespace, so must we.
+using _byte = uint8_t;
 
 // Quote a given token stream to turn it into a string.
 #define DEV_QUOTED_HELPER(s) #s
@@ -69,9 +69,9 @@ namespace dev
 extern std::string const EmptyString;
 
 // Binary data types.
-using bytes = std::vector<byte>;
-using bytesRef = vector_ref<byte>;
-using bytesConstRef = vector_ref<byte const>;
+using bytes = std::vector<_byte>;
+using bytesRef = vector_ref<_byte>;
+using bytesConstRef = vector_ref<_byte const>;
 
 template <class T>
 class secure_vector
@@ -112,7 +112,7 @@ private:
 	std::vector<T> m_data;
 };
 
-using bytesSec = secure_vector<byte>;
+using bytesSec = secure_vector<_byte>;
 
 // Numeric types.
 using bigint = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>>;

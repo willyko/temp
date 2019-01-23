@@ -51,8 +51,8 @@ BOOST_AUTO_TEST_CASE(generate_big_assetdata)
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetinfo " + guid));
 	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetinfo " + guid1));
-	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid1);
-} 
+    BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid1);
+}
 BOOST_AUTO_TEST_CASE(generate_asset_throughput)
 {
     int64_t start = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // user modifiable variables
 
     // for every asset you add numberOfAssetSendsPerBlock tx's effectively
-    int numAssets = 100;
+    int numAssets = 2500;
     BOOST_CHECK(numAssets >= 1);
 
     int numberOfAssetSendsPerBlock = 250;

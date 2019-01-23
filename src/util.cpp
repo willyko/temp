@@ -1062,7 +1062,7 @@ bool StopGethNode(pid_t pid)
 
 bool StartGethNode(pid_t &pid, int websocketport)
 {
-    if(fUnitTest)
+    if(fUnitTest || fTPSTest)
         return true;
     LogPrintf("%s: Starting geth...\n", __func__);
     std::string gethFilename = GetGethFilename();
@@ -1073,11 +1073,11 @@ bool StartGethNode(pid_t &pid, int websocketport)
     fs::path fpath = fs::system_complete(gethFilename);
 
     // Prevent killed child-processes remaining as "defunct"
-    struct sigaction sigchld_action = {
-        .sa_handler = SIG_DFL,
-        .sa_flags = SA_NOCLDWAIT
-    };
-    sigaction( SIGCHLD, &sigchld_action, NULL ) ;
+    struct sigaction sa;
+    sa.sa_handler = handler;
+    sa.sa_flags = SA_NOCLDWAIT;
+  
+    sigaction( SIGCHLD, &sa, NULL ) ;
 
     // Duplicate ("fork") the process. Will return zero in the child
     // process, and the child's PID in the parent (or negative on error).

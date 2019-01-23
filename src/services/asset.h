@@ -80,6 +80,7 @@ enum {
     ASSET_UPDATE_FLAGS=16, // can you update flags? if you would set permanently disable this one and admin flag as well
     ASSET_UPDATE_ALL=31
 };
+
 class CAsset {
 public:
 	uint32_t nAsset;
@@ -98,6 +99,10 @@ public:
         SetNull();
         nAsset = 0;
     }
+    CAsset(const CAsset&) = delete;
+    CAsset(CAsset && other) = default;
+    CAsset& operator=(CAsset& other) = delete;
+    CAsset& operator=(CAsset&& other) = default;
     CAsset(const CTransaction &tx) {
         SetNull();
         nAsset = 0;
@@ -134,21 +139,6 @@ public:
         );
     }
 
-    inline CAsset operator=(const CAsset &b) {
-		vchPubData = b.vchPubData;
-		txHash = b.txHash;
-		witnessAddress = b.witnessAddress;
-		nAsset = b.nAsset;
-		nBalance = b.nBalance;
-		nTotalSupply = b.nTotalSupply;
-		nMaxSupply = b.nMaxSupply;
-		nUpdateFlags = b.nUpdateFlags;
-		nPrecision = b.nPrecision;
-		vchContract = b.vchContract;
-        nHeight = b.nHeight;
-        vchBurnMethodSignature = b.vchBurnMethodSignature;
-        return *this;
-    }
 
     inline friend bool operator!=(const CAsset &a, const CAsset &b) {
         return !(a == b);
@@ -204,7 +194,7 @@ public:
     bool FlushErase(const std::vector<uint32_t> &vecHeightKeys);
     bool FlushWrite(const EthereumTxRootMap &mapTxRoots);
 };
-typedef std::unordered_map<int, CAsset> AssetMap;
+typedef std::unordered_map<int, CAsset > AssetMap;
 class CAssetDB : public CDBWrapper {
 public:
     CAssetDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assets", nCacheSize, fMemory, fWipe) {}

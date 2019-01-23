@@ -694,24 +694,25 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Burn amount must be positive");
             return state.DoS(100, false, REJECT_INVALID, errorMessage);
         }  
-        auto result = mapAssets.emplace(mintSyscoin.assetAllocationTuple.nAsset, emptyAsset);
+        auto result = mapAssets.emplace(mintSyscoin.assetAllocationTuple.nAsset, std::move(emptyAsset));
         auto mapAsset = result.first;
         const bool &mapAssetNotFound = result.second;
         if(mapAssetNotFound){
             GetAsset(mintSyscoin.assetAllocationTuple.nAsset, dbAsset);    
-            mapAsset->second = std::move(dbAsset) ;                
+            mapAsset->second = std::move(dbAsset);                
         }
         CAsset& storedSenderRef = mapAsset->second;
     
         const std::string &receiverTupleStr = mintSyscoin.assetAllocationTuple.ToString();
-        auto result1 = mapAssetAllocations.emplace(receiverTupleStr, emptyAllocation);
+        auto result1 = mapAssetAllocations.emplace(receiverTupleStr, std::move(emptyAllocation));
         auto mapAssetAllocation = result1.first;
         const bool &mapAssetAllocationNotFound = result1.second;
         if(mapAssetAllocationNotFound){
             CAssetAllocation receiverAllocation;
             GetAssetAllocation(mintSyscoin.assetAllocationTuple, receiverAllocation);
             if (receiverAllocation.assetAllocationTuple.IsNull()) {
-                receiverAllocation.assetAllocationTuple = mintSyscoin.assetAllocationTuple;
+                receiverAllocation.assetAllocationTuple.nAsset = std::move(mintSyscoin.assetAllocationTuple.nAsset);
+                receiverAllocation.assetAllocationTuple.witnessAddress = std::move(mintSyscoin.assetAllocationTuple.witnessAddress);
             }
             mapAssetAllocation->second = std::move(receiverAllocation);              
         }

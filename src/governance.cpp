@@ -17,7 +17,6 @@
 #include "messagesigner.h"
 #include "netfulfilledman.h"
 #include "util.h"
-
 CGovernanceManager governance;
 
 int nSubmittedFinalBudget;
@@ -1106,8 +1105,8 @@ int CGovernanceManager::RequestGovernanceObjectVotes(const std::vector<CNode*>& 
                 vTriggerObjHashes.size(), vOtherObjHashes.size(), mapAskedRecently.size());
 
     FastRandomContext insecure_rand;
-    std::random_shuffle(vTriggerObjHashes.begin(), vTriggerObjHashes.end(), insecure_rand);
-    std::random_shuffle(vOtherObjHashes.begin(), vOtherObjHashes.end(), insecure_rand);
+    std::shuffle(vTriggerObjHashes.begin(), vTriggerObjHashes.end(), insecure_rand);
+    std::shuffle(vOtherObjHashes.begin(), vOtherObjHashes.end(), insecure_rand);
 
     for (int i = 0; i < nMaxObjRequestsPerNode; ++i) {
         uint256 nHashGovobj;

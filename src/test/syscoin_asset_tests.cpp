@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_throughput)
     // user modifiable variables
 
     // for every asset you add numberOfAssetSendsPerBlock tx's effectively
-    int numAssets = 2500;
+    int numAssets = 100;
     BOOST_CHECK(numAssets >= 1);
 
     int numberOfAssetSendsPerBlock = 250;

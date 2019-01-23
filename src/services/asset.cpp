@@ -1094,7 +1094,7 @@ bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAlloc
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset allocation in asset send\n");
         return false;
     } 
-    auto result  = mapAssets.emplace(theAssetAllocation.assetAllocationTuple.nAsset, emptyAsset);
+    auto result  = mapAssets.try_emplace(theAssetAllocation.assetAllocationTuple.nAsset, std::move(emptyAsset));
     auto mapAsset = result.first;
     const bool& mapAssetNotFound = result.second;
     if(mapAssetNotFound){
@@ -1111,13 +1111,14 @@ bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAlloc
         const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
         const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
         CAssetAllocation receiverAllocation;
-        auto result = mapAssetAllocations.emplace(receiverTupleStr, emptyAllocation);
+        auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
         auto mapAssetAllocation = result.first;
         const bool &mapAssetAllocationNotFound = result.second;
         if(mapAssetAllocationNotFound){
             GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
             if (receiverAllocation.assetAllocationTuple.IsNull()) {
-                receiverAllocation.assetAllocationTuple = receiverAllocationTuple;
+                receiverAllocation.assetAllocationTuple.nAsset = std::move(receiverAllocationTuple.nAsset);
+                receiverAllocation.assetAllocationTuple.witnessAddress = std::move(receiverAllocationTuple.witnessAddress);
             } 
             mapAssetAllocation->second = std::move(receiverAllocation);                 
         }
@@ -1142,7 +1143,7 @@ bool DisconnectAssetUpdate(const CTransaction &tx, AssetMap &mapAssets){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset\n");
         return false;
     }
-    auto result = mapAssets.emplace(theAsset.nAsset, emptyAsset);
+    auto result = mapAssets.try_emplace(theAsset.nAsset, std::move(emptyAsset));
     auto mapAsset = result.first;
     const bool &mapAssetNotFound = result.second;
     if(mapAssetNotFound){
@@ -1174,7 +1175,7 @@ bool DisconnectAssetActivate(const CTransaction &tx, AssetMap &mapAssets){
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset in asset activate\n");
         return false;
     }
-    auto result = mapAssets.emplace(theAsset.nAsset, emptyAsset);
+    auto result = mapAssets.try_emplace(theAsset.nAsset, std::move(emptyAsset));
     auto mapAsset = result.first;
     const bool &mapAssetNotFound = result.second;
     if(mapAssetNotFound){
@@ -1302,7 +1303,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 	if (!fJustCheck || bSanityCheck) {
 		CAsset dbAsset;
         const uint32_t &nAsset = op == OP_ASSET_SEND ? theAssetAllocation.assetAllocationTuple.nAsset : theAsset.nAsset;
-        auto result = mapAssets.emplace(nAsset, emptyAsset);
+        auto result = mapAssets.try_emplace(nAsset, std::move(emptyAsset));
         auto mapAsset = result.first;
         const bool & mapAssetNotFound = result.second; 
 		if (mapAssetNotFound)
@@ -1381,14 +1382,15 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 					CAssetAllocation receiverAllocation;
 					const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
                     const string& receiverTupleStr = receiverAllocationTuple.ToString();
-                    auto result = mapAssetAllocations.emplace(receiverTupleStr, emptyAllocation);
+                    auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
                     auto mapAssetAllocation = result.first;
                     const bool& mapAssetAllocationNotFound = result.second;
                    
                     if(mapAssetAllocationNotFound){
                         GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
                         if (receiverAllocation.assetAllocationTuple.IsNull()) {
-                            receiverAllocation.assetAllocationTuple = receiverAllocationTuple;
+                            receiverAllocation.assetAllocationTuple.nAsset = std::move(receiverAllocationTuple.nAsset);
+                            receiverAllocation.assetAllocationTuple.witnessAddress = std::move(receiverAllocationTuple.witnessAddress);
                         } 
                         mapAssetAllocation->second = std::move(receiverAllocation);                
                     }
@@ -1441,17 +1443,17 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		}
 		if (op == OP_ASSET_ACTIVATE)
 		{
-            storedSenderAssetRef = theAsset;
-			if (!FindAssetOwnerInTx(inputs, tx, storedSenderAssetRef.witnessAddress))
-			{
-				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot create this asset. Asset owner must sign off on this change");
-				return error(errorMessage.c_str());
-			}
 			if (GetAsset(nAsset, theAsset))
 			{
 				errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 2041 - " + _("Asset already exists");
 				return error(errorMessage.c_str());
 			}
+            storedSenderAssetRef = std::move(theAsset);
+            if (!FindAssetOwnerInTx(inputs, tx, storedSenderAssetRef.witnessAddress))
+            {
+                errorMessage = "SYSCOIN_ASSET_CONSENSUS_ERROR: ERRCODE: 1015 - " + _("Cannot create this asset. Asset owner must sign off on this change");
+                return error(errorMessage.c_str());
+            }          
 			// starting supply is the supplied balance upon init
 			storedSenderAssetRef.nTotalSupply = storedSenderAssetRef.nBalance;
 		}
@@ -1626,19 +1628,23 @@ UniValue assetupdate(const JSONRPCRequest& request) {
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(address);
 	}
-
-	CAsset copyAsset = theAsset;
-	theAsset.ClearAsset();
+    
 
     // create ASSETUPDATE txn keys
     CScript scriptPubKey;
 
-	if(strPubData != stringFromVch(copyAsset.vchPubData))
+	if(strPubData != stringFromVch(theAsset.vchPubData))
 		theAsset.vchPubData = vchFromString(strPubData);
-    if(vchContract != copyAsset.vchContract)
+    else
+        theAsset.vchPubData.clear();
+    if(vchContract != theAsset.vchContract)
         theAsset.vchContract = vchContract;
-    if(vchBurnMethodSignature != copyAsset.vchBurnMethodSignature)
+    else
+        theAsset.vchContract.clear();
+    if(vchBurnMethodSignature != theAsset.vchBurnMethodSignature)
         theAsset.vchBurnMethodSignature = vchBurnMethodSignature;
+    else
+        theAsset.vchBurnMethodSignature.clear();
 
 	theAsset.nBalance = nBalance;
 	theAsset.nUpdateFlags = nUpdateFlags;
@@ -1708,8 +1714,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
 	if (!strAddressFrom.empty()) {
 		scriptPubKeyFromOrig = GetScriptForDestination(addressFrom);
 	}
-
-	CAsset copyAsset = theAsset;
+    
 	theAsset.ClearAsset();
     CScript scriptPubKey;
 	theAsset.witnessAddress = CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex));
@@ -2169,7 +2174,7 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
         string txRoot = tupleArray[1].get_str();
         boost::erase_all(txRoot, "0x");  // strip 0x
         const vector<unsigned char> &vchTxRoot = ParseHex(txRoot);
-        txRootMap.emplace(std::move(nHeight), std::move(vchTxRoot));
+        txRootMap.try_emplace(std::move(nHeight), std::move(vchTxRoot));
     }
     pethereumtxrootsdb->FlushWrite(txRootMap);
     UniValue ret(UniValue::VARR);

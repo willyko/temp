@@ -11,7 +11,9 @@
                 -zmqpubrawtx=tcp://127.0.0.1:28370 \
                 -zmqpubrawblock=tcp://127.0.0.1:28370 \
                 -zmqpubhashtx=tcp://127.0.0.1:28370 \
-                -zmqpubhashblock=tcp://127.0.0.1:28370
+                -zmqpubhashblock=tcp://127.0.0.1:28370 \
+                -zmqpubassetallocation=tcp://127.0.0.1:28370 \
+                -zmqpubassetrecord=tcp://127.0.0.1:28370               
 
     We use the asyncio library here.  `self.handle()` installs itself as a
     future at the end of the function.  Since it never returns with the event
@@ -50,6 +52,8 @@ class ZMQHandler():
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "hashtx")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawblock")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawtx")
+        self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "assetallocation")
+        self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "assetrecord")
         self.zmqSubSocket.connect("tcp://127.0.0.1:%i" % port)
 
     @asyncio.coroutine
@@ -73,6 +77,12 @@ class ZMQHandler():
         elif topic == b"rawtx":
             print('- RAW TX ('+sequence+') -')
             print(binascii.hexlify(body))
+        elif topic == b"assetallocation":
+            print('- ASSET ALLOCATION TX ('+sequence+') -')
+            print(body.decode("utf-8")) 
+        elif topic == b"rawtx":
+            print('- ASSET TX ('+sequence+') -')
+            print(body.decode("utf-8"))           
         # schedule ourselves to receive the next message
         asyncio.ensure_future(self.handle())
 

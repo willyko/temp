@@ -1794,8 +1794,9 @@ bool AppInitMain()
     
     fMasternodeMode = gArgs.GetBoolArg("-masternode", false);
     fUnitTest = gArgs.GetBoolArg("-unittest", false);
-    StartGethNode(gethPID);
+    
     fTPSTest = gArgs.GetBoolArg("-tpstest", false);
+    StartGethNode(gethPID);
     fConcurrentProcessing = gArgs.GetBoolArg("-concurrentprocessing", true);
     fLogThreadpool = LogAcceptCategory(BCLog::THREADPOOL);
     fAssetAllocationIndex = gArgs.GetBoolArg("-assetallocationindex", false);

@@ -40,7 +40,7 @@ Services include:
 
 - Hybrid layer 2 PoW/PoS consensus with bonded validator system (masternodes)
 - ZDAG technology for point-of-sale speeds and probablistic confirmations useful for microtransactions
-- Trustless sidechain access to Ethereum and back through a custom permissionless/trustless sidechain technology (SYSX bridge).
+- Trustless sidechain access to Ethereum and back through a custom permissionless/trustless sidechain technology (SYSX bridge) https://github.com/syscoin/sysethereum
 - Decentralized governance (blockchain pays for work via proposals and masternode votes)
 - Digital asset creation and management
 

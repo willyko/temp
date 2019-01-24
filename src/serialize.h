@@ -25,6 +25,7 @@
 #include <span.h>
 // SYSCOIN
 #include <list>
+#include <unordered_map>
 
 static const unsigned int MAX_SIZE = 0x02000000;
 
@@ -617,6 +618,11 @@ template<typename Stream, typename K, typename Pred, typename A> void Unserializ
  */
 template<typename Stream, typename K, typename A> void Serialize(Stream& os, const std::list<K, A>& m);
 template<typename Stream, typename K, typename A> void Unserialize(Stream& is, std::list<K, A>& m);
+/**
+ * unordered_map
+ */
+template<typename Stream, typename K, typename T, typename Pred, typename A> void Serialize(Stream& os, const std::unordered_map<K, T, Pred, A>& m);
+template<typename Stream, typename K, typename T, typename Pred, typename A> void Unserialize(Stream& is, std::unordered_map<K, T, Pred, A>& m);
 
 /**
  * shared_ptr
@@ -902,6 +908,31 @@ void Unserialize(Stream& is, std::list<T, A>& l)
         T val;
         Unserialize(is, val);
         l.push_back(val);
+    }
+}
+
+/**
+ * map
+ */
+template<typename Stream, typename K, typename T, typename Pred, typename A>
+void Serialize(Stream& os, const std::unordered_map<K, T, Pred, A>& m)
+{
+    WriteCompactSize(os, m.size());
+    for (const auto& entry : m)
+        Serialize(os, entry);
+}
+
+template<typename Stream, typename K, typename T, typename Pred, typename A>
+void Unserialize(Stream& is, std::unordered_map<K, T, Pred, A>& m)
+{
+    m.clear();
+    unsigned int nSize = ReadCompactSize(is);
+    typename std::unordered_map<K, T, Pred, A>::iterator mi = m.begin();
+    for (unsigned int i = 0; i < nSize; i++)
+    {
+        std::pair<K, T> item;
+        Unserialize(is, item);
+        mi = m.insert(mi, item);
     }
 }
 

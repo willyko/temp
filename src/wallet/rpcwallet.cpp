@@ -1852,10 +1852,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     const string& strAddress = assetallocation.assetAllocationTuple.ToString();
                     CCoinsViewCache inputs(pcoinsTip.get());
 
-                    if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
-                        ownerName = strAddress;    
-                    if(ownerName.empty())
-                        continue;
+                    ownerName = assetallocation.assetAllocationTuple.witnessAddress.ToString();
                     CAsset dbAsset;
                     GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
                     strResponse = strResponseEnglish;
@@ -1863,7 +1860,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                             UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                             // update to owner
-                            oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
+                            oAssetAllocationReceiversObj.pushKV("address", amountTuple.first.ToString());
                             oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                             oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                         }
@@ -1875,7 +1872,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                 entry.pushKV("systype", strResponseEnglish);
                 entry.pushKV("sysguid", strResponseGUID);
                 entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
-                entry.pushKV("sysowner", ownerName);
+                entry.pushKV("sysaddress", ownerName);
             }
             else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET){
                 if (mapSysTx.find(tx.GetHash()) != mapSysTx.end())
@@ -1893,7 +1890,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                    
                     UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                     // update to owner
-                    oAssetAllocationReceiversObj.pushKV("ownerto", strAddress);
+                    oAssetAllocationReceiversObj.pushKV("address", strAddress);
                     oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
                     oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                       
@@ -1901,7 +1898,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                     entry.pushKV("systype", strResponseEnglish);
                     entry.pushKV("sysguid", strResponseGUID); 
                     entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
-                    entry.pushKV("sysowner", strAddress);                                           
+                    entry.pushKV("sysaddress", strAddress);                                           
                 }                    
             }             
             ret.push_back(entry);
@@ -1966,17 +1963,14 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                       
                         CCoinsViewCache inputs(pcoinsTip.get());
                         const string& strAddress = assetallocation.assetAllocationTuple.ToString();
-                        if (FindAssetOwnerInTx(inputs, tx, assetallocation.assetAllocationTuple.witnessAddress))
-                            ownerName = strAddress;
-                        if (ownerName.empty())
-                            continue;
+                        ownerName = assetallocation.assetAllocationTuple.witnessAddress.ToString();
                         CAsset dbAsset;
                         GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
                         if (!assetallocation.listSendingAllocationAmounts.empty()) {
                             for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
                                 UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                                 // update to owner
-                                oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
+                                oAssetAllocationReceiversObj.pushKV("address", amountTuple.first.ToString());
                                 oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
                                 oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                             }
@@ -1984,7 +1978,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         
                     }             
                     entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
-                    entry.pushKV("sysowner", ownerName);
+                    entry.pushKV("sysaddress", ownerName);
                 } 
                  else if(tx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET){
                     if (mapSysTx.find(tx.GetHash()) != mapSysTx.end())
@@ -2002,7 +1996,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                        
                         UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
                         // update to owner
-                        oAssetAllocationReceiversObj.pushKV("ownerto", strAddress);
+                        oAssetAllocationReceiversObj.pushKV("address", strAddress);
                         oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
                         oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
                           
@@ -2010,7 +2004,7 @@ static void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const
                         entry.pushKV("systype", strResponseEnglish);
                         entry.pushKV("sysguid", strResponseGUID); 
                         entry.pushKV("sysallocations", oAssetAllocationReceiversArray);
-                        entry.pushKV("sysowner", strAddress);                                           
+                        entry.pushKV("sysaddress", strAddress);                                           
                     }                    
                 }                      
                 ret.push_back(entry);
@@ -5004,6 +4998,7 @@ extern UniValue assetallocationinfo(const JSONRPCRequest& request);
 extern UniValue assetallocationsenderstatus(const JSONRPCRequest& request);
 extern UniValue listassetallocationtransactions(const JSONRPCRequest& request);
 extern UniValue listassetallocations(const JSONRPCRequest& request);
+extern UniValue listassetallocationmempoolbalances(const JSONRPCRequest& request);
 extern UniValue tpstestinfo(const JSONRPCRequest& request);
 extern UniValue tpstestadd(const JSONRPCRequest& request);
 extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
@@ -5091,26 +5086,27 @@ static const CRPCCommand commands[] =
     /* SYSCOIN rpc functions*/
     { "syscoin",            "syscoinburn",                      &syscoinburn,                   {"amount","burn_to_sysx","ethereum_destination_address"} },
     { "syscoin",            "syscoinmint",                      &syscoinmint,                   {"address","amount","blocknumber","tx_hex","txroot_hex","txmerkleproof_hex","txmerkleroofpath_hex","witness"} }, 
-    { "syscoin",            "assetallocationburn",              &assetallocationburn,           {"asset","owner","amount","ethereum_destination_address"} }, 
-    { "syscoin",            "assetallocationmint",              &assetallocationmint,           {"asset","owner","amount","blocknumber","tx_hex","txroot_hex","txmerkleproof_hex","txmerkleroofpath_hex","witness"} },     
+    { "syscoin",            "assetallocationburn",              &assetallocationburn,           {"asset","address","amount","ethereum_destination_address"} }, 
+    { "syscoin",            "assetallocationmint",              &assetallocationmint,           {"asset","address","amount","blocknumber","tx_hex","txroot_hex","txmerkleproof_hex","txmerkleroofpath_hex","witness"} },     
     { "syscoin",            "syscointxfund",                    &syscointxfund,                 {"hexstring","address","output_index"}},
     { "syscoin",            "syscoinaddscript",                 &syscoinaddscript,              {} },
     { "syscoin",            "syscoindecoderawtransaction",      &syscoindecoderawtransaction,   {}},
     { "syscoin",            "syscoinlistreceivedbyaddress",     &syscoinlistreceivedbyaddress,  {}},
 
     /* assets using the blockchain, coins/points/service backed tokens*/
-    { "syscoin",            "assetnew",                         &assetnew,                      {"owner","public value","contract","burn_method_signature","precision","supply","max_supply","update_flags","witness"}},
+    { "syscoin",            "assetnew",                         &assetnew,                      {"address","public value","contract","burn_method_signature","precision","supply","max_supply","update_flags","witness"}},
     { "syscoin",            "assetupdate",                      &assetupdate,                   {"asset","public value","contract","burn_method_signature","supply","update_flags","witness"}},
     { "syscoin",            "addressbalance",                   &addressbalance,                {}},
     { "syscoin",            "assettransfer",                    &assettransfer,                 {"asset"}},
     { "syscoin",            "assetsend",                        &assetsend,                     {"asset","inputs"}},
     { "syscoin",            "assetinfo",                        &assetinfo,                     {"asset"}},
     { "syscoin",            "listassets",                       &listassets,                    {"count","from","options"} },
-    { "syscoin",            "assetallocationsend",              &assetallocationsend,           {"asset","owner","inputs","witness"}},
+    { "syscoin",            "assetallocationsend",              &assetallocationsend,           {"asset","address","inputs","witness"}},
     { "syscoin",            "assetallocationinfo",              &assetallocationinfo,           {"asset"}},
     { "syscoin",            "assetallocationsenderstatus",      &assetallocationsenderstatus,   {"asset"}},
     { "syscoin",            "listassetallocationtransactions",  &listassetallocationtransactions,{"count","from","options"} },
     { "syscoin",            "listassetallocations",             &listassetallocations,          {"count","from","options"} },
+    { "syscoin",            "listassetallocationmempoolbalances",             &listassetallocationmempoolbalances,          {"count","from","options"} },
     { "syscoin",            "tpstestinfo",                      &tpstestinfo,                   {} },
     { "syscoin",            "tpstestadd",                       &tpstestadd,                    {"starttime","rawtxs"} },
     { "syscoin",            "tpstestsetenabled",                &tpstestsetenabled,             {"enabled"} },

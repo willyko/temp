@@ -32,7 +32,7 @@ UniValue listassetallocations(const JSONRPCRequest& request);
 UniValue tpstestinfo(const JSONRPCRequest& request);
 UniValue tpstestadd(const JSONRPCRequest& request);
 UniValue tpstestsetenabled(const JSONRPCRequest& request);
-
+UniValue listassetallocationmempoolbalances(const JSONRPCRequest& request);
 
 using namespace std;
 AssetAllocationIndexItemMap AssetAllocationIndex GUARDED_BY(cs_assetallocationindex);
@@ -113,29 +113,30 @@ void CAssetAllocation::Serialize( vector<unsigned char> &vchData) {
 	vchData = vector<unsigned char>(dsAsset.begin(), dsAsset.end());
 
 }
-
-void CAssetAllocationDB::WriteAssetAllocationIndex(const CAssetAllocationTuple& assetallocation, const uint256 &txHash, int nHeight, const CAsset& asset, const CAmount& nAmount, const CWitnessAddress& senderWitness) {
+void CAssetAllocationDB::WriteMintIndex(const CTransaction& tx, const CMintSyscoin& mintSyscoin, const int &nHeight){
+    if (fZMQAssetAllocation || fAssetAllocationIndex) {
+        UniValue output(UniValue::VOBJ);
+        AssetMintTxToJson(tx, mintSyscoin, nHeight, output);
+        GetMainSignals().NotifySyscoinUpdate(output.write().c_str(), "assetallocation");
+    }
+}
+void CAssetAllocationDB::WriteAssetAllocationIndex(const int& op, const CTransaction &tx, const CAsset& dbAsset, const bool& confirmed, int nHeight) {
 	if (fZMQAssetAllocation || fAssetAllocationIndex) {
 		UniValue oName(UniValue::VOBJ);
-		bool isMine = true;
-        string strSender = "";
-        if(!senderWitness.IsNull()){
-            strSender = senderWitness.ToString();
-        }
-        const string& strReceiver = assetallocation.witnessAddress.ToString();
-		if (BuildAssetAllocationIndexerJson(assetallocation, asset, nAmount, strSender, strReceiver, isMine, oName)) {
-			const string& strObj = oName.write();
-			GetMainSignals().NotifySyscoinUpdate(strObj.c_str(), "assetallocation");
-			if (isMine && fAssetAllocationIndex) {
-				const string& strKey = txHash.GetHex()+"-"+boost::lexical_cast<string>(asset.nAsset)+"-"+ strSender +"-"+ strReceiver;
-				{
-					LOCK2(mempool.cs, cs_assetallocationindex);
-					// we want to the height from mempool if it exists or use the one passed in
-					CTxMemPool::txiter it = mempool.mapTx.find(txHash);
-					if (it != mempool.mapTx.end())
-						nHeight = (*it).GetHeight();
-					AssetAllocationIndex[nHeight][strKey] = strObj;
-				}
+        string strSender;
+        bool isMine = AssetAllocationTxToJSON(op, tx, dbAsset, nHeight, confirmed, oName, strSender);
+        const string& strObj = oName.write();
+        GetMainSignals().NotifySyscoinUpdate(strObj.c_str(), "assetallocation");
+		if (isMine && fAssetAllocationIndex) {
+            const string& txHash = tx.GetHash().GetHex();
+			const string& strKey = txHash+"-"+boost::lexical_cast<string>(dbAsset.nAsset)+"-"+ strSender;
+			{
+				LOCK2(mempool.cs, cs_assetallocationindex);
+				// we want to the height from mempool if it exists or use the one passed in
+				CTxMemPool::txiter it = mempool.mapTx.find(tx.GetHash());
+				if (it != mempool.mapTx.end())
+					nHeight = (*it).GetHeight();
+				AssetAllocationIndex[nHeight][strKey] = strObj;
 			}
 		}
 	}
@@ -238,12 +239,13 @@ bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove, 
 
     if(!bMiner){
         const string& senderStr = assetAllocationToRemove.ToString();
+        bool removeAllConflicts = true;
         {
             LOCK(cs_assetallocationarrival);
         	// remove the conflict once we revert since it is assumed to be resolved on POW
         	ArrivalTimesMap &arrivalTimes = arrivalTimesMap[senderStr];
             
-        	bool removeAllConflicts = true;
+        	
         	// remove only if all arrival times are either expired (30 mins) or no more zdag transactions left for this sender
         	for(auto& arrivalTime: arrivalTimes){
         		if((chainActive.Tip()->GetMedianTimePast() - arrivalTime.second) <= 1800000){
@@ -260,6 +262,11 @@ bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove, 
         	}
             else
                 arrivalTimes.erase(txHash);
+        }
+        if(removeAllConflicts)
+        {
+            LOCK(cs_assetallocation);
+            mempoolMapAssetBalances.erase(senderStr);
         }
     }
 	
@@ -547,14 +554,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                 }
                 mapAssetAllocationReceiver->second = std::move(dbAssetAllocationReceiver);                   
             } 
-     
             mapAssetAllocationReceiver->second.nBalance += amountTuple.second;
-
-            if(!bSanityCheck)
-                passetallocationdb->WriteAssetAllocationIndex(theAssetAllocation.assetAllocationTuple, txHash, nHeight, dbAsset, amountTuple.second, user1);  
-            
-    
-                       
+             
 		}else if (!bSanityCheck) {
             LOCK(cs_assetallocationarrival);
 			// add conflicting sender if using ZDAG
@@ -616,10 +617,9 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                 }
                 if(!bSanityCheck){
                     mapBalanceReceiver->second += amountTuple.second;
-                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocationTuple, txHash, nHeight, dbAsset, amountTuple.second, user1);
                 }
             }  
-            else{
+            else{           
                 auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
                 auto mapBalanceReceiverBlock = result.first;
                 const bool& mapAssetAllocationReceiverBlockNotFound = result.second;
@@ -632,12 +632,16 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                     mapBalanceReceiverBlock->second = std::move(receiverAllocation);   
                 }
                 mapBalanceReceiverBlock->second.nBalance += amountTuple.second;
+                if (!fJustCheck && !bSanityCheck) {
+                    if (!ResetAssetAllocation(mapBalanceReceiverBlock->second.assetAllocationTuple, txHash, bMiner))
+                    {
+                        errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1014 - " + _("Failed to revert asset allocation");
+                        return error(errorMessage.c_str());
+                    }
+                }                
             }
 
-		}
-		
-
-		 	
+		} 	
 	}
 	// write assetallocation  
 	// asset sends are the only ones confirming without PoW
@@ -654,6 +658,9 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
         if(storedSenderAllocationRef.nBalance == 0)
             storedSenderAllocationRef.SetNull();
             
+        // send notification on pow, for zdag transactions this is the second notification meaning the zdag tx has been confirmed
+        passetallocationdb->WriteAssetAllocationIndex(op, tx, dbAsset, true, nHeight);    
+        
         LogPrint(BCLog::SYS,"CONNECTED ASSET ALLOCATION: op=%s assetallocation=%s hash=%s height=%d fJustCheck=%d\n",
                 assetAllocationFromOp(op).c_str(),
                 senderTupleStr.c_str(),
@@ -669,16 +676,15 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
         }
         if(!bSanityCheck)
         {
-            passetallocationdb->WriteAssetAllocationIndex(storedSenderAllocationRef.assetAllocationTuple, txHash, nHeight, dbAsset, 0, CWitnessAddress());
+            // only send a realtime notification on zdag, send another when pow happens (above)
+            if(op == OP_ASSET_ALLOCATION_SEND)
+                passetallocationdb->WriteAssetAllocationIndex(op, tx, dbAsset, false, nHeight);
             {
                 LOCK(cs_assetallocation);
                 mapBalanceSender->second = std::move(mapBalanceSenderCopy);
             }
         }
-    }
-
-	
-    
+    } 
     return true;
 }
 UniValue tpstestinfo(const JSONRPCRequest& request) {
@@ -949,11 +955,11 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
 	if (request.fHelp || params.size() != 4)
 		throw runtime_error(
-			"assetallocationsend [asset] [owner] ([{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
+			"assetallocationsend [asset] [addressfrom] ([{\"address\":\"string\",\"amount\":amount},...] [witness]\n"
 			"Send an asset allocation you own to another address. Maximimum recipients is 250.\n"
 			"<asset> Asset guid.\n"
-			"<owner> Address that owns this asset allocation.\n"
-			"<ownerto> Address to transfer to.\n"
+			"<addressfrom> Address that owns this asset allocation.\n"
+			"<address> Address to transfer to.\n"
 			"<amount> Quantity of asset to send.\n"
 			"<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
 			+ HelpRequiringPassphrase(pwallet));
@@ -1001,10 +1007,10 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 	for (unsigned int idx = 0; idx < receivers.size(); idx++) {
 		const UniValue& receiver = receivers[idx];
 		if (!receiver.isObject())
-			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected object with {\"ownerto'\" or \"amount\"}");
+			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected object with {\"address'\" or \"amount\"}");
 
 		const UniValue &receiverObj = receiver.get_obj();
-		const string &toStr = find_value(receiverObj, "ownerto").get_str();
+		const string &toStr = find_value(receiverObj, "address").get_str();
         const CTxDestination &dest = DecodeDestination(toStr);
 		if (!IsValidDestination(dest))
 			throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1502 - " + _("Asset must be sent to a valid syscoin address"));
@@ -1251,87 +1257,182 @@ bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& a
     }
     oAssetAllocation.pushKV("_id", allocationTupleStr);
 	oAssetAllocation.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
-	oAssetAllocation.pushKV("owner",  assetallocation.assetAllocationTuple.witnessAddress.ToString());
+	oAssetAllocation.pushKV("address",  assetallocation.assetAllocationTuple.witnessAddress.ToString());
 	oAssetAllocation.pushKV("balance", ValueFromAssetAmount(assetallocation.nBalance, asset.nPrecision));
     oAssetAllocation.pushKV("balance_zdag", ValueFromAssetAmount(nBalanceZDAG, asset.nPrecision));
 	return true;
 }
-bool BuildAssetAllocationIndexerJson(const CAssetAllocationTuple& assetallocation, const CAsset& asset, const CAmount& nAmount, const string& strSender, const string& strReceiver, bool &isMine, UniValue& oAssetAllocation)
+
+void AssetAllocationTxToJSON(const int &op, const CTransaction &tx, UniValue &entry)
 {
-	CAmount nAmountDisplay = nAmount;   
-	oAssetAllocation.pushKV("_id", assetallocation.ToString());
-	oAssetAllocation.pushKV("asset", (int)assetallocation.nAsset);
-	oAssetAllocation.pushKV("sender", strSender);
-	oAssetAllocation.pushKV("receiver", strReceiver);
-	if (fAssetAllocationIndex) {
-        CWallet* const pwallet = GetDefaultWallet();
-		string strCat = "";
-		if (!strSender.empty() || !strReceiver.empty()) {
-			isminefilter filter = ISMINE_SPENDABLE;
-            if(!strSender.empty() && strSender != "burn" && pwallet)
-            {
-    			isminefilter mine = IsMine(*pwallet, DecodeDestination(strSender));
-    			if ((mine & filter)) {
-    				strCat = "send";
-    				nAmountDisplay *= -1;
-    			}
+    CAssetAllocation assetallocation(tx);
+    if(assetallocation.assetAllocationTuple.IsNull())
+        return;
+    CAsset dbAsset;
+    GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
+    int nHeight = 0;
+    uint256 hash_block;
+    CBlockIndex* blockindex = nullptr;
+    CTransactionRef txRef;
+    if (GetTransaction(tx.GetHash(), txRef, Params().GetConsensus(), hash_block, true, blockindex) && blockindex)
+        nHeight = blockindex->nHeight; 
+    const string& strSender = assetallocation.assetAllocationTuple.witnessAddress.ToString();
+    entry.pushKV("txtype", assetAllocationFromOp(op));
+    entry.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
+    entry.pushKV("txid", tx.GetHash().GetHex());
+    entry.pushKV("height", nHeight);
+    entry.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
+    entry.pushKV("sender", strSender);
+    UniValue oAssetAllocationReceiversArray(UniValue::VARR);
+    CAmount nTotal = 0;
+    string strCat = "";
+    isminefilter filter = ISMINE_SPENDABLE;
+    CWallet* const pwallet = GetDefaultWallet();
+    if (fAssetAllocationIndex && strCat.empty()) {
+        if(!strSender.empty() && strSender != "burn" && pwallet)
+        {
+            isminefilter mine = IsMine(*pwallet, DecodeDestination(strSender));
+            if ((mine & filter)) {
+                strCat = "send";
             }
-			else if(!strReceiver.empty() && strReceiver != "burn" && pwallet){
-				isminefilter mine = IsMine(*pwallet, DecodeDestination(strReceiver));
-				if ((mine & filter))
-					strCat = "receive";
-			}
-		}
+        }
+    }   
+    const bool& bSending = strCat == "send";
+    if (!assetallocation.listSendingAllocationAmounts.empty()) {
+        for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
+            nTotal += amountTuple.second;
+            const string& strReceiver = amountTuple.first.ToString();
+            UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+            oAssetAllocationReceiversObj.pushKV("address", strReceiver);
+            oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(bSending? -amountTuple.second:amountTuple.second, dbAsset.nPrecision));
+            oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
+             if (fAssetAllocationIndex && strCat.empty()) {
+                if(!strReceiver.empty() && strReceiver != "burn" && pwallet){
+                    isminefilter mine = IsMine(*pwallet, DecodeDestination(strReceiver));
+                    if ((mine & filter))
+                        strCat = "receive";
+                } 
+            }           
+        }
+    }
+    entry.pushKV("allocations", oAssetAllocationReceiversArray);
+    entry.pushKV("total", ValueFromAssetAmount(bSending? -nTotal: nTotal, dbAsset.nPrecision));
 
-		oAssetAllocation.pushKV("category", strCat);
-	}
-	oAssetAllocation.pushKV("amount", ValueFromAssetAmount(nAmountDisplay, asset.nPrecision));
-	return true;
+    if(!strCat.empty())
+        entry.pushKV("category", strCat);
+    
 }
-void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry)
+bool AssetAllocationTxToJSON(const int &op, const CTransaction &tx, const CAsset& dbAsset, const int& nHeight, const bool& confirmed, UniValue &entry, string& strSender)
 {
-	string opName = assetAllocationFromOp(op);
-	CAssetAllocation assetallocation;
-	if(!assetallocation.UnserializeFromData(vchData))
-		return;
-	CAsset dbAsset;
-	GetAsset(assetallocation.assetAllocationTuple.nAsset, dbAsset);
+    CAssetAllocation assetallocation(tx);
+    if(assetallocation.assetAllocationTuple.IsNull() || dbAsset.IsNull())
+        return false;
+    strSender = assetallocation.assetAllocationTuple.witnessAddress.ToString();
+    entry.pushKV("txtype", assetAllocationFromOp(op));
+    entry.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
+    entry.pushKV("txid", tx.GetHash().GetHex());
+    entry.pushKV("height", nHeight);
+    entry.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
+    entry.pushKV("sender", strSender);
+    UniValue oAssetAllocationReceiversArray(UniValue::VARR);
+    CAmount nTotal = 0;
+    string strCat = "";
+    isminefilter filter = ISMINE_SPENDABLE;
+    CWallet* const pwallet = GetDefaultWallet();
+    if (fAssetAllocationIndex && strCat.empty()) {
+        if(!strSender.empty() && strSender != "burn" && pwallet)
+        {
+            isminefilter mine = IsMine(*pwallet, DecodeDestination(strSender));
+            if ((mine & filter)) {
+                strCat = "send";
+            }
+        }
+    }   
+    const bool& bSending = strCat == "send";
+    if (!assetallocation.listSendingAllocationAmounts.empty()) {
+        for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
+            nTotal += amountTuple.second;
+            const string& strReceiver = amountTuple.first.ToString();
+            UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+            oAssetAllocationReceiversObj.pushKV("address", strReceiver);
+            oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(bSending? -amountTuple.second:amountTuple.second, dbAsset.nPrecision));
+            oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
+             if (fAssetAllocationIndex && strCat.empty()) {
+                if(!strReceiver.empty() && strReceiver != "burn" && pwallet){
+                    isminefilter mine = IsMine(*pwallet, DecodeDestination(strReceiver));
+                    if ((mine & filter))
+                        strCat = "receive";
+                } 
+            }           
+        }
+    }
+    entry.pushKV("allocations", oAssetAllocationReceiversArray);
+    entry.pushKV("total", ValueFromAssetAmount(bSending? -nTotal: nTotal, dbAsset.nPrecision));
 
-	entry.pushKV("txtype", opName);
-	entry.pushKV("_id", assetallocation.assetAllocationTuple.ToString());
-	entry.pushKV("asset", (int)assetallocation.assetAllocationTuple.nAsset);
-	entry.pushKV("owner", assetallocation.assetAllocationTuple.witnessAddress.ToString());
-	UniValue oAssetAllocationReceiversArray(UniValue::VARR);
-	if (!assetallocation.listSendingAllocationAmounts.empty()) {
-		for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
-			UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-			oAssetAllocationReceiversObj.pushKV("owner", amountTuple.first.ToString());
-			oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
-			oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
-		}
-	}
-	entry.pushKV("allocations", oAssetAllocationReceiversArray);
-
+    if(!strCat.empty())
+        entry.pushKV("category", strCat);
+    entry.pushKV("confirmed", confirmed);   
+    return !strCat.empty();
 
 }
 void AssetMintTxToJson(const CTransaction& tx, UniValue &entry){
     CMintSyscoin mintsyscoin(tx);
     if (!mintsyscoin.IsNull() && !mintsyscoin.assetAllocationTuple.IsNull()) {
+        int nHeight = 0;
+        uint256 hash_block;
+        CTransactionRef txRef;
+        CBlockIndex* blockindex = nullptr;
+        if (GetTransaction(tx.GetHash(), txRef, Params().GetConsensus(), hash_block, true, blockindex) && blockindex)
+            nHeight = blockindex->nHeight; 
         entry.pushKV("txtype", "assetallocationmint");
         entry.pushKV("_id", mintsyscoin.assetAllocationTuple.ToString());
+        entry.pushKV("txid", tx.GetHash().GetHex());
+        entry.pushKV("height", nHeight);
         entry.pushKV("asset", (int)mintsyscoin.assetAllocationTuple.nAsset);
-        entry.pushKV("owner", "");
+        entry.pushKV("address", "");
         UniValue oAssetAllocationReceiversArray(UniValue::VARR);
         CAsset dbAsset;
         GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
        
         UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-        oAssetAllocationReceiversObj.pushKV("owner", mintsyscoin.assetAllocationTuple.witnessAddress.ToString());
+        oAssetAllocationReceiversObj.pushKV("address", mintsyscoin.assetAllocationTuple.witnessAddress.ToString());
         oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
         oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
     
         entry.pushKV("allocations", oAssetAllocationReceiversArray);                                        
     }                    
+}
+void AssetMintTxToJson(const CTransaction& tx, const CMintSyscoin& mintsyscoin, const int& nHeight, UniValue &entry){
+    if (!mintsyscoin.IsNull() && !mintsyscoin.assetAllocationTuple.IsNull()) {
+        entry.pushKV("txtype", "assetallocationmint");
+        entry.pushKV("_id", mintsyscoin.assetAllocationTuple.ToString());
+        entry.pushKV("txid", tx.GetHash().GetHex());
+        entry.pushKV("height", nHeight);       
+        entry.pushKV("asset", (int)mintsyscoin.assetAllocationTuple.nAsset);
+        entry.pushKV("address", "");
+        UniValue oAssetAllocationReceiversArray(UniValue::VARR);
+        CAsset dbAsset;
+        GetAsset(mintsyscoin.assetAllocationTuple.nAsset, dbAsset);
+       
+        UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
+        oAssetAllocationReceiversObj.pushKV("address", mintsyscoin.assetAllocationTuple.witnessAddress.ToString());
+        oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(mintsyscoin.nValueAsset, dbAsset.nPrecision));
+        oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
+    
+        entry.pushKV("allocations", oAssetAllocationReceiversArray);                                        
+    }                    
+}
+std::vector<std::string> vecIntersection(std::vector<std::string> &v1,
+                                      std::vector<std::string> &v2){
+    std::vector<std::string> v3;
+
+    std::sort(v1.begin(), v1.end());
+    std::sort(v2.begin(), v2.end());
+
+    std::set_intersection(v1.begin(),v1.end(),
+                          v2.begin(),v2.end(),
+                          back_inserter(v3));
+    return v3;
 }
 bool CAssetAllocationTransactionsDB::ScanAssetAllocationIndex(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
 	string strTxid = "";
@@ -1356,7 +1457,7 @@ bool CAssetAllocationTransactionsDB::ScanAssetAllocationIndex(const int count, c
 			const UniValue &ownersArray = owners.get_array();
 			for (unsigned int i = 0; i < ownersArray.size(); i++) {
 				const UniValue &owner = ownersArray[i].get_obj();
-				const UniValue &ownerStr = find_value(owner, "receiver");
+				const UniValue &ownerStr = find_value(owner, "address");
 				if (ownerStr.isStr()) {
 					bParseKey = true;
 					vecReceivers.push_back(ownerStr.get_str());
@@ -1369,7 +1470,7 @@ bool CAssetAllocationTransactionsDB::ScanAssetAllocationIndex(const int count, c
 			const UniValue &sendersArray = senders.get_array();
 			for (unsigned int i = 0; i < sendersArray.size(); i++) {
 				const UniValue &sender = sendersArray[i].get_obj();
-				const UniValue &senderStr = find_value(sender, "sender");
+				const UniValue &senderStr = find_value(sender, "address");
 				if (senderStr.isStr()) {
 					bParseKey = true;
 					vecSenders.push_back(senderStr.get_str());
@@ -1393,15 +1494,24 @@ bool CAssetAllocationTransactionsDB::ScanAssetAllocationIndex(const int count, c
     					continue;
     				if (!vecSenders.empty() && std::find(vecSenders.begin(), vecSenders.end(), contents[2]) == vecSenders.end())
     					continue;
-    				if (!vecReceivers.empty() && std::find(vecReceivers.begin(), vecReceivers.end(), contents[3]) == vecReceivers.end())
-    					continue;
     			}
     			index += 1;
     			if (index <= from) {
     				continue;
     			}
-    			if (assetValue.read(indexItem.second))
+    			if (assetValue.read(indexItem.second)){
+                    if(!vecReceivers.empty()){
+                        vector<string> vecAddresses;
+                        const UniValue &allocationsArray = find_value(assetValue, "allocations").get_array();
+                        for(unsigned int i =0;i<allocationsArray.size();i++){
+                            vecAddresses.push_back(find_value(allocationsArray[i].get_obj(),  "address").get_str());
+                        }
+                        const vector<string> &res = vecIntersection(vecAddresses,vecReceivers);
+                        if(res.empty())
+                            continue;
+                    }
     				oRes.push_back(assetValue);
+                }
     			if (index >= count + from)
     				break;
     		}
@@ -1410,6 +1520,47 @@ bool CAssetAllocationTransactionsDB::ScanAssetAllocationIndex(const int count, c
     	}
     }
 	return true;
+}
+bool CAssetAllocationMempoolBalancesDB::ScanAssetAllocationMempoolBalances(const int count, const int from, const UniValue& oOptions, UniValue& oRes) {
+    string strTxid = "";
+    vector<string> vecSenders;
+    vector<string> vecReceivers;
+    string strAsset = "";
+    bool bParseKey = false;
+    if (!oOptions.isNull()) {
+       
+        const UniValue &senders = find_value(oOptions, "senders");
+        if (senders.isArray()) {
+            const UniValue &sendersArray = senders.get_array();
+            for (unsigned int i = 0; i < sendersArray.size(); i++) {
+                const UniValue &sender = sendersArray[i].get_obj();
+                const UniValue &senderStr = find_value(sender, "address");
+                if (senderStr.isStr()) {
+                    bParseKey = true;
+                    vecSenders.push_back(senderStr.get_str());
+                }
+            }
+        }
+    }
+    int index = 0;
+    {
+        LOCK(cs_assetallocationindex);
+        for (auto&indexObj : mempoolMapAssetBalances) {
+            
+            if (!vecSenders.empty() && std::find(vecSenders.begin(), vecSenders.end(), indexObj.first) == vecSenders.end())
+                continue;
+            index += 1;
+            if (index <= from) {
+                continue;
+            }
+            UniValue resultObj(UniValue::VOBJ);
+            resultObj.pushKV(indexObj.first, ValueFromAmount(indexObj.second));
+            oRes.push_back(resultObj);
+            if (index >= count + from)
+                break;
+        }       
+    }
+    return true;
 }
 bool CAssetAllocationDB::Flush(const AssetAllocationMap &mapAssetAllocations){
     if(mapAssetAllocations.empty())
@@ -1441,7 +1592,7 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 			const UniValue &ownersArray = owners.get_array();
 			for (unsigned int i = 0; i < ownersArray.size(); i++) {
 				const UniValue &owner = ownersArray[i].get_obj();
-				const UniValue &ownerStr = find_value(owner, "receiver");
+				const UniValue &ownerStr = find_value(owner, "address");
 				if (ownerStr.isStr()) {
                     const CTxDestination &dest = DecodeDestination(ownerStr.get_str());
                     UniValue detail = DescribeAddress(dest);
@@ -1465,17 +1616,17 @@ bool CAssetAllocationDB::ScanAssetAllocations(const int count, const int from, c
 		boost::this_thread::interruption_point();
 		try {
 			if (pcursor->GetKey(key) && (nAsset == 0 || nAsset != key.nAsset)) {
-				pcursor->GetValue(txPos);
-                if (!GetAsset(key.nAsset, theAsset))
-                {
-                    pcursor->Next();
-                    continue;
-                }               
+				pcursor->GetValue(txPos);              
 				if (!vecWitnessAddresses.empty() && std::find(vecWitnessAddresses.begin(), vecWitnessAddresses.end(), txPos.assetAllocationTuple.witnessAddress) == vecWitnessAddresses.end())
 				{
 					pcursor->Next();
 					continue;
 				}
+                if (!GetAsset(key.nAsset, theAsset))
+                {
+                    pcursor->Next();
+                    continue;
+                } 
 				UniValue oAssetAllocation(UniValue::VOBJ);
 				if (!BuildAssetAllocationJson(txPos, theAsset, oAssetAllocation)) 
 				{
@@ -1514,21 +1665,21 @@ UniValue listassetallocationtransactions(const JSONRPCRequest& request) {
 			"	   \"senders\"						(array) a json array with senders\n"
 			"		[\n"
 			"			{\n"
-			"				\"sender\":string		(string) Sender address to filter.\n"
+			"				\"address\":string		(string) Sender address to filter.\n"
 			"			} \n"
 			"			,...\n"
 			"		]\n"
 			"	   \"receivers\"					(array) a json array with receivers\n"
 			"		[\n"
 			"			{\n"
-			"				\"receiver\":string		(string) Receiver address to filter.\n"
+			"				\"address\":string		(string) Receiver address to filter.\n"
 			"			} \n"
 			"			,...\n"
 			"		]\n"
 			"    }\n"
 			+ HelpExampleCli("listassetallocationtransactions", "0 10")
 			+ HelpExampleCli("listassetallocationtransactions", "0 0 '{\"asset\":343773}'")
-			+ HelpExampleCli("listassetallocationtransactions", "0 0 '{\"senders\":[{\"sender\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"sender\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
+			+ HelpExampleCli("listassetallocationtransactions", "0 0 '{\"senders\":[{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
 			+ HelpExampleCli("listassetallocationtransactions", "0 0 '{\"txid\":\"1c7f966dab21119bac53213a2bc7532bff1fa844c124fd750a7d0b1332440bd1\"}'")
 		);
 	UniValue options;
@@ -1561,7 +1712,7 @@ UniValue listassetallocations(const JSONRPCRequest& request) {
 			"	   \"receivers\"					(array) a json array with receivers\n"
 			"		[\n"
 			"			{\n"
-			"				\"receiver\":string		(string) Receiver address to filter.\n"
+			"				\"address\":string		(string) Receiver address to filter.\n"
 			"			} \n"
 			"			,...\n"
 			"		]\n"
@@ -1569,7 +1720,7 @@ UniValue listassetallocations(const JSONRPCRequest& request) {
 			+ HelpExampleCli("listassetallocations", "0")
 			+ HelpExampleCli("listassetallocations", "10 10")
 			+ HelpExampleCli("listassetallocations", "0 0 '{\"asset\":92922}'")
-			+ HelpExampleCli("listassetallocations", "0 0 '{\"receivers\":[{\"receiver\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"receiver\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
+			+ HelpExampleCli("listassetallocations", "0 0 '{\"receivers\":[{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
 		);
 	UniValue options;
 	int count = 10;
@@ -1596,4 +1747,51 @@ UniValue listassetallocations(const JSONRPCRequest& request) {
 	if (!passetallocationdb->ScanAssetAllocations(count, from, options, oRes))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1510 - " + _("Scan failed"));
 	return oRes;
+}
+UniValue listassetallocationmempoolbalances(const JSONRPCRequest& request) {
+    const UniValue &params = request.params;
+    if (request.fHelp || 3 < params.size())
+        throw runtime_error("listassetallocationmempoolbalances [count] [from] [{options}]\n"
+            "scan through all asset allocations.\n"
+            "[count]          (numeric, optional, default=10) The number of results to return.\n"
+            "[from]           (numeric, optional, default=0) The number of results to skip.\n"
+            "[options]        (array, optional) A json object with options to filter results\n"
+            "    {\n"
+            "      \"senders\"                    (array) a json array with senders\n"
+            "       [\n"
+            "           {\n"
+            "               \"address\":string      (string) Sender address to filter.\n"
+            "           } \n"
+            "           ,...\n"
+            "       ]\n"
+            "    }\n"
+            + HelpExampleCli("listassetallocations", "0")
+            + HelpExampleCli("listassetallocations", "10 10")
+            + HelpExampleCli("listassetallocations", "0 0 '{\"senders\":[{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
+        );
+    UniValue options;
+    int count = 10;
+    int from = 0;
+    if (params.size() > 0) {
+        count = params[0].get_int();
+        if (count == 0) {
+            count = 10;
+        } else
+        if (count < 0) {
+            throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1510 - " + _("'count' must be 0 or greater"));
+        }
+    }
+    if (params.size() > 1) {
+        from = params[1].get_int();
+        if (from < 0) {
+            throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1510 - " + _("'from' must be 0 or greater"));
+        }
+    }
+    if (params.size() > 2) {
+        options = params[2];
+    }
+    UniValue oRes(UniValue::VARR);
+    if (!passetallocationmempoolbalancesdb->ScanAssetAllocationMempoolBalances(count, from, options, oRes))
+        throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1510 - " + _("Scan failed"));
+    return oRes;
 }

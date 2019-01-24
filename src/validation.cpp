@@ -725,7 +725,7 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
             return state.DoS(10, false, REJECT_INVALID, errorMessage);
         }   
         if(!fJustCheck)     
-            passetallocationdb->WriteAssetAllocationIndex(storedReceiverAllocationRef.assetAllocationTuple, tx.GetHash(), nHeight, storedSenderRef, mintSyscoin.nValueAsset, CWitnessAddress());         
+            passetallocationdb->WriteMintIndex(tx, mintSyscoin, nHeight);         
                                        
     }
     return true;
@@ -812,7 +812,6 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
             }
             mapAssetAllocations.clear();
             mapAssets.clear();
-            mempoolMapAssetBalances.clear();
         }        
         if (!good || !errorMessage.empty())
             return state.DoS(100, false, REJECT_INVALID, errorMessage);

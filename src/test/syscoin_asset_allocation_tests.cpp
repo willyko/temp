@@ -26,7 +26,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_address_sync)
     string newaddressreceiver = r.get_str();
 	string guid = AssetNew("node1", newaddress, "data", "''", "''", "8", "10000", "1000000");
 
-	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddressreceiver + "\\\",\\\"amount\\\":5000}]\"");
+	AssetSend("node1", guid, "\"[{\\\"address\\\":\\\"" + newaddressreceiver + "\\\",\\\"amount\\\":5000}]\"");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddressreceiver ));
 	UniValue balance = find_value(r.get_obj(), "balance");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node2", "assetallocationinfo " + guid + " " + newaddressreceiver ));
@@ -56,12 +56,12 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
         
 	string guid = AssetNew("node1", newaddress1, "data","''", "''", "8", "1", "100000");
 
-	AssetSend("node1", guid, "\"[{\\\"ownerto\\\":\\\"" + newaddress1 + "\\\",\\\"amount\\\":1}]\"");
+	AssetSend("node1", guid, "\"[{\\\"address\\\":\\\"" + newaddress1 + "\\\",\\\"amount\\\":1}]\"");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress1 ));
 	UniValue balance = find_value(r.get_obj(), "balance");
 	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 1 * COIN);
 
-	string txid0 = AssetAllocationTransfer(false, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.11}]\"");
+	string txid0 = AssetAllocationTransfer(false, "node1", guid, newaddress1, "\"[{\\\"address\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.11}]\"");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2 ));
 	balance = find_value(r.get_obj(), "balance");
 	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 0.11 * COIN);
@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
 	BOOST_CHECK_EQUAL(find_value(r.get_obj(), "status").get_int(), ZDAG_NOT_FOUND);
 
 	// send using zdag
-	string txid1 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.12}]\"");
+	string txid1 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"address\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.12}]\"");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2));
 	balance = find_value(r.get_obj(), "balance_zdag");
 	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 0.23 * COIN);
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(generate_asset_allocation_send_address)
 	// wait for 1 second as required by unit test
 	MilliSleep(1000);
 	// second send
-	string txid2 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"ownerto\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.13}]\"");
+	string txid2 = AssetAllocationTransfer(true, "node1", guid, newaddress1, "\"[{\\\"address\\\":\\\"" + newaddress2 + "\\\",\\\"amount\\\":0.13}]\"");
 	BOOST_CHECK_NO_THROW(r = CallRPC("node1", "assetallocationinfo " + guid + " " + newaddress2 ));
 	balance = find_value(r.get_obj(), "balance_zdag");
 	BOOST_CHECK_EQUAL(AssetAmountFromValue(balance, 8), 0.36 * COIN);

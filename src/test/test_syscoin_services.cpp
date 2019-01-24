@@ -628,7 +628,7 @@ string AssetNew(const string& node, const string& address, const string& pubdata
 	GetOtherNodes(node, otherNode1, otherNode2);
 	UniValue r;
     
-	// "assetnew [owner] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
+	// "assetnew [address] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetnew " + address + " " + pubdata + " " + contract + " " + burnmethod + " " + precision + " " + supply + " " + maxsupply + " " + updateflags + " " + witness));
 	UniValue arr = r.get_array();
     string guid = boost::lexical_cast<string>(arr[1].get_int());
@@ -646,7 +646,7 @@ string AssetNew(const string& node, const string& address, const string& pubdata
 	int nprecision = atoi(precision);
 
 	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
-	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == address);
+	BOOST_CHECK(find_value(r.get_obj(), "address").get_str() == address);
 	BOOST_CHECK(find_value(r.get_obj(), "publicvalue").get_str() == pubdata);
 	UniValue balance = find_value(r.get_obj(), "balance");
 	UniValue totalsupply = find_value(r.get_obj(), "total_supply");
@@ -703,7 +703,7 @@ void AssetUpdate(const string& node, const string& guid, const string& pubdata, 
 	GetOtherNodes(node, otherNode1, otherNode2);
 	UniValue r;
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
-	string oldaddress = find_value(r.get_obj(), "owner").get_str();
+	string oldaddress = find_value(r.get_obj(), "address").get_str();
 	string oldpubdata = find_value(r.get_obj(), "publicvalue").get_str();
 	string oldsupply = find_value(r.get_obj(), "total_supply").get_str();
 	int nprecision = find_value(r.get_obj(), "precision").get_int();
@@ -740,7 +740,7 @@ void AssetUpdate(const string& node, const string& guid, const string& pubdata, 
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
 
 	BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
-	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == oldaddress);
+	BOOST_CHECK(find_value(r.get_obj(), "address").get_str() == oldaddress);
 	totalsupply = find_value(r.get_obj(), "total_supply");
 	BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == newamount);
 	GenerateBlocks(6, node);
@@ -748,7 +748,7 @@ void AssetUpdate(const string& node, const string& guid, const string& pubdata, 
 	{
 		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode1, "assetinfo " + guid ));
 		BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
-		BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == oldaddress);
+		BOOST_CHECK(find_value(r.get_obj(), "address").get_str() == oldaddress);
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "publicvalue").get_str(), newpubdata);
 	
 		totalsupply = find_value(r.get_obj(), "total_supply");
@@ -759,7 +759,7 @@ void AssetUpdate(const string& node, const string& guid, const string& pubdata, 
 	{
 		BOOST_CHECK_NO_THROW(r = CallRPC(otherNode2, "assetinfo " + guid));
 		BOOST_CHECK(boost::lexical_cast<string>(find_value(r.get_obj(), "_id").get_int()) == guid);
-		BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == oldaddress);
+		BOOST_CHECK(find_value(r.get_obj(), "address").get_str() == oldaddress);
 		BOOST_CHECK_EQUAL(find_value(r.get_obj(), "publicvalue").get_str(), newpubdata);
 		totalsupply = find_value(r.get_obj(), "total_supply");
 		BOOST_CHECK(AssetAmountFromValue(totalsupply, nprecision) == newamount);
@@ -772,7 +772,7 @@ void AssetTransfer(const string& node, const string &tonode, const string& guid,
 	UniValue r;
 
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid ));
-	string oldaddress = find_value(r.get_obj(), "owner").get_str();
+	string oldaddress = find_value(r.get_obj(), "address").get_str();
 
 
 	// "assettransfer [asset] [address] [witness]\n"
@@ -795,7 +795,7 @@ void AssetTransfer(const string& node, const string &tonode, const string& guid,
 	GenerateBlocks(6, node);
 
 	BOOST_CHECK_NO_THROW(r = CallRPC(tonode, "assetinfo " + guid));
-	BOOST_CHECK(find_value(r.get_obj(), "owner").get_str() == toaddress);
+	BOOST_CHECK(find_value(r.get_obj(), "address").get_str() == toaddress);
 
 
 }
@@ -822,7 +822,7 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
       
 		UniValue receiverObj = receiver.get_obj();
         
-        const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "ownerto").get_str());
+        const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "address").get_str());
         UniValue detail = DescribeAddress(dest);
         string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
         unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();                  
@@ -853,7 +853,7 @@ string AssetAllocationTransfer(const bool usezdag, const string& node, const str
     catch(...){
         newfromamount = 0;
     }
-	// "assetallocationsend [asset] [ownerfrom] ( [{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
+	// "assetallocationsend [asset] [addressfrom] ( [{\"address\":\"address\",\"amount\":amount},...] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetallocationsend " + guid + " " + fromaddress + " " + inputs + " " + witness));
     UniValue arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + fromaddress));
@@ -926,7 +926,7 @@ string AssetSend(const string& node, const string& guid, const string& inputs, c
 	UniValue r;
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetinfo " + guid));
 	int nprecision = find_value(r.get_obj(), "precision").get_int();
-    string fromAddress = find_value(r.get_obj(), "owner").get_str();
+    string fromAddress = find_value(r.get_obj(), "address").get_str();
     
 	CAssetAllocation theAssetAllocation;
 	UniValue valueTo;
@@ -944,7 +944,7 @@ string AssetSend(const string& node, const string& guid, const string& inputs, c
 
 
 		UniValue receiverObj = receiver.get_obj();
-        const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "ownerto").get_str());
+        const CTxDestination &dest = DecodeDestination(find_value(receiverObj, "address").get_str());
         UniValue detail = DescribeAddress(dest);
         string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
         unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();
@@ -966,7 +966,7 @@ string AssetSend(const string& node, const string& guid, const string& inputs, c
 	UniValue balance = find_value(r.get_obj(), "balance");
 	CAmount newfromamount = AssetAmountFromValue(balance, nprecision) - inputamount;
 
-	// "assetsend [asset] ( [{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
+	// "assetsend [asset] ( [{\"address\":\"address\",\"amount\":amount},...] [witness]\n"
 	BOOST_CHECK_NO_THROW(r = CallRPC(node, "assetsend " + guid + " " + inputs + " " + witness));
     UniValue arr = r.get_array();
     BOOST_CHECK_NO_THROW(r = CallRPC(node, "syscointxfund " + arr[0].get_str() + " " + fromAddress));

@@ -15,13 +15,15 @@ class CReserveKey;
 class CCoinsViewCache;
 class CBlock;
 class CAsset;
-
+class CMintSyscoin;
 bool DecodeAssetAllocationTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch);
 bool DecodeAndParseAssetAllocationTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char& type);
 bool DecodeAssetAllocationScript(const CScript& script, int& op, std::vector<std::vector<unsigned char> > &vvch);
 bool IsAssetAllocationOp(int op);
-void AssetAllocationTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
+bool AssetAllocationTxToJSON(const int &op, const CTransaction &tx, const CAsset& dbAsset, const int& nHeight, const bool& confirmed, UniValue &entry, std::string& strSender);
+void AssetAllocationTxToJSON(const int &op, const CTransaction &tx, UniValue &entry);
 void AssetMintTxToJson(const CTransaction& tx, UniValue &entry);
+void AssetMintTxToJson(const CTransaction& tx, const CMintSyscoin& mintsyscoin, const int& nHeight, UniValue &entry);
 std::string assetAllocationFromOp(int op);
 bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
 class CWitnessAddress{
@@ -202,13 +204,14 @@ public:
         return Read(assetAllocationTuple, assetallocation);
     }
     bool Flush(const AssetAllocationMap &mapAssetAllocations);
-	void WriteAssetAllocationIndex(const CAssetAllocationTuple& assetAllocationTuple, const uint256& txHash, int nHeight, const CAsset& asset, const CAmount& nAmount, const CWitnessAddress& senderWitness);
+	void WriteAssetAllocationIndex(const int& op, const CTransaction &tx, const CAsset& dbAsset, const bool& confirmed, int nHeight);
+    void WriteMintIndex(const CTransaction& tx, const CMintSyscoin& mintSyscoin, const int &nHeight);
 	bool ScanAssetAllocations(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
 class CAssetAllocationTransactionsDB : public CDBWrapper {
 public:
 	CAssetAllocationTransactionsDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocationtransactions", nCacheSize, fMemory, fWipe) {
-		ReadAssetAllocationWalletIndex(AssetAllocationIndex);
+		
 	}
 
 	bool WriteAssetAllocationWalletIndex(const AssetAllocationIndexItemMap &valueMap) {
@@ -219,9 +222,21 @@ public:
 	}
 	bool ScanAssetAllocationIndex(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
 };
+class CAssetAllocationMempoolBalancesDB : public CDBWrapper {
+public:
+    CAssetAllocationMempoolBalancesDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "assetallocationmempoolbalances", nCacheSize, fMemory, fWipe) {
+    }
+
+    bool WriteAssetAllocationMempoolBalances(const AssetBalanceMap &valueMap) {
+        return Write(std::string("assetallocationtxmi"), valueMap, true);
+    }
+    bool ReadAssetAllocationMempoolBalances(AssetBalanceMap &valueMap) {
+        return Read(std::string("assetallocationtxmi"), valueMap);
+    }
+    bool ScanAssetAllocationMempoolBalances(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
+};
 static CAssetAllocation emptyAllocation;
 bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const std::vector<std::vector<unsigned char> > &vvchArgs, bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, std::string &errorMessage, bool bSanityCheck = false, bool bMiner = false);
 bool GetAssetAllocation(const CAssetAllocationTuple& assetAllocationTuple,CAssetAllocation& txPos);
 bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& asset, UniValue& oName);
-bool BuildAssetAllocationIndexerJson(const CAssetAllocationTuple& assetallocation, const CAsset& asset, const CAmount& nAmount, const std::string& strSender, const std::string& strReceiver, bool &isMine, UniValue& oAssetAllocation);
 #endif // ASSETALLOCATION_H

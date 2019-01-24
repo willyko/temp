@@ -296,6 +296,7 @@ void PrepareShutdown()
     passetdb.reset();
     passetallocationdb.reset();
     passetallocationtransactionsdb.reset();
+    passetallocationmempoolbalancesdb.reset();
     pethereumtxrootsdb.reset();
     if (threadpool)
         delete threadpool;
@@ -1575,11 +1576,17 @@ bool AppInitMain()
                 passetdb.reset();
                 passetallocationdb.reset();
                 passetallocationtransactionsdb.reset();
+                passetallocationmempoolbalancesdb.reset();
                 pethereumtxrootsdb.reset();
                 
                 passetdb.reset(new CAssetDB(nCoinDBCache*16, false, fReset));
                 passetallocationdb.reset(new CAssetAllocationDB(nCoinDBCache*32, false, fReset));
                 passetallocationtransactionsdb.reset(new CAssetAllocationTransactionsDB(0, false, fReset));
+                passetallocationmempoolbalancesdb.reset(new CAssetAllocationMempoolBalancesDB(0, false, fReset));
+                {
+                    LOCK(cs_assetallocation);
+                    passetallocationmempoolbalancesdb->ReadAssetAllocationMempoolBalances(mempoolMapAssetBalances);
+                }
                 pethereumtxrootsdb.reset(new CEthereumTxRootsDB(nCoinDBCache*16, false, fReset));
 
                 // new CBlockTreeDB tries to delete the existing file, which
@@ -1796,7 +1803,6 @@ bool AppInitMain()
     fUnitTest = gArgs.GetBoolArg("-unittest", false);
     
     fTPSTest = gArgs.GetBoolArg("-tpstest", false);
-    StartGethNode(gethPID);
     fConcurrentProcessing = gArgs.GetBoolArg("-concurrentprocessing", true);
     fLogThreadpool = LogAcceptCategory(BCLog::THREADPOOL);
     fAssetAllocationIndex = gArgs.GetBoolArg("-assetallocationindex", false);
@@ -2018,6 +2024,7 @@ bool AppInitMain()
             LogPrintf("  %s %s - locked successfully\n", mne.getTxHash(), mne.getOutputIndex());
         }
     }
+    StartGethNode(gethPID);
     
     #endif // ENABLE_WALLET
     return true;

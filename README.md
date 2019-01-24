@@ -33,7 +33,7 @@ which leverage the bitcoin protocol and blockchain technology.
 - Masternode seniority: 35% increase after 1 year, 100% increase after 2.5 years
 - Governance proposals payout schedule: every month
 - Governance funding per round (TBD Syscoins per month)
-- Consensus enforced segwit + witness programs (all transactions have witness programs except coinbase)
+- Consensus enforced segwit (all transactions have witness programs except coinbase)
 - Codebase based off of latest Bitcoin Core (https://github.com/bitcoin/bitcoin) 
 
 Services include:

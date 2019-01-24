@@ -22,16 +22,16 @@
 // SYSCOIN service rpc functions
 extern UniValue sendrawtransaction(const JSONRPCRequest& request);
 
-extern UniValue assetallocationsend(const JSONRPCRequest& request);
-extern UniValue assetallocationmint(const JSONRPCRequest& request);
-extern UniValue assetallocationburn(const JSONRPCRequest& request);
-extern UniValue assetallocationinfo(const JSONRPCRequest& request);
-extern UniValue assetallocationsenderstatus(const JSONRPCRequest& request);
-extern UniValue listassetallocationtransactions(const JSONRPCRequest& request);
-extern UniValue listassetallocations(const JSONRPCRequest& request);
-extern UniValue tpstestinfo(const JSONRPCRequest& request);
-extern UniValue tpstestadd(const JSONRPCRequest& request);
-extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
+UniValue assetallocationsend(const JSONRPCRequest& request);
+UniValue assetallocationmint(const JSONRPCRequest& request);
+UniValue assetallocationburn(const JSONRPCRequest& request);
+UniValue assetallocationinfo(const JSONRPCRequest& request);
+UniValue assetallocationsenderstatus(const JSONRPCRequest& request);
+UniValue listassetallocationtransactions(const JSONRPCRequest& request);
+UniValue listassetallocations(const JSONRPCRequest& request);
+UniValue tpstestinfo(const JSONRPCRequest& request);
+UniValue tpstestadd(const JSONRPCRequest& request);
+UniValue tpstestsetenabled(const JSONRPCRequest& request);
 
 
 using namespace std;

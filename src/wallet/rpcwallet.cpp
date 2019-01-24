@@ -42,7 +42,7 @@
 using namespace std;
 #include <services/assetallocation.h>
 #include <services/asset.h>
-#include <governance.h>
+#include <rpc/governance.cpp>
 #include <base58.h>
 #include <bech32.h>
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";

@@ -1030,7 +1030,7 @@ std::string GetGethFilename(){
 }
 bool StopGethNode(pid_t pid)
 {
-    if(fUnitTest)
+    if(fUnitTest || fTPSTest)
         return true;
     if(pid){
         try{

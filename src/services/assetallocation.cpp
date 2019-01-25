@@ -235,7 +235,7 @@ bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptO
 	return true;
 }
 
-bool ResetAssetAllocation(const string &senderStr, const uint256 &txHash, const bool &bMiner=false) {
+bool ResetAssetAllocation(const string &senderStr, const uint256 &txHash, const bool &bMiner) {
 
     if(!bMiner){
         bool removeAllConflicts = true;
@@ -552,7 +552,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             {
                 LOCK(cs_assetallocation); 
                 if(mapSenderMempoolBalanceNotFound){
-                    LogPrintf("0erasing empty mempoolMapAssetBalances\n");
                     mempoolMapAssetBalances.erase(mapBalanceSender);
                 }
             }
@@ -611,7 +610,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             {
                 LOCK(cs_assetallocation); 
                 if(mapSenderMempoolBalanceNotFound){
-                    LogPrintf("1erasing empty mempoolMapAssetBalances\n");
                     mempoolMapAssetBalances.erase(mapBalanceSender);
                 }
             }            
@@ -625,7 +623,6 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                 {
                     LOCK(cs_assetallocation); 
                     if(mapSenderMempoolBalanceNotFound){
-                        LogPrintf("2erasing empty mempoolMapAssetBalances\n");
                         mempoolMapAssetBalances.erase(mapBalanceSender);
                     }
                 }           
@@ -1277,7 +1274,7 @@ UniValue assetallocationsenderstatus(const JSONRPCRequest& request) {
 	oAssetAllocationStatus.pushKV("status", nStatus);
 	return oAssetAllocationStatus;
 }
-bool BuildAssetAllocationJson(CAssetAllocation& assetallocation, const CAsset& asset, UniValue& oAssetAllocation)
+bool BuildAssetAllocationJson(const CAssetAllocation& assetallocation, const CAsset& asset, UniValue& oAssetAllocation)
 {
     CAmount nBalanceZDAG = assetallocation.nBalance;
     const string &allocationTupleStr = assetallocation.assetAllocationTuple.ToString();

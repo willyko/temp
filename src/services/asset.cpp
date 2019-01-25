@@ -255,6 +255,24 @@ bool FlushSyscoinDBs() {
      }
 	return true;
 }
+void CTxMemPool::removeExpiredMempoolBalances(setEntries& stage){ 
+    vector<vector<unsigned char> > vvch;
+    int op;
+    char type;
+    int count = 0;
+    for (const txiter& it : stage) {
+        const CTransaction& tx = it->GetTx();
+        if(tx.nVersion == SYSCOIN_TX_VERSION_ASSET && DecodeAndParseAssetAllocationTx(tx, op, vvch, type)){
+            CAssetAllocation allocation(tx);
+            if(allocation.assetAllocationTuple.IsNull())
+                continue;
+            if(ResetAssetAllocation(allocation.assetAllocationTuple.ToString(), tx.GetHash()))
+                count++;
+        }
+    }
+    if(count > 0)
+         LogPrint(BCLog::SYS, "removeExpiredMempoolBalances removed %d expired asset allocation transactions from mempool balances\n", count);  
+}
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op,
 	vector<vector<unsigned char> >& vvch, char& type)
 {

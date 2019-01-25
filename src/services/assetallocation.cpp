@@ -235,33 +235,37 @@ bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptO
 	return true;
 }
 
-bool ResetAssetAllocation(const CAssetAllocationTuple &assetAllocationToRemove,  const uint256 &txHash, const bool &bMiner=false) {
+bool ResetAssetAllocation(const string &senderStr, const uint256 &txHash, const bool &bMiner=false) {
 
     if(!bMiner){
-        const string& senderStr = assetAllocationToRemove.ToString();
         bool removeAllConflicts = true;
         {
             LOCK(cs_assetallocationarrival);
         	// remove the conflict once we revert since it is assumed to be resolved on POW
-        	ArrivalTimesMap &arrivalTimes = arrivalTimesMap[senderStr];
+        	auto arrivalTimes = arrivalTimesMap.find(senderStr);
             
-        	
-        	// remove only if all arrival times are either expired (30 mins) or no more zdag transactions left for this sender
-        	for(auto& arrivalTime: arrivalTimes){
-        		if((chainActive.Tip()->GetMedianTimePast() - arrivalTime.second) <= 1800000){
-        			removeAllConflicts = false;
-        			break;
-        		}
-        	}
+        	if(arrivalTimes != arrivalTimesMap.end()){
+            	// remove only if all arrival times are either expired (30 mins) or no more zdag transactions left for this sender
+            	for(auto& arrivalTime: arrivalTimes->second){
+            		if(!arrivalTime.first.IsNull() && (chainActive.Tip()->GetMedianTimePast() - arrivalTime.second) <= 1800000){
+            			removeAllConflicts = false;
+            			break;
+            		}
+            	}
+            }
         	if(removeAllConflicts){
-                arrivalTimesMap.erase(senderStr);
+                if(arrivalTimes != arrivalTimesMap.end())
+                    arrivalTimesMap.erase(arrivalTimes);
                 sorted_vector<string>::const_iterator it = assetAllocationConflicts.find(senderStr);
                 if (it != assetAllocationConflicts.end()) {
                     assetAllocationConflicts.V.erase(const_iterator_cast(assetAllocationConflicts.V, it));
                 }   
         	}
-            else
-                arrivalTimes.erase(txHash);
+            else{
+                arrivalTimes->second.erase(txHash);
+                if(arrivalTimes->second.size() <= 0)
+                    removeAllConflicts = true;
+            }
         }
         if(removeAllConflicts)
         {
@@ -295,7 +299,7 @@ bool DisconnectMintAsset(const CTransaction &tx, AssetMap &mapAssets, AssetAlloc
     CAsset& storedSenderRef = mapAsset->second;    
  
     const std::string &receiverTupleStr = mintSyscoin.assetAllocationTuple.ToString();
-    auto result1 = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
+    auto result1 = mapAssetAllocations.try_emplace(std::move(receiverTupleStr), std::move(emptyAllocation));
     auto mapAssetAllocation = result1.first;
     const bool& mapAssetAllocationNotFound = result1.second;
     if(mapAssetAllocationNotFound){
@@ -316,7 +320,7 @@ bool DisconnectMintAsset(const CTransaction &tx, AssetMap &mapAssets, AssetAlloc
         return false;
     }  
     if(storedReceiverAllocationRef.nBalance < 0) {
-        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",receiverTupleStr, storedReceiverAllocationRef.nBalance);
+        LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",mintSyscoin.assetAllocationTuple.ToString(), storedReceiverAllocationRef.nBalance);
         return false;
     }       
     else if(storedReceiverAllocationRef.nBalance == 0){
@@ -332,7 +336,7 @@ bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAs
         LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Could not decode asset allocation\n");
         return false;
     }
-    auto result = mapAssetAllocations.try_emplace(senderTupleStr, std::move(emptyAllocation));
+    auto result = mapAssetAllocations.try_emplace(std::move(senderTupleStr), std::move(emptyAllocation));
     auto mapAssetAllocation = result.first;
     const bool & mapAssetAllocationNotFound = result.second;
     if(mapAssetAllocationNotFound){
@@ -352,7 +356,7 @@ bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAs
         const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
         CAssetAllocation receiverAllocation;
         
-        auto result1 = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
+        auto result1 = mapAssetAllocations.try_emplace(std::move(receiverTupleStr), std::move(emptyAllocation));
         auto mapAssetAllocationReceiver = result1.first;
         const bool& mapAssetAllocationReceiverNotFound = result1.second;
         if(mapAssetAllocationReceiverNotFound){
@@ -369,7 +373,7 @@ bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAs
         storedReceiverAllocationRef.nBalance -= amountTuple.second;
         storedSenderAllocationRef.nBalance += amountTuple.second; 
         if(storedReceiverAllocationRef.nBalance < 0) {
-            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",receiverTupleStr, storedReceiverAllocationRef.nBalance);
+            LogPrint(BCLog::SYS,"DisconnectSyscoinTransaction: Receiver balance of %s is negative: %lld\n",receiverAllocationTuple.ToString(), storedReceiverAllocationRef.nBalance);
             return false;
         }
         else if(storedReceiverAllocationRef.nBalance == 0){
@@ -441,20 +445,30 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
     const string & senderTupleStr = theAssetAllocation.assetAllocationTuple.ToString();
 
 	CAssetAllocation dbAssetAllocation;
+    AssetAllocationMap::iterator mapAssetAllocation;
 	CAsset dbAsset;
-    auto result = mapAssetAllocations.try_emplace(senderTupleStr, std::move(emptyAllocation));
-    auto mapAssetAllocation = result.first;
-    const bool& mapAssetAllocationNotFound = result.second;
-    
-    if(mapAssetAllocationNotFound){
+    if(fJustCheck){
         if (!GetAssetAllocation(theAssetAllocation.assetAllocationTuple, dbAssetAllocation))
         {
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Cannot find sender asset allocation");
             return error(errorMessage.c_str());
-        } 
-        mapAssetAllocation->second = std::move(dbAssetAllocation);                   
+        }     
     }
-    CAssetAllocation& storedSenderAllocationRef = mapAssetAllocation->second;
+    else{
+        auto result = mapAssetAllocations.try_emplace(senderTupleStr, std::move(emptyAllocation));
+        mapAssetAllocation = result.first;
+        const bool& mapAssetAllocationNotFound = result.second;
+        
+        if(mapAssetAllocationNotFound){
+            if (!GetAssetAllocation(theAssetAllocation.assetAllocationTuple, dbAssetAllocation))
+            {
+                errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1010 - " + _("Cannot find sender asset allocation");
+                return error(errorMessage.c_str());
+            }        
+            mapAssetAllocation->second = std::move(dbAssetAllocation);                   
+        }
+    }
+    CAssetAllocation& storedSenderAllocationRef = fJustCheck? dbAssetAllocation:mapAssetAllocation->second;
     
     if (!GetAsset(storedSenderAllocationRef.assetAllocationTuple.nAsset, dbAsset))
     {
@@ -464,14 +478,12 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
         
     AssetBalanceMap::iterator mapBalanceSender;
     CAmount mapBalanceSenderCopy;
+    bool mapSenderMempoolBalanceNotFound = false;
     if(fJustCheck){
         LOCK(cs_assetallocation); 
-        auto result = mempoolMapAssetBalances.try_emplace(senderTupleStr, 0);
+        auto result = mempoolMapAssetBalances.try_emplace(senderTupleStr, std::move(storedSenderAllocationRef.nBalance));
         mapBalanceSender = result.first;
-        const bool& mapAssetAllocationNotFound = result.second;
-        if(mapAssetAllocationNotFound){
-            mapBalanceSender->second = std::move(storedSenderAllocationRef.nBalance);
-        }
+        mapSenderMempoolBalanceNotFound = result.second;
         mapBalanceSenderCopy = mapBalanceSender->second;
     }
     else
@@ -536,6 +548,14 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
         } 
         mapBalanceSenderCopy -= amountTuple.second;
 		if (mapBalanceSenderCopy < 0) {
+            if(fJustCheck)
+            {
+                LOCK(cs_assetallocation); 
+                if(mapSenderMempoolBalanceNotFound){
+                    LogPrintf("0erasing empty mempoolMapAssetBalances\n");
+                    mempoolMapAssetBalances.erase(mapBalanceSender);
+                }
+            }
             //bOverflow = true;
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1016 - " + _("Sender balance is insufficient");
 			return error(errorMessage.c_str());
@@ -554,13 +574,12 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                 }
                 mapAssetAllocationReceiver->second = std::move(dbAssetAllocationReceiver);                   
             } 
-            mapAssetAllocationReceiver->second.nBalance += amountTuple.second;
-             
-		}else if (!bSanityCheck) {
+            mapAssetAllocationReceiver->second.nBalance += amountTuple.second;                        
+        }else if (!bSanityCheck) {
             LOCK(cs_assetallocationarrival);
-			// add conflicting sender if using ZDAG
-			assetAllocationConflicts.insert(senderTupleStr);
-		}
+            // add conflicting sender if using ZDAG
+            assetAllocationConflicts.insert(senderTupleStr);
+        }
 	}
 	else if (op == OP_ASSET_ALLOCATION_SEND)
 	{
@@ -588,12 +607,28 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 				// add conflicting sender
 				assetAllocationConflicts.insert(senderTupleStr);
             }
+            if(fJustCheck)
+            {
+                LOCK(cs_assetallocation); 
+                if(mapSenderMempoolBalanceNotFound){
+                    LogPrintf("1erasing empty mempoolMapAssetBalances\n");
+                    mempoolMapAssetBalances.erase(mapBalanceSender);
+                }
+            }            
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1021 - " + _("Sender balance is insufficient");
             return error(errorMessage.c_str());
 		}
 		       
 		for (const auto& amountTuple : theAssetAllocation.listSendingAllocationAmounts) {
 			if (amountTuple.first == theAssetAllocation.assetAllocationTuple.witnessAddress) {
+                if(fJustCheck)
+                {
+                    LOCK(cs_assetallocation); 
+                    if(mapSenderMempoolBalanceNotFound){
+                        LogPrintf("2erasing empty mempoolMapAssetBalances\n");
+                        mempoolMapAssetBalances.erase(mapBalanceSender);
+                    }
+                }           
 				errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1022 - " + _("Cannot send an asset allocation to yourself");
 				return error(errorMessage.c_str());
 			}
@@ -604,15 +639,12 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
             AssetAllocationMap::iterator mapBalanceReceiverBlock;            
             if(fJustCheck){
                 LOCK(cs_assetallocation);
-                auto result = mempoolMapAssetBalances.try_emplace(receiverTupleStr, 0);
+                auto result = mempoolMapAssetBalances.try_emplace(std::move(receiverTupleStr), 0);
                 auto mapBalanceReceiver = result.first;
                 const bool& mapAssetAllocationReceiverNotFound = result.second;
                 if(mapAssetAllocationReceiverNotFound){
                     CAssetAllocation receiverAllocation;
-                    if (!GetAssetAllocation(receiverAllocationTuple, receiverAllocation)) {
-                        receiverAllocation.assetAllocationTuple.nAsset = std::move(receiverAllocationTuple.nAsset);
-                        receiverAllocation.assetAllocationTuple.witnessAddress = std::move(receiverAllocationTuple.witnessAddress);                     
-                    }
+                    GetAssetAllocation(receiverAllocationTuple, receiverAllocation);
                     mapBalanceReceiver->second = std::move(receiverAllocation.nBalance);
                 }
                 if(!bSanityCheck){
@@ -620,7 +652,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                 }
             }  
             else{           
-                auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
+                auto result = mapAssetAllocations.try_emplace( std::move(receiverTupleStr), std::move(emptyAllocation));
                 auto mapBalanceReceiverBlock = result.first;
                 const bool& mapAssetAllocationReceiverBlockNotFound = result.second;
                 if(mapAssetAllocationReceiverBlockNotFound){
@@ -632,9 +664,9 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                     mapBalanceReceiverBlock->second = std::move(receiverAllocation);   
                 }
                 mapBalanceReceiverBlock->second.nBalance += amountTuple.second;
-                if (!fJustCheck && !bSanityCheck) {
-                    if (!ResetAssetAllocation(mapBalanceReceiverBlock->second.assetAllocationTuple, txHash, bMiner))
-                    {
+                if (!bSanityCheck) {
+                    if (!ResetAssetAllocation(mapBalanceReceiverBlock->second.assetAllocationTuple.ToString(), txHash, bMiner))
+                    {     
                         errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1014 - " + _("Failed to revert asset allocation");
                         return error(errorMessage.c_str());
                     }
@@ -647,16 +679,17 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
 	// asset sends are the only ones confirming without PoW
     if(!fJustCheck){
         if (!bSanityCheck) {
-            if (!ResetAssetAllocation(storedSenderAllocationRef.assetAllocationTuple, txHash, bMiner))
+            if (!ResetAssetAllocation(senderTupleStr, txHash, bMiner))
             {
                 errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1014 - " + _("Failed to revert asset allocation");
                 return error(errorMessage.c_str());
             }
-        }     
+        } 
         storedSenderAllocationRef.listSendingAllocationAmounts.clear();
-        storedSenderAllocationRef.nBalance = mapBalanceSenderCopy;
+        storedSenderAllocationRef.nBalance = std::move(mapBalanceSenderCopy);
         if(storedSenderAllocationRef.nBalance == 0)
-            storedSenderAllocationRef.SetNull();
+            storedSenderAllocationRef.SetNull();    
+
             
         // send notification on pow, for zdag transactions this is the second notification meaning the zdag tx has been confirmed
         passetallocationdb->WriteAssetAllocationIndex(op, tx, dbAsset, true, nHeight);    
@@ -810,11 +843,10 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
 	if (request.fHelp || 4 != params.size())
 		throw runtime_error(
-			"assetallocationburn [asset] [owner] [amount] [ethereum_destination_address]\n"
+			"assetallocationburn [asset] [address] [amount] [ethereum_destination_address]\n"
 			"<asset> Asset guid.\n"
-			"<owner> Address that owns this asset allocation.\n"
+			"<address> Address that owns this asset allocation.\n"
 			"<amount> Amount of asset to burn to SYSX.\n"
-            "<owner> Address that owns this asset allocation.\n"
             "<ethereum_destination_address> The 20 byte (40 character) hex string of the ethereum destination address.\n"
 			+ HelpRequiringPassphrase(pwallet));
 
@@ -861,7 +893,7 @@ UniValue assetallocationburn(const JSONRPCRequest& request) {
 	CAmount amount = AssetAmountFromValueNonNeg(params[2], theAsset.nPrecision);
 	string ethAddress = params[3].get_str();
     boost::erase_all(ethAddress, "0x");  // strip 0x if exist
-	theAssetAllocation.ClearAssetAllocation();
+	theAssetAllocation.SetNull();
     theAssetAllocation.assetAllocationTuple.nAsset = std::move(assetAllocationTuple.nAsset);
     theAssetAllocation.assetAllocationTuple.witnessAddress = std::move(assetAllocationTuple.witnessAddress);    
 
@@ -899,9 +931,9 @@ UniValue assetallocationmint(const JSONRPCRequest& request) {
     const UniValue &params = request.params;
     if (request.fHelp || 9 != params.size())
         throw runtime_error(
-            "assetallocationmint [asset] [owner] [amount] [blocknumber] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
+            "assetallocationmint [asset] [address] [amount] [blocknumber] [tx_hex] [txroot_hex] [txmerkleproof_hex] [txmerkleroofpath_hex] [witness]\n"
             "<asset> Asset guid.\n"
-            "<owner> Owner that will get this minting.\n"
+            "<address> Address that will get this minting.\n"
             "<amount> Amount of asset to mint. Note that fees will be taken from the owner address.\n"
             "<blocknumber> Block number of the block that included the burn transaction on Ethereum.\n"
             "<tx_hex> Raw transaction hex of the burn transaction on Ethereum.\n"
@@ -999,7 +1031,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 	if (!GetAsset(nAsset, theAsset))
 		throw runtime_error("SYSCOIN_ASSET_ALLOCATION_RPC_ERROR: ERRCODE: 1501 - " + _("Could not find a asset with this key"));
 
-	theAssetAllocation.ClearAssetAllocation();
+	theAssetAllocation.SetNull();
     theAssetAllocation.assetAllocationTuple.nAsset = std::move(assetAllocationTuple.nAsset);
     theAssetAllocation.assetAllocationTuple.witnessAddress = std::move(assetAllocationTuple.witnessAddress); 
 	UniValue receivers = valueTo.get_array();
@@ -1079,7 +1111,7 @@ UniValue assetallocationsend(const JSONRPCRequest& request) {
 UniValue assetallocationinfo(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
     if (request.fHelp || 2 != params.size())
-        throw runtime_error("assetallocationinfo <asset> <owner>\n"
+        throw runtime_error("assetallocationinfo <asset> <address>\n"
                 "Show stored values of a single asset allocation.\n");
 
     const int &nAsset = params[0].get_int();
@@ -1188,7 +1220,7 @@ int DetectPotentialAssetAllocationSenderConflicts(const CAssetAllocationTuple& a
 UniValue assetallocationsenderstatus(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
 	if (request.fHelp || 3 != params.size())
-		throw runtime_error("assetallocationsenderstatus <asset> <owner> <txid>\n"
+		throw runtime_error("assetallocationsenderstatus <asset> <address> <txid>\n"
 			"Show status as it pertains to any current Z-DAG conflicts or warnings related to a sender or sender/txid combination of an asset allocation transfer. Leave txid empty if you are not checking for a specific transfer.\n"
 			"Return value is in the status field and can represent 3 levels(0, 1 or 2)\n"
 			"Level -1 means not found, not a ZDAG transaction, perhaps it is already confirmed.\n"
@@ -1544,7 +1576,7 @@ bool CAssetAllocationMempoolBalancesDB::ScanAssetAllocationMempoolBalances(const
     }
     int index = 0;
     {
-        LOCK(cs_assetallocationindex);
+        LOCK(cs_assetallocation);
         for (auto&indexObj : mempoolMapAssetBalances) {
             
             if (!vecSenders.empty() && std::find(vecSenders.begin(), vecSenders.end(), indexObj.first) == vecSenders.end())

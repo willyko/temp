@@ -222,6 +222,7 @@ bool CMintSyscoin::UnserializeFromTx(const CTransaction &tx) {
 }
 bool FlushSyscoinDBs() {
 	 {
+        LogPrintf("Flushing Asset Allocation Index...size %d\n", AssetAllocationIndex.size());
 		LOCK(cs_assetallocationindex);
 		if (passetallocationtransactionsdb != nullptr)
 		{
@@ -230,14 +231,18 @@ bool FlushSyscoinDBs() {
 				LogPrintf("Failed to write to asset allocation transactions database!");
 				return false;
 			}
+            AssetAllocationIndex.clear();
 		}
         if (passetallocationmempoolbalancesdb != nullptr)
         {
+            LOCK(cs_assetallocation);
+            LogPrintf("Flushing Asset Allocation Mempool Balances...size %d\n", mempoolMapAssetBalances.size());
             passetallocationmempoolbalancesdb->WriteAssetAllocationMempoolBalances(mempoolMapAssetBalances);
             if (!passetallocationmempoolbalancesdb->Flush()) {
                 LogPrintf("Failed to write to asset allocation mempool database!");
                 return false;
             }
+            mempoolMapAssetBalances.clear();
         }
 	 }
      if (pethereumtxrootsdb != nullptr)
@@ -1120,7 +1125,7 @@ bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAlloc
         const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
         const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
         CAssetAllocation receiverAllocation;
-        auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
+        auto result = mapAssetAllocations.try_emplace(std::move(receiverTupleStr), std::move(emptyAllocation));
         auto mapAssetAllocation = result.first;
         const bool &mapAssetAllocationNotFound = result.second;
         if(mapAssetAllocationNotFound){
@@ -1391,7 +1396,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 					CAssetAllocation receiverAllocation;
 					const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
                     const string& receiverTupleStr = receiverAllocationTuple.ToString();
-                    auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
+                    auto result = mapAssetAllocations.try_emplace(std::move(receiverTupleStr), std::move(emptyAllocation));
                     auto mapAssetAllocation = result.first;
                     const bool& mapAssetAllocationNotFound = result.second;
                    
@@ -1489,8 +1494,8 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
     if (request.fHelp || params.size() != 9)
         throw runtime_error(
-			"assetnew [owner] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
-						"<owner> An address that you own.\n"
+			"assetnew [address] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
+						"<address> An address that you own.\n"
                         "<public value> public data, 256 characters max.\n"
                         "<contract> Ethereum token contract for SyscoinX bridge. Must be in hex and not include the '0x' format tag. For example contract '0xb060ddb93707d2bc2f8bcc39451a5a28852f8d1d' should be set as 'b060ddb93707d2bc2f8bcc39451a5a28852f8d1d'. Leave empty for no smart contract bridge.\n" 
                         "<burn_method_signature> Ethereum token contract method signature for the burn function.  Use an ABI tool in Ethereum to find this, it mst be set so that the validation code knows the burn function was called to mint assets in Syscoin from Ethereum. Must be in hex and is 4 bytes (8 characters). ie: 'fefefefe'. Leave empty for no smart contract bridge.\n"  
@@ -1756,7 +1761,6 @@ UniValue assetsend(const JSONRPCRequest& request) {
 			"assetsend [asset] ([{\"address\":\"address\",\"amount\":amount},...] [witness]\n"
 			"Send an asset you own to another address/address as an asset allocation. Maximimum recipients is 250.\n"
 			"<asset> Asset guid.\n"
-			"<owner> Address that owns this asset allocation.\n"
 			"<address> Address to transfer to.\n"
 			"<amount> Quantity of asset to send.\n"
 			"<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
@@ -2201,7 +2205,7 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
     return ret;
 }
 bool CEthereumTxRootsDB::PruneTxRoots() {
-    LogPrintf("Pruning Ethereum Transaction Roots\n");
+    LogPrintf("Pruning Ethereum Transaction Roots...\n");
     EthereumTxRootMap mapEraseTxRoots;
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
     pcursor->SeekToFirst();

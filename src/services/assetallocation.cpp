@@ -438,7 +438,7 @@ bool DisconnectAssetAllocation(const CTransaction &tx, AssetAllocationMap &mapAs
     return true; 
 }
 bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int op, const vector<vector<unsigned char> > &vvchArgs,
-        bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, string &errorMessage, bool bSanityCheck, bool bMiner) {
+        bool fJustCheck, int nHeight, AssetAllocationMap &mapAssetAllocations, string &errorMessage, bool& bOverflow, bool bSanityCheck, bool bMiner) {
     if (passetallocationdb == nullptr)
 		return false;
 	const uint256 & txHash = tx.GetHash();
@@ -610,7 +610,7 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                     mempoolMapAssetBalances.erase(mapBalanceSender);
                 }
             }
-            //bOverflow = true;
+            bOverflow = true;
 			errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1016 - " + _("Sender balance is insufficient");
 			return error(errorMessage.c_str());
 		}
@@ -667,7 +667,8 @@ bool CheckAssetAllocationInputs(const CTransaction &tx, const CCoinsViewCache &i
                 if(mapSenderMempoolBalanceNotFound){
                     mempoolMapAssetBalances.erase(mapBalanceSender);
                 }
-            }            
+            }
+            bOverflow = true;            
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR: ERRCODE: 1021 - " + _("Sender balance is insufficient");
             return error(errorMessage.c_str());
 		}

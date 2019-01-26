@@ -740,6 +740,7 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
         nHeight = chainActive.Height()+1;   
     std::string errorMessage;
     bool good = true;
+    bool bOverflow=false;
     if (block.vtx.empty()) {
         if(tx.IsCoinBase())
             return true;
@@ -748,7 +749,7 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
             if (DecodeAssetAllocationTx(tx, op, vvchArgs))
             {
                 errorMessage.clear();
-                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations,errorMessage, bSanity);
+                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, fJustCheck, nHeight, mapAssetAllocations,errorMessage, bOverflow, bSanity);
             }
             else if (DecodeAssetTx(tx, op, vvchArgs))
             {
@@ -782,7 +783,7 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
             {
                 errorMessage.clear();
                 // fJustCheck inplace of bSanity to preserve global structures from being changed during test calls, fJustCheck is actually passed in as false because we want to check in PoW mode
-                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, false, nHeight, mapAssetAllocations, errorMessage, fJustCheck, bMiner);
+                good = CheckAssetAllocationInputs(tx, inputs, op, vvchArgs, false, nHeight, mapAssetAllocations, errorMessage, bOverflow, fJustCheck, bMiner);
 
             }
             else if (DecodeAssetTx(tx, op, vvchArgs))
@@ -814,7 +815,7 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
             mapAssets.clear();
         }        
         if (!good || !errorMessage.empty())
-            return state.DoS(100, false, REJECT_INVALID, errorMessage);
+            return state.DoS(bOverflow? 10: 100, false, REJECT_INVALID, errorMessage);
     }
     return true;
 }
@@ -888,7 +889,7 @@ static void UpdateMempoolForReorg(DisconnectedBlockTransactions &disconnectpool,
     // We also need to remove any now-immature transactions
     mempool.removeForReorg(pcoinsTip.get(), chainActive.Tip()->nHeight + 1, STANDARD_LOCKTIME_VERIFY_FLAGS);
     // Re-limit mempool size, in case we added any transactions
-    LimitMempoolSize(mempool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
+    LimitMempoolSize(mempool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, 10);
 }
 
 // Used to avoid mempool polluting consensus critical paths if CCoinsViewMempool
@@ -1331,7 +1332,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
         // trim mempool and check if tx was trimmed
         if (!bypass_limits) {
-            LimitMempoolSize(pool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
+            LimitMempoolSize(pool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, 10);
             if (!pool.exists(hash))
                 return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "mempool full");
         }
@@ -1391,7 +1392,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                         thisSyscoinCheckCount += 1;
                     }
                     {
-                         
+                        
                         if (!CheckSyscoinInputs(false, txIn, validationState, coinsViewCache, true, chainActive.Height(), CBlock()))
                         {
                             nLastMultithreadMempoolFailure = GetTime();

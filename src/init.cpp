@@ -295,7 +295,7 @@ void PrepareShutdown()
     passetdb.reset();
     passetallocationdb.reset();
     passetallocationtransactionsdb.reset();
-    passetallocationmempoolbalancesdb.reset();
+    passetallocationmempooldb.reset();
     pethereumtxrootsdb.reset();
     if (threadpool)
         delete threadpool;
@@ -1575,17 +1575,21 @@ bool AppInitMain()
                 passetdb.reset();
                 passetallocationdb.reset();
                 passetallocationtransactionsdb.reset();
-                passetallocationmempoolbalancesdb.reset();
+                passetallocationmempooldb.reset();
                 pethereumtxrootsdb.reset();
                 
                 passetdb.reset(new CAssetDB(nCoinDBCache*16, false, fReset));
                 passetallocationdb.reset(new CAssetAllocationDB(nCoinDBCache*32, false, fReset));
                 passetallocationtransactionsdb.reset(new CAssetAllocationTransactionsDB(0, false, fReset));
-                passetallocationmempoolbalancesdb.reset(new CAssetAllocationMempoolBalancesDB(0, false, fReset));
+                passetallocationmempooldb.reset(new CAssetAllocationMempoolDB(0, false, fReset));
                 {
                     LOCK(cs_assetallocation);
-                    passetallocationmempoolbalancesdb->ReadAssetAllocationMempoolBalances(mempoolMapAssetBalances);
+                    passetallocationmempooldb->ReadAssetAllocationMempoolBalances(mempoolMapAssetBalances);
                 }
+                {
+                    LOCK(cs_assetallocationarrival);
+                    passetallocationmempooldb->ReadAssetAllocationMempoolArrivalTimes(arrivalTimesMap);
+                }                
                 pethereumtxrootsdb.reset(new CEthereumTxRootsDB(nCoinDBCache*16, false, fReset));
 
                 // new CBlockTreeDB tries to delete the existing file, which

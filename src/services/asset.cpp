@@ -23,11 +23,12 @@
 #include <wallet/fees.h>
 #include <outputtype.h>
 extern AssetBalanceMap mempoolMapAssetBalances;
+extern ArrivalTimesMapImpl arrivalTimesMap;
 unsigned int MAX_UPDATES_PER_BLOCK = 2;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
-std::unique_ptr<CAssetAllocationMempoolBalancesDB> passetallocationmempoolbalancesdb;
+std::unique_ptr<CAssetAllocationMempoolDB> passetallocationmempooldb;
 std::unique_ptr<CEthereumTxRootsDB> pethereumtxrootsdb;
 // SYSCOIN service rpc functions
 UniValue syscoinburn(const JSONRPCRequest& request);
@@ -221,6 +222,7 @@ bool CMintSyscoin::UnserializeFromTx(const CTransaction &tx) {
     return true;
 }
 bool FlushSyscoinDBs() {
+    bool ret = true;
 	 {
         LogPrintf("Flushing Asset Allocation Index...size %d\n", AssetAllocationIndex.size());
 		LOCK(cs_assetallocationindex);
@@ -229,20 +231,29 @@ bool FlushSyscoinDBs() {
 			passetallocationtransactionsdb->WriteAssetAllocationWalletIndex(AssetAllocationIndex);
 			if (!passetallocationtransactionsdb->Flush()) {
 				LogPrintf("Failed to write to asset allocation transactions database!");
-				return false;
+                ret = false;
 			}
             AssetAllocationIndex.clear();
 		}
-        if (passetallocationmempoolbalancesdb != nullptr)
+        if (passetallocationmempooldb != nullptr)
         {
-            LOCK(cs_assetallocation);
-            LogPrintf("Flushing Asset Allocation Mempool Balances...size %d\n", mempoolMapAssetBalances.size());
-            passetallocationmempoolbalancesdb->WriteAssetAllocationMempoolBalances(mempoolMapAssetBalances);
-            if (!passetallocationmempoolbalancesdb->Flush()) {
-                LogPrintf("Failed to write to asset allocation mempool database!");
-                return false;
+            ResyncAssetAllocationStates();
+            {
+                LOCK(cs_assetallocation);
+                LogPrintf("Flushing Asset Allocation Mempool Balances...size %d\n", mempoolMapAssetBalances.size());
+                passetallocationmempooldb->WriteAssetAllocationMempoolBalances(mempoolMapAssetBalances);
+                mempoolMapAssetBalances.clear();
             }
-            mempoolMapAssetBalances.clear();
+            {
+                LOCK(cs_assetallocationarrival);
+                LogPrintf("Flushing Asset Allocation Arrival Times...size %d\n", arrivalTimesMap.size());
+                passetallocationmempooldb->WriteAssetAllocationMempoolArrivalTimes(arrivalTimesMap);
+                arrivalTimesMap.clear();
+            }
+            if (!passetallocationmempooldb->Flush()) {
+                LogPrintf("Failed to write to asset allocation mempool database!");
+                ret = false;
+            }            
         }
 	 }
      if (pethereumtxrootsdb != nullptr)
@@ -250,10 +261,10 @@ bool FlushSyscoinDBs() {
         if(!pethereumtxrootsdb->PruneTxRoots())
         {
             LogPrintf("Failed to write to prune Ethereum TX Roots database!");
-            return false;
+            ret = false;
         }
      }
-	return true;
+	return ret;
 }
 void CTxMemPool::removeExpiredMempoolBalances(setEntries& stage){ 
     vector<vector<unsigned char> > vvch;
@@ -266,8 +277,11 @@ void CTxMemPool::removeExpiredMempoolBalances(setEntries& stage){
             CAssetAllocation allocation(tx);
             if(allocation.assetAllocationTuple.IsNull())
                 continue;
-            if(ResetAssetAllocation(allocation.assetAllocationTuple.ToString(), tx.GetHash()))
+            LogPrintf("removeExpiredMempoolBalances trying to remove %s txid %s\n", allocation.assetAllocationTuple.ToString(), tx.GetHash().GetHex());
+            if(ResetAssetAllocation(allocation.assetAllocationTuple.ToString(), tx.GetHash())){
+                LogPrintf("removeExpiredMempoolBalances removed %s\n", allocation.assetAllocationTuple.ToString());
                 count++;
+            }
         }
     }
     if(count > 0)

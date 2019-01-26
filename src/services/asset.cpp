@@ -277,9 +277,7 @@ void CTxMemPool::removeExpiredMempoolBalances(setEntries& stage){
             CAssetAllocation allocation(tx);
             if(allocation.assetAllocationTuple.IsNull())
                 continue;
-            LogPrintf("removeExpiredMempoolBalances trying to remove %s txid %s\n", allocation.assetAllocationTuple.ToString(), tx.GetHash().GetHex());
             if(ResetAssetAllocation(allocation.assetAllocationTuple.ToString(), tx.GetHash())){
-                LogPrintf("removeExpiredMempoolBalances removed %s\n", allocation.assetAllocationTuple.ToString());
                 count++;
             }
         }

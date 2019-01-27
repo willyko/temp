@@ -730,7 +730,7 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
     }
     return true;
 }
-bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
+bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove, std::vector<bool> &txsToRemoveOverflows)
 {
     AssetAllocationMap mapAssetAllocations;
     AssetMap mapAssets;
@@ -798,6 +798,7 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
                     if(bMiner){
                         good = true;
                         errorMessage.clear();
+                        txsToRemoveOverflows.push_back(bOverflow);
                         txsToRemove.push_back(tx.GetHash());
                         continue;
                     }
@@ -1369,7 +1370,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                         for (const COutPoint& hashTx : coins_to_uncache)
                             pcoinsTip->Uncache(hashTx);
                         pool.removeConflicts(txIn);
-                        pool.removeRecursive(txIn, MemPoolRemovalReason::UNKNOWN);
+                        pool.removeRecursive(txIn, MemPoolRemovalReason::SYSCOIN);
                         pool.ClearPrioritisation(hash);
                         // After we've (potentially) uncached entries, ensure our coins cache is still within its size limits   
                         CValidationState stateDummy;
@@ -1402,8 +1403,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                             for (const COutPoint& hashTx : coins_to_uncache)
                                 pcoinsTip->Uncache(hashTx);
                             pool.removeConflicts(txIn);
-                            pool.removeRecursive(txIn, MemPoolRemovalReason::UNKNOWN);
-                            
+                            pool.removeRecursive(txIn, MemPoolRemovalReason::SYSCOIN);
                             pool.ClearPrioritisation(hash);
                             // After we've (potentially) uncached entries, ensure our coins cache is still within its size limits   
                             CValidationState stateDummy;

@@ -730,7 +730,7 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
     }
     return true;
 }
-bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove, std::vector<bool> &txsToRemoveOverflows)
+bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState& state, const CCoinsViewCache &inputs, bool fJustCheck, bool &bOverflow, int nHeight, const CBlock& block, bool bSanity, bool bMiner, std::vector<uint256> &txsToRemove)
 {
     AssetAllocationMap mapAssetAllocations;
     AssetMap mapAssets;
@@ -740,7 +740,7 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
         nHeight = chainActive.Height()+1;   
     std::string errorMessage;
     bool good = true;
-    bool bOverflow=false;
+    bOverflow=false;
     if (block.vtx.empty()) {
         if(tx.IsCoinBase())
             return true;
@@ -798,7 +798,6 @@ bool CheckSyscoinInputs(const bool ibd, const CTransaction& tx, CValidationState
                     if(bMiner){
                         good = true;
                         errorMessage.clear();
-                        txsToRemoveOverflows.push_back(bOverflow);
                         txsToRemove.push_back(tx.GetHash());
                         continue;
                     }
@@ -1300,7 +1299,8 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             control.Add(vChecks);   
             if (!control.Wait())
                 return false;
-            if (!CheckSyscoinInputs(false, tx, state, view, true, chainActive.Height(), CBlock(), test_accept)) {
+            bool bOverflow = false;
+            if (!CheckSyscoinInputs(false, tx, state, view, true, bOverflow, chainActive.Height(), CBlock(), test_accept)) {
                 LogPrint(BCLog::MEMPOOL, "%s: %s\n", "CheckSyscoinInputs Error (single-threaded)", hash.ToString());
                 return false;
             }
@@ -1394,8 +1394,8 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                         thisSyscoinCheckCount += 1;
                     }
                     {
-                        
-                        if (!CheckSyscoinInputs(false, txIn, validationState, coinsViewCache, true, chainActive.Height(), CBlock()))
+                        bool bOverflow = false;
+                        if (!CheckSyscoinInputs(false, txIn, validationState, coinsViewCache, true, bOverflow, chainActive.Height(), CBlock()))
                         {
                             nLastMultithreadMempoolFailure = GetTime();
                             LOCK2(cs_main, mempool.cs);
@@ -2508,9 +2508,9 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             }
         }
     }
-
+    bool bOverflow = false;
     // SYSCOIN
-    if (!CheckSyscoinInputs(IsInitialBlockDownload(), *block.vtx[0], state, view, fJustCheck, pindex->nHeight, block))
+    if (!CheckSyscoinInputs(IsInitialBlockDownload(), *block.vtx[0], state, view, fJustCheck, bOverflow, pindex->nHeight, block))
         return error("ConnectBlock(): CheckSyscoinInputs on block %s failed\n",
             block.GetHash().ToString());
             

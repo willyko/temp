@@ -18,8 +18,6 @@
 #include <math.h>
 #include <key_io.h>
 #include <univalue.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
 using namespace std;
 extern UniValue read_json(const std::string& jsondata);
 

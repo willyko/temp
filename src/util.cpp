@@ -1182,7 +1182,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
     if( pid == 0 ) {
         std::string portStr = std::to_string(websocketport);
         char * argv[] = {(char*)"--rpc", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
-        execvp(fpath.c_str(), argv);
+        execvp((const char*)fpath.c_str(), argv);
     }
     else{
         boost::filesystem::ofstream ofs(GetGethPidFile(), std::ios::out | std::ios::trunc);

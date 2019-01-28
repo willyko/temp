@@ -112,7 +112,7 @@ CTranslationInterface translationInterface;
     #include <errno.h>
     #include <assert.h>
     #include <process.h>
-    typedef struct _CLIENT_ID
+    typedef struct _CLIENT_ID_
     {
       ULONG UniqueProcess;
       ULONG UniqueThread;

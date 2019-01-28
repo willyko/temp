@@ -116,7 +116,7 @@ CTranslationInterface translationInterface;
     {
       ULONG UniqueProcess;
       ULONG UniqueThread;
-    } CLIENT_ID, *PCLIENT_ID;
+    } CLIENT_ID_, *PCLIENT_ID_;
 
     typedef struct _SECTION_IMAGE_INFORMATION {
         PVOID EntryPoint;
@@ -136,7 +136,7 @@ CTranslationInterface translationInterface;
         ULONG Size;
         HANDLE Process;
         HANDLE Thread;
-        CLIENT_ID ClientId;
+        CLIENT_ID_ ClientId;
         SECTION_IMAGE_INFORMATION ImageInformation;
     } RTL_USER_PROCESS_INFORMATION, *PRTL_USER_PROCESS_INFORMATION;
 

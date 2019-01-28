@@ -112,10 +112,6 @@ CTranslationInterface translationInterface;
     #include <errno.h>
     #include <assert.h>
     #include <process.h>
-    typedef struct _CLIENT_ID {
-      PVOID UniqueProcess;
-        PVOID UniqueThread;
-    } CLIENT_ID, *PCLIENT_ID;
 
     typedef struct _SECTION_IMAGE_INFORMATION {
         PVOID EntryPoint;

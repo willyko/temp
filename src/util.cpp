@@ -80,7 +80,7 @@
 //Syscoin only features
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <csignal>
+#include <signal.h>
 bool fMasternodeMode = false;
 bool fUnitTest = false;
 bool fTPSTest = false;

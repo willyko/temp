@@ -290,12 +290,12 @@ void PrepareShutdown()
     // up with our current chain to avoid any strange pruning edge cases and make
     // next startup faster by avoiding rescan.
     // SYSCOIN
-    mempoolMapAssetBalances.clear();
     arrivalTimesMap.clear();
     FlushSyscoinDBs();
     passetdb.reset();
     passetallocationdb.reset();
     passetallocationtransactionsdb.reset();
+    passetallocationmempooldb.reset();
     pethereumtxrootsdb.reset();
     if (threadpool)
         delete threadpool;
@@ -1575,11 +1575,21 @@ bool AppInitMain()
                 passetdb.reset();
                 passetallocationdb.reset();
                 passetallocationtransactionsdb.reset();
+                passetallocationmempooldb.reset();
                 pethereumtxrootsdb.reset();
                 
                 passetdb.reset(new CAssetDB(nCoinDBCache*16, false, fReset));
                 passetallocationdb.reset(new CAssetAllocationDB(nCoinDBCache*32, false, fReset));
                 passetallocationtransactionsdb.reset(new CAssetAllocationTransactionsDB(0, false, fReset));
+                passetallocationmempooldb.reset(new CAssetAllocationMempoolDB(0, false, fReset));
+                {
+                    LOCK(cs_assetallocation);
+                    passetallocationmempooldb->ReadAssetAllocationMempoolBalances(mempoolMapAssetBalances);
+                }
+                {
+                    LOCK(cs_assetallocationarrival);
+                    passetallocationmempooldb->ReadAssetAllocationMempoolArrivalTimes(arrivalTimesMap);
+                }                
                 pethereumtxrootsdb.reset(new CEthereumTxRootsDB(nCoinDBCache*16, false, fReset));
 
                 // new CBlockTreeDB tries to delete the existing file, which
@@ -1794,7 +1804,7 @@ bool AppInitMain()
     
     fMasternodeMode = gArgs.GetBoolArg("-masternode", false);
     fUnitTest = gArgs.GetBoolArg("-unittest", false);
-    StartGethNode(gethPID);
+    
     fTPSTest = gArgs.GetBoolArg("-tpstest", false);
     fConcurrentProcessing = gArgs.GetBoolArg("-concurrentprocessing", true);
     fLogThreadpool = LogAcceptCategory(BCLog::THREADPOOL);
@@ -2017,6 +2027,7 @@ bool AppInitMain()
             LogPrintf("  %s %s - locked successfully\n", mne.getTxHash(), mne.getOutputIndex());
         }
     }
+    StartGethNode(gethPID);
     
     #endif // ENABLE_WALLET
     return true;

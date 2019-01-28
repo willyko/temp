@@ -103,7 +103,101 @@ const char * const SYSCOIN_PID_FILENAME = "syscoind.pid";
 ArgsManager gArgs;
 
 CTranslationInterface translationInterface;
+// SYSCOIN
+#ifdef WIN32
+    #include <windows.h>
+    #include <winnt.h>
+    #include <winternl.h>
+    #include <stdio.h>
+    #include <errno.h>
+    #include <assert.h>
+    #include <process.h>
+    typedef struct _CLIENT_ID_
+    {
+      ULONG UniqueProcess;
+      ULONG UniqueThread;
+    } CLIENT_ID_, *PCLIENT_ID_;
 
+    typedef struct _SECTION_IMAGE_INFORMATION {
+        PVOID EntryPoint;
+        ULONG StackZeroBits;
+        ULONG StackReserved;
+        ULONG StackCommit;
+        ULONG ImageSubsystem;
+        WORD SubSystemVersionLow;
+        WORD SubSystemVersionHigh;
+        ULONG Unknown1;
+        ULONG ImageCharacteristics;
+        ULONG ImageMachineType;
+        ULONG Unknown2[3];
+    } SECTION_IMAGE_INFORMATION, *PSECTION_IMAGE_INFORMATION;
+
+    typedef struct _RTL_USER_PROCESS_INFORMATION {
+        ULONG Size;
+        HANDLE Process;
+        HANDLE Thread;
+        CLIENT_ID_ ClientId;
+        SECTION_IMAGE_INFORMATION ImageInformation;
+    } RTL_USER_PROCESS_INFORMATION, *PRTL_USER_PROCESS_INFORMATION;
+
+    #define RTL_CLONE_PROCESS_FLAGS_CREATE_SUSPENDED    0x00000001
+    #define RTL_CLONE_PROCESS_FLAGS_INHERIT_HANDLES     0x00000002
+    #define RTL_CLONE_PROCESS_FLAGS_NO_SYNCHRONIZE      0x00000004
+
+    #define RTL_CLONE_PARENT                0
+    #define RTL_CLONE_CHILD                 297
+    
+
+    typedef NTSTATUS (*RtlCloneUserProcess_f)(ULONG ProcessFlags,
+        PSECURITY_DESCRIPTOR ProcessSecurityDescriptor /* optional */,
+        PSECURITY_DESCRIPTOR ThreadSecurityDescriptor /* optional */,
+        HANDLE DebugPort /* optional */,
+        PRTL_USER_PROCESS_INFORMATION ProcessInformation);
+        
+    pid_t fork(void)
+    {
+        HMODULE mod;
+        RtlCloneUserProcess_f clone_p;
+        RTL_USER_PROCESS_INFORMATION process_info;
+        NTSTATUS result;
+
+        mod = GetModuleHandle("ntdll.dll");
+        if (!mod)
+            return -ENOSYS;
+
+        clone_p = (RtlCloneUserProcess_f)GetProcAddress(mod, "RtlCloneUserProcess");
+        if (clone_p == NULL)
+            return -ENOSYS;
+
+        /* lets do this */
+        result = clone_p(RTL_CLONE_PROCESS_FLAGS_CREATE_SUSPENDED | RTL_CLONE_PROCESS_FLAGS_INHERIT_HANDLES, NULL, NULL, NULL, &process_info);
+
+        if (result == RTL_CLONE_PARENT)
+        {
+            HANDLE me = GetCurrentProcess();
+            pid_t child_pid;
+
+            child_pid = GetProcessId(process_info.Process);
+
+            ResumeThread(process_info.Thread);
+            CloseHandle(process_info.Process);
+            CloseHandle(process_info.Thread);
+
+            return child_pid;
+        }
+        else if (result == RTL_CLONE_CHILD)
+        {
+            /* fix stdio */
+            AllocConsole();
+            return 0;
+        }
+        else
+            return -1;
+
+        /* NOTREACHED */
+        return -1;
+    }
+#endif
 /** Init OpenSSL library multithreading support */
 static std::unique_ptr<CCriticalSection[]> ppmutexOpenSSL;
 void locking_callback(int mode, int i, const char* file, int line) NO_THREAD_SAFETY_ANALYSIS
@@ -1030,7 +1124,7 @@ std::string GetGethFilename(){
 }
 bool StopGethNode(pid_t pid)
 {
-    if(fUnitTest)
+    if(fUnitTest || fTPSTest)
         return true;
     if(pid){
         try{
@@ -1071,14 +1165,14 @@ bool StartGethNode(pid_t &pid, int websocketport)
     StopGethNode(pid);
         
     fs::path fpath = fs::system_complete(gethFilename);
-
-    // Prevent killed child-processes remaining as "defunct"
-    struct sigaction sa;
-    sa.sa_handler = SIG_DFL;
-    sa.sa_flags = SA_NOCLDWAIT;
-  
-    sigaction( SIGCHLD, &sa, NULL ) ;
-
+    #ifndef WIN32
+        // Prevent killed child-processes remaining as "defunct"
+        struct sigaction sa;
+        sa.sa_handler = SIG_DFL;
+        sa.sa_flags = SA_NOCLDWAIT;
+      
+        sigaction( SIGCHLD, &sa, NULL ) ;
+    #endif
     // Duplicate ("fork") the process. Will return zero in the child
     // process, and the child's PID in the parent (or negative on error).
     pid = fork() ;

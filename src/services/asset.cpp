@@ -22,61 +22,38 @@
 #include <consensus/validation.h>
 #include <wallet/fees.h>
 #include <outputtype.h>
+#include <boost/thread.hpp>
+extern AssetBalanceMap mempoolMapAssetBalances;
+extern ArrivalTimesMapImpl arrivalTimesMap;
 unsigned int MAX_UPDATES_PER_BLOCK = 2;
 std::unique_ptr<CAssetDB> passetdb;
 std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
+std::unique_ptr<CAssetAllocationMempoolDB> passetallocationmempooldb;
 std::unique_ptr<CEthereumTxRootsDB> pethereumtxrootsdb;
 // SYSCOIN service rpc functions
-extern UniValue syscoinburn(const JSONRPCRequest& request);
-extern UniValue syscoinmint(const JSONRPCRequest& request);
-extern UniValue syscointxfund(const JSONRPCRequest& request);
+UniValue syscoinburn(const JSONRPCRequest& request);
+UniValue syscoinmint(const JSONRPCRequest& request);
+UniValue syscointxfund(const JSONRPCRequest& request);
 
 
-extern UniValue syscoinlistreceivedbyaddress(const JSONRPCRequest& request);
+UniValue syscoinlistreceivedbyaddress(const JSONRPCRequest& request);
 extern UniValue sendrawtransaction(const JSONRPCRequest& request);
-extern UniValue syscoindecoderawtransaction(const JSONRPCRequest& request);
+UniValue syscoindecoderawtransaction(const JSONRPCRequest& request);
 
-extern UniValue syscoinaddscript(const JSONRPCRequest& request);
-extern UniValue assetnew(const JSONRPCRequest& request);
-extern UniValue assetupdate(const JSONRPCRequest& request);
-extern UniValue addressbalance(const JSONRPCRequest& request);
-extern UniValue assettransfer(const JSONRPCRequest& request);
-extern UniValue assetsend(const JSONRPCRequest& request);
-extern UniValue assetinfo(const JSONRPCRequest& request);
-extern UniValue listassets(const JSONRPCRequest& request);
-extern UniValue syscoinsetethstatus(const JSONRPCRequest& request);
-extern UniValue syscoinsetethheaders(const JSONRPCRequest& request);
+UniValue syscoinaddscript(const JSONRPCRequest& request);
+UniValue assetnew(const JSONRPCRequest& request);
+UniValue assetupdate(const JSONRPCRequest& request);
+UniValue addressbalance(const JSONRPCRequest& request);
+UniValue assettransfer(const JSONRPCRequest& request);
+UniValue assetsend(const JSONRPCRequest& request);
+UniValue assetinfo(const JSONRPCRequest& request);
+UniValue listassets(const JSONRPCRequest& request);
+UniValue syscoinsetethstatus(const JSONRPCRequest& request);
+UniValue syscoinsetethheaders(const JSONRPCRequest& request);
 
 using namespace std::chrono;
 using namespace std;
-
-
-bool FindSyscoinScriptOp(const CScript& script, int& op) {
-	CScript::const_iterator pc = script.begin();
-	opcodetype opcode;
-	if (!script.GetOp(pc, opcode))
-		return false;
-	if (opcode < OP_1 || opcode > OP_16)
-		return false;
-	op = CScript::DecodeOP_N(opcode);
-	return op == OP_SYSCOIN_ASSET || op == OP_SYSCOIN_ASSET_ALLOCATION || op == OP_ASSET_ALLOCATION_BURN;
-}
-bool IsSyscoinScript(const CScript& scriptPubKey, int &op, vector<vector<unsigned char> > &vvchArgs)
-{
-	if (DecodeAssetAllocationScript(scriptPubKey, op, vvchArgs))
-		return true;
-	else if (DecodeAssetScript(scriptPubKey, op, vvchArgs))
-		return true;
-	return false;
-}
-bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut)
-{
-	if (!RemoveAssetAllocationScriptPrefix(scriptPubKeyIn, scriptPubKeyOut))
-		if (!RemoveAssetScriptPrefix(scriptPubKeyIn, scriptPubKeyOut))
-			return false;
-		return true;
-}
 
 int GetSyscoinDataOutput(const CTransaction& tx) {
 	for (unsigned int i = 0; i<tx.vout.size(); i++) {
@@ -148,12 +125,7 @@ bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData,
 		return false;
 	return true;
 }
-bool IsAssetOp(int op) {
-    return op == OP_ASSET_ACTIVATE
-        || op == OP_ASSET_UPDATE
-        || op == OP_ASSET_TRANSFER
-		|| op == OP_ASSET_SEND;
-}
+
 
 
 string assetFromOp(int op) {
@@ -219,26 +191,68 @@ bool CMintSyscoin::UnserializeFromTx(const CTransaction &tx) {
     return true;
 }
 bool FlushSyscoinDBs() {
+    bool ret = true;
 	 {
+        LogPrintf("Flushing Asset Allocation Index...size %d\n", AssetAllocationIndex.size());
 		LOCK(cs_assetallocationindex);
 		if (passetallocationtransactionsdb != nullptr)
 		{
 			passetallocationtransactionsdb->WriteAssetAllocationWalletIndex(AssetAllocationIndex);
 			if (!passetallocationtransactionsdb->Flush()) {
 				LogPrintf("Failed to write to asset allocation transactions database!");
-				return false;
+                ret = false;
 			}
+            AssetAllocationIndex.clear();
 		}
+        if (passetallocationmempooldb != nullptr)
+        {
+            ResyncAssetAllocationStates();
+            {
+                LOCK(cs_assetallocation);
+                LogPrintf("Flushing Asset Allocation Mempool Balances...size %d\n", mempoolMapAssetBalances.size());
+                passetallocationmempooldb->WriteAssetAllocationMempoolBalances(mempoolMapAssetBalances);
+                mempoolMapAssetBalances.clear();
+            }
+            {
+                LOCK(cs_assetallocationarrival);
+                LogPrintf("Flushing Asset Allocation Arrival Times...size %d\n", arrivalTimesMap.size());
+                passetallocationmempooldb->WriteAssetAllocationMempoolArrivalTimes(arrivalTimesMap);
+                arrivalTimesMap.clear();
+            }
+            if (!passetallocationmempooldb->Flush()) {
+                LogPrintf("Failed to write to asset allocation mempool database!");
+                ret = false;
+            }            
+        }
 	 }
      if (pethereumtxrootsdb != nullptr)
      {
         if(!pethereumtxrootsdb->PruneTxRoots())
         {
             LogPrintf("Failed to write to prune Ethereum TX Roots database!");
-            return false;
+            ret = false;
         }
      }
-	return true;
+	return ret;
+}
+void CTxMemPool::removeExpiredMempoolBalances(setEntries& stage){ 
+    vector<vector<unsigned char> > vvch;
+    int op;
+    char type;
+    int count = 0;
+    for (const txiter& it : stage) {
+        const CTransaction& tx = it->GetTx();
+        if(tx.nVersion == SYSCOIN_TX_VERSION_ASSET && DecodeAndParseAssetAllocationTx(tx, op, vvch, type)){
+            CAssetAllocation allocation(tx);
+            if(allocation.assetAllocationTuple.IsNull())
+                continue;
+            if(ResetAssetAllocation(allocation.assetAllocationTuple.ToString(), tx.GetHash())){
+                count++;
+            }
+        }
+    }
+    if(count > 0)
+         LogPrint(BCLog::SYS, "removeExpiredMempoolBalances removed %d expired asset allocation transactions from mempool balances\n", count);  
 }
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op,
 	vector<vector<unsigned char> >& vvch, char& type)
@@ -790,18 +804,18 @@ UniValue syscoindecoderawtransaction(const JSONRPCRequest& request) {
 	GetSyscoinData(rawTx, vchData, nOut, type);
 	UniValue output(UniValue::VOBJ);
 	if (DecodeAndParseSyscoinTx(rawTx, op, vvch, ctype))
-		SysTxToJSON(op, vchData, output, ctype);
+		SysTxToJSON(op, rawTx, output, ctype);
     else if(rawTx.nVersion == SYSCOIN_TX_VERSION_MINT_ASSET)
         AssetMintTxToJson(rawTx, output);
 
 	return output;
 }
-void SysTxToJSON(const int op, const vector<unsigned char> &vchData, UniValue &entry, const char& type)
+void SysTxToJSON(const int &op, const CTransaction &tx, UniValue &entry, const char& type)
 {
 	if (type == OP_SYSCOIN_ASSET)
-		AssetTxToJSON(op, vchData, entry);
+		AssetTxToJSON(op, tx, entry);
 	else if (type == OP_SYSCOIN_ASSET_ALLOCATION)
-		AssetAllocationTxToJSON(op, vchData, entry);
+		AssetAllocationTxToJSON(op, tx, entry);
 }
 int GenerateSyscoinGuid()
 {
@@ -983,12 +997,11 @@ void CMintSyscoin::Serialize( vector<unsigned char> &vchData) {
     vchData = vector<unsigned char>(dsMint.begin(), dsMint.end());
 
 }
-void CAssetDB::WriteAssetIndex(const CAsset& asset, const int& op) {
+void CAssetDB::WriteAssetIndex(const CTransaction& tx, const CAsset& dbAsset, const int& op, const int& nHeight) {
 	if (fZMQAsset) {
 		UniValue oName(UniValue::VOBJ);
-		if (BuildAssetIndexerJson(asset, oName)) {
-			GetMainSignals().NotifySyscoinUpdate(oName.write().c_str(), "assetrecord");
-		}
+        AssetTxToJSON(op, tx, dbAsset, nHeight, oName);
+        GetMainSignals().NotifySyscoinUpdate(oName.write().c_str(), "assetrecord");
 	}
 }
 bool GetAsset(const int &nAsset,
@@ -1030,62 +1043,6 @@ bool DecodeAssetTx(const CTransaction& tx, int& op,
 }
 
 
-bool DecodeAssetScript(const CScript& script, int& op,
-        vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc) {
-    opcodetype opcode;
-	vvch.clear();
-    if (!script.GetOp(pc, opcode)) return false;
-    if (opcode < OP_1 || opcode > OP_16) return false;
-    op = CScript::DecodeOP_N(opcode);
-	if (op != OP_SYSCOIN_ASSET)
-		return false;
-	if (!script.GetOp(pc, opcode))
-		return false;
-	if (opcode < OP_1 || opcode > OP_16)
-		return false;
-	op = CScript::DecodeOP_N(opcode);
-	if (!IsAssetOp(op))
-		return false;
-
-	bool found = false;
-	for (;;) {
-		vector<unsigned char> vch;
-		if (!script.GetOp(pc, opcode, vch))
-			return false;
-		if (opcode == OP_DROP || opcode == OP_2DROP)
-		{
-			found = true;
-			break;
-		}
-		if (!(opcode >= 0 && opcode <= OP_PUSHDATA4))
-			return false;
-		vvch.emplace_back(std::move(vch));
-	}
-
-	// move the pc to after any DROP or NOP
-	while (opcode == OP_DROP || opcode == OP_2DROP) {
-		if (!script.GetOp(pc, opcode))
-			break;
-	}
-
-	pc--;
-	return found;
-}
-bool DecodeAssetScript(const CScript& script, int& op,
-        vector<vector<unsigned char> > &vvch) {
-    CScript::const_iterator pc = script.begin();
-    return DecodeAssetScript(script, op, vvch, pc);
-}
-bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
-    int op;
-    vector<vector<unsigned char> > vvch;
-    CScript::const_iterator pc = scriptIn.begin();
-
-    if (!DecodeAssetScript(scriptIn, op, vvch, pc))
-		return false;
-	scriptOut = CScript(pc, scriptIn.end());
-	return true;
-}
 bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations){
 
     CAsset dbAsset;
@@ -1111,7 +1068,7 @@ bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAlloc
         const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
         const std::string &receiverTupleStr = receiverAllocationTuple.ToString();
         CAssetAllocation receiverAllocation;
-        auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
+        auto result = mapAssetAllocations.try_emplace(std::move(receiverTupleStr), std::move(emptyAllocation));
         auto mapAssetAllocation = result.first;
         const bool &mapAssetAllocationNotFound = result.second;
         if(mapAssetAllocationNotFound){
@@ -1382,7 +1339,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 					CAssetAllocation receiverAllocation;
 					const CAssetAllocationTuple receiverAllocationTuple(theAssetAllocation.assetAllocationTuple.nAsset, amountTuple.first);
                     const string& receiverTupleStr = receiverAllocationTuple.ToString();
-                    auto result = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
+                    auto result = mapAssetAllocations.try_emplace(std::move(receiverTupleStr), std::move(emptyAllocation));
                     auto mapAssetAllocation = result.first;
                     const bool& mapAssetAllocationNotFound = result.second;
                    
@@ -1400,10 +1357,10 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
                     storedReceiverAllocationRef.nBalance += amountTuple.second;
                                             
 					// adjust sender balance
-					storedSenderAssetRef.nBalance -= amountTuple.second;
-                    passetallocationdb->WriteAssetAllocationIndex(receiverAllocationTuple, txHash, nHeight, storedSenderAssetRef, amountTuple.second, storedSenderAssetRef.witnessAddress);                                
+					storedSenderAssetRef.nBalance -= amountTuple.second;                              
 				}
 			}
+            passetallocationdb->WriteAssetAllocationIndex(op, tx, storedSenderAssetRef, true, nHeight);  
 		}
 		else if (op != OP_ASSET_ACTIVATE)
 		{         
@@ -1462,7 +1419,7 @@ bool CheckAssetInputs(const CTransaction &tx, const CCoinsViewCache &inputs, int
 		storedSenderAssetRef.txHash = txHash;
 		// write asset, if asset send, only write on pow since asset -> asset allocation is not 0-conf compatible
 		if (!bSanityCheck) {
-            passetdb->WriteAssetIndex(storedSenderAssetRef, op);
+            passetdb->WriteAssetIndex(tx, storedSenderAssetRef, op, nHeight);
 			LogPrint(BCLog::SYS,"CONNECTED ASSET: op=%s symbol=%d hash=%s height=%d fJustCheck=%d\n",
 					assetFromOp(op).c_str(),
 					nAsset,
@@ -1480,8 +1437,8 @@ UniValue assetnew(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
     if (request.fHelp || params.size() != 9)
         throw runtime_error(
-			"assetnew [owner] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
-						"<owner> An address that you own.\n"
+			"assetnew [address] [public value] [contract] [burn_method_signature] [precision=8] [supply] [max_supply] [update_flags] [witness]\n"
+						"<address> An address that you own.\n"
                         "<public value> public data, 256 characters max.\n"
                         "<contract> Ethereum token contract for SyscoinX bridge. Must be in hex and not include the '0x' format tag. For example contract '0xb060ddb93707d2bc2f8bcc39451a5a28852f8d1d' should be set as 'b060ddb93707d2bc2f8bcc39451a5a28852f8d1d'. Leave empty for no smart contract bridge.\n" 
                         "<burn_method_signature> Ethereum token contract method signature for the burn function.  Use an ABI tool in Ethereum to find this, it mst be set so that the validation code knows the burn function was called to mint assets in Syscoin from Ethereum. Must be in hex and is 4 bytes (8 characters). ie: 'fefefefe'. Leave empty for no smart contract bridge.\n"  
@@ -1675,10 +1632,10 @@ UniValue assettransfer(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
     if (request.fHelp || params.size() != 3)
         throw runtime_error(
-			"assettransfer [asset] [ownerto] [witness]\n"
+			"assettransfer [asset] [address] [witness]\n"
 						"Transfer a asset allocation you own to another address.\n"
 						"<asset> Asset guid.\n"
-						"<ownerto> Address to transfer to.\n"
+						"<address> Address to transfer to.\n"
 						"<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"	
 						+ HelpRequiringPassphrase(pwallet));
 
@@ -1744,11 +1701,10 @@ UniValue assetsend(const JSONRPCRequest& request) {
 	const UniValue &params = request.params;
 	if (request.fHelp || params.size() != 3)
 		throw runtime_error(
-			"assetsend [asset] ([{\"ownerto\":\"address\",\"amount\":amount},...] [witness]\n"
+			"assetsend [asset] ([{\"address\":\"address\",\"amount\":amount},...] [witness]\n"
 			"Send an asset you own to another address/address as an asset allocation. Maximimum recipients is 250.\n"
 			"<asset> Asset guid.\n"
-			"<owner> Address that owns this asset allocation.\n"
-			"<ownerto> Address to transfer to.\n"
+			"<address> Address to transfer to.\n"
 			"<amount> Quantity of asset to send.\n"
 			"<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"
 			+ HelpRequiringPassphrase(pwallet));
@@ -1785,10 +1741,10 @@ UniValue assetsend(const JSONRPCRequest& request) {
 	for (unsigned int idx = 0; idx < receivers.size(); idx++) {
 		const UniValue& receiver = receivers[idx];
 		if (!receiver.isObject())
-			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected object with {\"ownerto'\", or \"amount\"}");
+			throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected object with {\"address'\", or \"amount\"}");
 
 		UniValue receiverObj = receiver.get_obj();
-		string toStr = find_value(receiverObj, "ownerto").get_str();
+		string toStr = find_value(receiverObj, "address").get_str();
         CTxDestination dest = DecodeDestination(toStr);
 		if(!IsValidDestination(dest))
 			throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2509 - " + _("Asset must be sent to a valid syscoin address"));
@@ -1855,7 +1811,7 @@ bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
     oAsset.pushKV("_id", (int)asset.nAsset);
     oAsset.pushKV("txid", asset.txHash.GetHex());
 	oAsset.pushKV("publicvalue", stringFromVch(asset.vchPubData));
-	oAsset.pushKV("owner", asset.witnessAddress.ToString());
+	oAsset.pushKV("address", asset.witnessAddress.ToString());
     oAsset.pushKV("contract", asset.vchContract.empty()? "" : "0x"+HexStr(asset.vchContract));
     oAsset.pushKV("burnsig", asset.vchBurnMethodSignature.empty()? "" : HexStr(asset.vchBurnMethodSignature));
 	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
@@ -1865,65 +1821,75 @@ bool BuildAssetJson(const CAsset& asset, UniValue& oAsset)
 	oAsset.pushKV("precision", (int)asset.nPrecision);
 	return true;
 }
-bool BuildAssetIndexerJson(const CAsset& asset, UniValue& oAsset)
+void AssetTxToJSON(const int &op, const CTransaction& tx, UniValue &entry)
 {
-	oAsset.pushKV("_id", (int)asset.nAsset);
-	oAsset.pushKV("owner", asset.witnessAddress.ToString());
-	oAsset.pushKV("balance", ValueFromAssetAmount(asset.nBalance, asset.nPrecision));
-	oAsset.pushKV("total_supply", ValueFromAssetAmount(asset.nTotalSupply, asset.nPrecision));
-	oAsset.pushKV("max_supply", ValueFromAssetAmount(asset.nMaxSupply, asset.nPrecision));
-	oAsset.pushKV("precision", (int)asset.nPrecision);
-	return true;
-}
-void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry)
-{
-	string opName = assetFromOp(op);
-	CAsset asset;
-	if(!asset.UnserializeFromData(vchData))
+	CAsset asset(tx);
+	if(!asset.IsNull())
 		return;
 
 	CAsset dbAsset;
 	GetAsset(asset.nAsset, dbAsset);
-	
+    
+    int nHeight = 0;
+    uint256 hash_block;
+    CBlockIndex* blockindex = nullptr;
+    CTransactionRef txRef;
+    if (GetTransaction(tx.GetHash(), txRef, Params().GetConsensus(), hash_block, true, blockindex) && blockindex)
+        nHeight = blockindex->nHeight; 
+        	
 
-	entry.pushKV("txtype", opName);
+	entry.pushKV("txtype", assetFromOp(op));
 	entry.pushKV("_id", (int)asset.nAsset);
-
-	if(!asset.vchPubData.empty() && dbAsset.vchPubData != asset.vchPubData)
+    entry.pushKV("txid", tx.GetHash().GetHex());
+    entry.pushKV("height", nHeight);
+    
+	if(op == OP_ASSET_ACTIVATE || (!asset.vchPubData.empty() && dbAsset.vchPubData != asset.vchPubData))
 		entry.pushKV("publicvalue", stringFromVch(asset.vchPubData));
         
-    if(!asset.vchContract.empty() && dbAsset.vchContract != asset.vchContract)
+    if(op == OP_ASSET_ACTIVATE || (!asset.vchContract.empty() && dbAsset.vchContract != asset.vchContract))
         entry.pushKV("contract", "0x"+HexStr(asset.vchContract));
         
-    if(!asset.vchBurnMethodSignature.empty() && dbAsset.vchContract != asset.vchBurnMethodSignature)
-        entry.pushKV("contract", HexStr(asset.vchBurnMethodSignature));                  
+    if(op == OP_ASSET_ACTIVATE || (!asset.vchBurnMethodSignature.empty() && dbAsset.vchContract != asset.vchBurnMethodSignature))
+        entry.pushKV("burnsig", HexStr(asset.vchBurnMethodSignature));                  
         
-	if (!asset.witnessAddress.IsNull() && dbAsset.witnessAddress != asset.witnessAddress)
-		entry.pushKV("owner", asset.witnessAddress.ToString());
+	if (op == OP_ASSET_ACTIVATE || (!asset.witnessAddress.IsNull() && dbAsset.witnessAddress != asset.witnessAddress))
+		entry.pushKV("address", asset.witnessAddress.ToString());
 
-	if (asset.nUpdateFlags != dbAsset.nUpdateFlags)
+	if (op == OP_ASSET_ACTIVATE || asset.nUpdateFlags != dbAsset.nUpdateFlags)
 		entry.pushKV("update_flags", asset.nUpdateFlags);
               
-	if (asset.nBalance != dbAsset.nBalance)
+	if (op == OP_ASSET_ACTIVATE || asset.nBalance != dbAsset.nBalance)
 		entry.pushKV("balance", ValueFromAssetAmount(asset.nBalance, dbAsset.nPrecision));
-
-	CAssetAllocation assetallocation;
-	if (assetallocation.UnserializeFromData(vchData)) {
-		UniValue oAssetAllocationReceiversArray(UniValue::VARR);
-		if (!assetallocation.listSendingAllocationAmounts.empty()) {
-			for (auto& amountTuple : assetallocation.listSendingAllocationAmounts) {
-				UniValue oAssetAllocationReceiversObj(UniValue::VOBJ);
-				oAssetAllocationReceiversObj.pushKV("ownerto", amountTuple.first.ToString());
-                oAssetAllocationReceiversObj.pushKV("amount", ValueFromAssetAmount(amountTuple.second, dbAsset.nPrecision));
-				oAssetAllocationReceiversArray.push_back(oAssetAllocationReceiversObj);
-			}
-
-		}
-		entry.pushKV("allocations", oAssetAllocationReceiversArray);
-	}
-
 }
+void AssetTxToJSON(const int &op, const CTransaction& tx, const CAsset& dbAsset, const int& nHeight, UniValue &entry)
+{
+    CAsset asset(tx);
+    if(asset.IsNull() || dbAsset.IsNull())
+        return;
 
+    entry.pushKV("txtype", assetFromOp(op));
+    entry.pushKV("_id", (int)asset.nAsset);
+    entry.pushKV("txid", tx.GetHash().GetHex());
+    entry.pushKV("height", nHeight);
+
+    if(op == OP_ASSET_ACTIVATE || (!asset.vchPubData.empty() && dbAsset.vchPubData != asset.vchPubData))
+        entry.pushKV("publicvalue", stringFromVch(asset.vchPubData));
+        
+    if(op == OP_ASSET_ACTIVATE || (!asset.vchContract.empty() && dbAsset.vchContract != asset.vchContract))
+        entry.pushKV("contract", "0x"+HexStr(asset.vchContract));
+        
+    if(op == OP_ASSET_ACTIVATE || (!asset.vchBurnMethodSignature.empty() && dbAsset.vchContract != asset.vchBurnMethodSignature))
+        entry.pushKV("burnsig", HexStr(asset.vchBurnMethodSignature));                  
+        
+    if (op == OP_ASSET_ACTIVATE || (!asset.witnessAddress.IsNull() && dbAsset.witnessAddress != asset.witnessAddress))
+        entry.pushKV("address", asset.witnessAddress.ToString());
+
+    if (op == OP_ASSET_ACTIVATE || asset.nUpdateFlags != dbAsset.nUpdateFlags)
+        entry.pushKV("update_flags", asset.nUpdateFlags);
+              
+    if (op == OP_ASSET_ACTIVATE || asset.nBalance != dbAsset.nBalance)
+        entry.pushKV("balance", ValueFromAssetAmount(asset.nBalance, dbAsset.nPrecision));
+}
 UniValue ValueFromAssetAmount(const CAmount& amount,int precision)
 {
 	if (precision < 0 || precision > 8)
@@ -2016,7 +1982,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
 			nAsset = boost::lexical_cast<uint32_t>(assetObj.get_int());
 		}
 
-		const UniValue &owners = find_value(oOptions, "owner");
+		const UniValue &owners = find_value(oOptions, "addresses");
 		if (owners.isArray()) {
 			const UniValue &ownersArray = owners.get_array();
 			for (unsigned int i = 0; i < ownersArray.size(); i++) {
@@ -2027,7 +1993,7 @@ bool CAssetDB::ScanAssets(const int count, const int from, const UniValue& oOpti
                     throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2501 - " + _("Address must be a segwit based address"));
                 string witnessProgramHex = find_value(detail.get_obj(), "witness_program").get_str();
                 unsigned char witnessVersion = (unsigned char)find_value(detail.get_obj(), "witness_version").get_int();   
-				const UniValue &ownerStr = find_value(owner, "owner");
+				const UniValue &ownerStr = find_value(owner, "address");
 				if (ownerStr.isStr()) 
 					vecWitnessAddresses.push_back(CWitnessAddress(witnessVersion, ParseHex(witnessProgramHex)));
 			}
@@ -2087,18 +2053,18 @@ UniValue listassets(const JSONRPCRequest& request) {
 			"    {\n"
 			"      \"txid\":txid					(string) Transaction ID to filter results for\n"
 			"	   \"asset\":guid					(number) Asset GUID to filter.\n"
-			"	   \"owners\"						(array) a json array with owners\n"
+			"	   \"addresses\"			        (array) a json array with owners\n"
 			"		[\n"
 			"			{\n"
-			"				\"owner\":string		(string) Address to filter.\n"
+			"				\"address\":string		(string) Address to filter.\n"
 			"			} \n"
 			"			,...\n"
 			"		]\n"
 			"    }\n"
 			+ HelpExampleCli("listassets", "0")
 			+ HelpExampleCli("listassets", "10 10")
-			+ HelpExampleCli("listassets", "0 0 '{\"owners\":[{\"owner\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"owner\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
-			+ HelpExampleCli("listassets", "0 0 '{\"asset\":3473733,\"owner\":\"SfaT8dGhk1zaQkk8bujMfgWw3szxReej4S\"0}'")
+			+ HelpExampleCli("listassets", "0 0 '{\"addresses\":[{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"},{\"address\":\"SfaMwYY19Dh96B9qQcJQuiNykVRTzXMsZR\"}]}'")
+			+ HelpExampleCli("listassets", "0 0 '{\"asset\":3473733}'")
 		);
 	UniValue options;
 	int count = 10;
@@ -2182,7 +2148,7 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
     return ret;
 }
 bool CEthereumTxRootsDB::PruneTxRoots() {
-    LogPrintf("Pruning Ethereum Transaction Roots\n");
+    LogPrintf("Pruning Ethereum Transaction Roots...\n");
     EthereumTxRootMap mapEraseTxRoots;
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
     pcursor->SeekToFirst();

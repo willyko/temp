@@ -43,7 +43,7 @@ int GetSyscoinDataOutput(const CTransaction& tx);
 bool DecodeAndParseSyscoinTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char &type);
 bool GetSyscoinData(const CTransaction &tx, std::vector<unsigned char> &vchData, int& nOut, int &op);
 bool GetSyscoinData(const CScript &scriptPubKey, std::vector<unsigned char> &vchData,  int &op);
-void SysTxToJSON(const int op, const std::vector<unsigned char> &vchData,  UniValue &entry, const char& type);
+void SysTxToJSON(const int &op, const CTransaction &tx, UniValue &entry, const char& type);
 std::string GetSyscoinTransactionDescription(const CTransaction& tx, const int op, std::string& responseEnglish, const char &type, std::string& responseGUID);
 bool IsOutpointMature(const COutPoint& outpoint);
 UniValue syscointxfund_helper(const std::string &vchWitness, std::vector<CRecipient> &vecSend, const int nVersion = SYSCOIN_TX_VERSION_ASSET);
@@ -52,15 +52,13 @@ bool FindAssetOwnerInTx(const CCoinsViewCache &inputs, const CTransaction& tx, c
 CWallet* GetDefaultWallet();
 CAmount GetFee(const size_t nBytes);
 bool DecodeAndParseAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsigned char> >& vvch, char& type);
-bool DecodeAssetScript(const CScript& script, int& op, std::vector<std::vector<unsigned char> > &vvch);
-bool IsAssetOp(int op);
-int GenerateSyscoinGuid();
-bool IsSyscoinScript(const CScript& scriptPubKey, int &op, std::vector<std::vector<unsigned char> > &vvchArgs);
 
-bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut);
-void AssetTxToJSON(const int op, const std::vector<unsigned char> &vchData, UniValue &entry);
+int GenerateSyscoinGuid();
+
+
+void AssetTxToJSON(const int &op, const CTransaction& tx, UniValue &entry);
+void AssetTxToJSON(const int &op, const CTransaction& tx, const CAsset& dbAsset, const int& nHeight, UniValue &entry);
 std::string assetFromOp(int op);
-bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut);
 /** Upper bound for mantissa.
 * 10^18-1 is the largest arbitrary decimal that will fit in a signed 64-bit integer.
 * Larger integers cannot consist of arbitrary combinations of 0-9:
@@ -204,14 +202,13 @@ public:
     bool ReadAsset(const uint32_t& nAsset, CAsset& asset) {
         return Read(nAsset, asset);
     } 
-	void WriteAssetIndex(const CAsset& asset, const int &op);
+	void WriteAssetIndex(const CTransaction& tx, const CAsset& dbAsset, const int& op, const int& nHeight);
 	bool ScanAssets(const int count, const int from, const UniValue& oOptions, UniValue& oRes);
     bool Flush(const AssetMap &mapAssets);
 };
 static CAsset emptyAsset;
 bool GetAsset(const int &nAsset,CAsset& txPos);
 bool BuildAssetJson(const CAsset& asset, UniValue& oName);
-bool BuildAssetIndexerJson(const CAsset& asset,UniValue& oName);
 UniValue ValueFromAssetAmount(const CAmount& amount, int precision);
 CAmount AssetAmountFromValue(UniValue& value, int precision);
 CAmount AssetAmountFromValueNonNeg(const UniValue& value, int precision);
@@ -226,5 +223,6 @@ bool DecodeAssetTx(const CTransaction& tx, int& op, std::vector<std::vector<unsi
 extern std::unique_ptr<CAssetDB> passetdb;
 extern std::unique_ptr<CAssetAllocationDB> passetallocationdb;
 extern std::unique_ptr<CAssetAllocationTransactionsDB> passetallocationtransactionsdb;
+extern std::unique_ptr<CAssetAllocationMempoolDB> passetallocationmempooldb;
 extern std::unique_ptr<CEthereumTxRootsDB> pethereumtxrootsdb;
 #endif // ASSET_H

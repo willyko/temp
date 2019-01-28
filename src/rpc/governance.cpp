@@ -26,10 +26,10 @@
 #endif // ENABLE_WALLET
 #include <core_io.h>
 bool EnsureWalletIsAvailable(bool avoidException);
-extern UniValue getgovernanceinfo(const JSONRPCRequest& request);
-extern UniValue getsuperblockbudget(const JSONRPCRequest& request);
-extern UniValue gobject(const JSONRPCRequest& request);
-extern UniValue voteraw(const JSONRPCRequest& request);
+UniValue getgovernanceinfo(const JSONRPCRequest& request);
+UniValue getsuperblockbudget(const JSONRPCRequest& request);
+UniValue gobject(const JSONRPCRequest& request);
+UniValue voteraw(const JSONRPCRequest& request);
 UniValue gobject(const JSONRPCRequest& request)
 {
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);

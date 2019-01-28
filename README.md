@@ -21,26 +21,26 @@ the Syscoin Core software, see https://syscoin.org/en/download/, or read the
 Syscoin is a merge-minable SHA256 coin which provides an array of useful services
 which leverage the bitcoin protocol and blockchain technology.
 
-- 1 minute block targets, diff retarget each block using Dark Gravity Wave(24) 
 - 888 million total coins (deflation 5 percent per year, deflation on all payouts)
 - Block time: 60 seconds target
 - Rewards: 38.5 Syscoins per block deflated 5 percent per year. 
-  - 10 percent to governance proposals (3.85 Syscoins / block). 
-  - 22.5 percent to miner (8.6625 Syscoins / block)
-  - 67.5 percent to masternode (25.9875 Syscoins / block)
+  - 10 percent to governance proposals (TBD Syscoins / block). 
+  - 22.5 percent to miner (TBD Syscoins / block)
+  - 67.5 percent to masternode (TBD Syscoins / block)
 - SHA256 Proof of Work
 - Mineable either exclusively or via merge-mining any SHA256 PoW coin
-- Syscoin data service fees burned
 - Masternode collateral requirement: 100000 Syscoins
-- Masternode seniority: 3 percent every 4 months until 27 percent over 3 years
+- Masternode seniority: 35% increase after 1 year, 100% increase after 2.5 years
 - Governance proposals payout schedule: every month
-- Governance funding per round (168630 Syscoins per month)
+- Governance funding per round (TBD Syscoins per month)
+- Consensus enforced segwit (all transactions have witness programs except coinbase)
+- Codebase based off of latest Bitcoin Core (https://github.com/bitcoin/bitcoin) 
 
 Services include:
 
 - Hybrid layer 2 PoW/PoS consensus with bonded validator system (masternodes)
 - ZDAG technology for point-of-sale speeds and probablistic confirmations useful for microtransactions
-- Trustless sidechain access to Ethereum and back through a custom permissionless/trustless sidechain technology (SYSX bridge).
+- Trustless sidechain access to Ethereum and back through a custom permissionless/trustless sidechain technology (SYSX bridge) https://github.com/syscoin/sysethereum
 - Decentralized governance (blockchain pays for work via proposals and masternode votes)
 - Digital asset creation and management
 

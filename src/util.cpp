@@ -105,6 +105,12 @@ ArgsManager gArgs;
 CTranslationInterface translationInterface;
 // SYSCOIN
 #ifdef WIN32
+    #include <windows.h>
+    #include <winnt.h>
+    #include <ntdef.h>
+    #include <stdio.h>
+    #include <errno.h>
+    #include <process.h>
     typedef struct _CLIENT_ID {
         PVOID UniqueProcess;
         PVOID UniqueThread;
@@ -138,8 +144,7 @@ CTranslationInterface translationInterface;
 
     #define RTL_CLONE_PARENT                0
     #define RTL_CLONE_CHILD                 297
-
-    #endif
+    
 
     typedef NTSTATUS (*RtlCloneUserProcess_f)(ULONG ProcessFlags,
         PSECURITY_DESCRIPTOR ProcessSecurityDescriptor /* optional */,

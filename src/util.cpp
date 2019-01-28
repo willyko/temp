@@ -112,10 +112,10 @@ CTranslationInterface translationInterface;
     #include <errno.h>
     #include <assert.h>
     #include <process.h>
-    typedef struct _CLIENT_ID_
-    {
-      ULONG UniqueProcess;
-      ULONG UniqueThread;
+
+    typedef struct _CLIENT_ID_ {
+      PVOID UniqueProcess;
+        PVOID UniqueThread;
     } CLIENT_ID_, *PCLIENT_ID_;
 
     typedef struct _SECTION_IMAGE_INFORMATION {
@@ -153,7 +153,7 @@ CTranslationInterface translationInterface;
         PSECURITY_DESCRIPTOR ThreadSecurityDescriptor /* optional */,
         HANDLE DebugPort /* optional */,
         PRTL_USER_PROCESS_INFORMATION ProcessInformation);
-        
+
     pid_t fork(void)
     {
         HMODULE mod;
@@ -171,20 +171,22 @@ CTranslationInterface translationInterface;
 
         /* lets do this */
         result = clone_p(RTL_CLONE_PROCESS_FLAGS_CREATE_SUSPENDED | RTL_CLONE_PROCESS_FLAGS_INHERIT_HANDLES, NULL, NULL, NULL, &process_info);
-        LogPrintf("Cloning process for Geth...\n");
-        MilliSleep(500);
+
         if (result == RTL_CLONE_PARENT)
         {
-            HANDLE me = GetCurrentProcess();
-            pid_t child_pid;
-
-            child_pid = GetProcessId(process_info.Process);
-
-            ResumeThread(process_info.Thread);
-            CloseHandle(process_info.Process);
-            CloseHandle(process_info.Thread);
-
-            return child_pid;
+            HANDLE me, hp, ht, hcp = 0;
+            DWORD pi, ti, mi;
+            me = GetCurrentProcess();
+            pi = (DWORD)process_info.ClientId.UniqueProcess;
+            ti = (DWORD)process_info.ClientId.UniqueThread;
+            
+            assert(hp = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pi));
+            assert(ht = OpenThread(THREAD_ALL_ACCESS, FALSE, ti));
+            
+            ResumeThread(ht);
+            CloseHandle(ht);
+            CloseHandle(hp);
+            return (pid_t)pi;
         }
         else if (result == RTL_CLONE_CHILD)
         {

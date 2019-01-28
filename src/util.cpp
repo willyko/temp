@@ -105,17 +105,17 @@ ArgsManager gArgs;
 CTranslationInterface translationInterface;
 // SYSCOIN
 #ifdef WIN32
-    #define _WIN32_WINNT 0x0600
-    #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
     #include <winnt.h>
-    #include <ntdef.h>
+    #include <winternl.h>
     #include <stdio.h>
     #include <errno.h>
+    #include <assert.h>
     #include <process.h>
-    typedef struct _CLIENT_ID {
-        PVOID UniqueProcess;
-        PVOID UniqueThread;
+    typedef struct _CLIENT_ID
+    {
+      ULONG UniqueProcess;
+      ULONG UniqueThread;
     } CLIENT_ID, *PCLIENT_ID;
 
     typedef struct _SECTION_IMAGE_INFORMATION {
@@ -153,7 +153,7 @@ CTranslationInterface translationInterface;
         PSECURITY_DESCRIPTOR ThreadSecurityDescriptor /* optional */,
         HANDLE DebugPort /* optional */,
         PRTL_USER_PROCESS_INFORMATION ProcessInformation);
-
+        
     pid_t fork(void)
     {
         HMODULE mod;
@@ -165,7 +165,7 @@ CTranslationInterface translationInterface;
         if (!mod)
             return -ENOSYS;
 
-        clone_p = GetProcAddress(mod, "RtlCloneUserProcess");
+        clone_p = (RtlCloneUserProcess_f)GetProcAddress(mod, "RtlCloneUserProcess");
         if (clone_p == NULL)
             return -ENOSYS;
 

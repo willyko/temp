@@ -113,7 +113,41 @@ CTranslationInterface translationInterface;
     #include <assert.h>
     #include <process.h>
 
-  
+    typedef struct _SECTION_IMAGE_INFORMATION {
+        PVOID EntryPoint;
+        ULONG StackZeroBits;
+        ULONG StackReserved;
+        ULONG StackCommit;
+        ULONG ImageSubsystem;
+        WORD SubSystemVersionLow;
+        WORD SubSystemVersionHigh;
+        ULONG Unknown1;
+        ULONG ImageCharacteristics;
+        ULONG ImageMachineType;
+        ULONG Unknown2[3];
+    } SECTION_IMAGE_INFORMATION, *PSECTION_IMAGE_INFORMATION;
+
+    typedef struct _RTL_USER_PROCESS_INFORMATION {
+        ULONG Size;
+        HANDLE Process;
+        HANDLE Thread;
+        CLIENT_ID ClientId;
+        SECTION_IMAGE_INFORMATION ImageInformation;
+    } RTL_USER_PROCESS_INFORMATION, *PRTL_USER_PROCESS_INFORMATION;
+
+    #define RTL_CLONE_PROCESS_FLAGS_CREATE_SUSPENDED    0x00000001
+    #define RTL_CLONE_PROCESS_FLAGS_INHERIT_HANDLES     0x00000002
+    #define RTL_CLONE_PROCESS_FLAGS_NO_SYNCHRONIZE      0x00000004
+
+    #define RTL_CLONE_PARENT                0
+    #define RTL_CLONE_CHILD                 297
+    
+
+    typedef NTSTATUS (*RtlCloneUserProcess_f)(ULONG ProcessFlags,
+        PSECURITY_DESCRIPTOR ProcessSecurityDescriptor /* optional */,
+        PSECURITY_DESCRIPTOR ThreadSecurityDescriptor /* optional */,
+        HANDLE DebugPort /* optional */,
+        PRTL_USER_PROCESS_INFORMATION ProcessInformation);
         
     pid_t fork(void)
     {

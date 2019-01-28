@@ -1585,7 +1585,6 @@ bool CAssetAllocationMempoolDB::ScanAssetAllocationMempoolBalances(const int cou
     vector<string> vecSenders;
     vector<string> vecReceivers;
     string strAsset = "";
-    bool bParseKey = false;
     if (!oOptions.isNull()) {
        
         const UniValue &senders = find_value(oOptions, "senders");
@@ -1595,7 +1594,6 @@ bool CAssetAllocationMempoolDB::ScanAssetAllocationMempoolBalances(const int cou
                 const UniValue &sender = sendersArray[i].get_obj();
                 const UniValue &senderStr = find_value(sender, "address");
                 if (senderStr.isStr()) {
-                    bParseKey = true;
                     vecSenders.push_back(senderStr.get_str());
                 }
             }

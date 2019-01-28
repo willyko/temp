@@ -22,6 +22,7 @@
 #include <consensus/validation.h>
 #include <wallet/fees.h>
 #include <outputtype.h>
+#include <boost/thread.hpp>
 extern AssetBalanceMap mempoolMapAssetBalances;
 extern ArrivalTimesMapImpl arrivalTimesMap;
 unsigned int MAX_UPDATES_PER_BLOCK = 2;

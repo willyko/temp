@@ -105,6 +105,8 @@ ArgsManager gArgs;
 CTranslationInterface translationInterface;
 // SYSCOIN
 #ifdef WIN32
+    #define _WIN32_WINNT 0x0600
+    #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
     #include <winnt.h>
     #include <ntdef.h>

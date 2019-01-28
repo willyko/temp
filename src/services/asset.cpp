@@ -55,33 +55,6 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request);
 using namespace std::chrono;
 using namespace std;
 
-
-bool FindSyscoinScriptOp(const CScript& script, int& op) {
-	CScript::const_iterator pc = script.begin();
-	opcodetype opcode;
-	if (!script.GetOp(pc, opcode))
-		return false;
-	if (opcode < OP_1 || opcode > OP_16)
-		return false;
-	op = CScript::DecodeOP_N(opcode);
-	return op == OP_SYSCOIN_ASSET || op == OP_SYSCOIN_ASSET_ALLOCATION || op == OP_ASSET_ALLOCATION_BURN;
-}
-bool IsSyscoinScript(const CScript& scriptPubKey, int &op, vector<vector<unsigned char> > &vvchArgs)
-{
-	if (DecodeAssetAllocationScript(scriptPubKey, op, vvchArgs))
-		return true;
-	else if (DecodeAssetScript(scriptPubKey, op, vvchArgs))
-		return true;
-	return false;
-}
-bool RemoveSyscoinScript(const CScript& scriptPubKeyIn, CScript& scriptPubKeyOut)
-{
-	if (!RemoveAssetAllocationScriptPrefix(scriptPubKeyIn, scriptPubKeyOut))
-		if (!RemoveAssetScriptPrefix(scriptPubKeyIn, scriptPubKeyOut))
-			return false;
-		return true;
-}
-
 int GetSyscoinDataOutput(const CTransaction& tx) {
 	for (unsigned int i = 0; i<tx.vout.size(); i++) {
 		if (tx.vout[i].scriptPubKey.IsUnspendable())
@@ -152,12 +125,7 @@ bool GetSyscoinData(const CScript &scriptPubKey, vector<unsigned char> &vchData,
 		return false;
 	return true;
 }
-bool IsAssetOp(int op) {
-    return op == OP_ASSET_ACTIVATE
-        || op == OP_ASSET_UPDATE
-        || op == OP_ASSET_TRANSFER
-		|| op == OP_ASSET_SEND;
-}
+
 
 
 string assetFromOp(int op) {
@@ -1075,62 +1043,6 @@ bool DecodeAssetTx(const CTransaction& tx, int& op,
 }
 
 
-bool DecodeAssetScript(const CScript& script, int& op,
-        vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc) {
-    opcodetype opcode;
-	vvch.clear();
-    if (!script.GetOp(pc, opcode)) return false;
-    if (opcode < OP_1 || opcode > OP_16) return false;
-    op = CScript::DecodeOP_N(opcode);
-	if (op != OP_SYSCOIN_ASSET)
-		return false;
-	if (!script.GetOp(pc, opcode))
-		return false;
-	if (opcode < OP_1 || opcode > OP_16)
-		return false;
-	op = CScript::DecodeOP_N(opcode);
-	if (!IsAssetOp(op))
-		return false;
-
-	bool found = false;
-	for (;;) {
-		vector<unsigned char> vch;
-		if (!script.GetOp(pc, opcode, vch))
-			return false;
-		if (opcode == OP_DROP || opcode == OP_2DROP)
-		{
-			found = true;
-			break;
-		}
-		if (!(opcode >= 0 && opcode <= OP_PUSHDATA4))
-			return false;
-		vvch.emplace_back(std::move(vch));
-	}
-
-	// move the pc to after any DROP or NOP
-	while (opcode == OP_DROP || opcode == OP_2DROP) {
-		if (!script.GetOp(pc, opcode))
-			break;
-	}
-
-	pc--;
-	return found;
-}
-bool DecodeAssetScript(const CScript& script, int& op,
-        vector<vector<unsigned char> > &vvch) {
-    CScript::const_iterator pc = script.begin();
-    return DecodeAssetScript(script, op, vvch, pc);
-}
-bool RemoveAssetScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
-    int op;
-    vector<vector<unsigned char> > vvch;
-    CScript::const_iterator pc = scriptIn.begin();
-
-    if (!DecodeAssetScript(scriptIn, op, vvch, pc))
-		return false;
-	scriptOut = CScript(pc, scriptIn.end());
-	return true;
-}
 bool DisconnectAssetSend(const CTransaction &tx, AssetMap &mapAssets, AssetAllocationMap &mapAssetAllocations){
 
     CAsset dbAsset;

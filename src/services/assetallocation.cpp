@@ -38,9 +38,7 @@ using namespace std;
 AssetAllocationIndexItemMap AssetAllocationIndex GUARDED_BY(cs_assetallocationindex);
 AssetBalanceMap mempoolMapAssetBalances GUARDED_BY(cs_assetallocation);
 ArrivalTimesMapImpl arrivalTimesMap GUARDED_BY(cs_assetallocationarrival);
-bool IsAssetAllocationOp(int op) {
-	return op == OP_ASSET_ALLOCATION_SEND || op == OP_ASSET_ALLOCATION_BURN;
-}
+
 string CWitnessAddress::ToString() const {
     if (vchWitnessProgram.size() <= 4 && stringFromVch(vchWitnessProgram) == "burn")
         return "burn";
@@ -177,63 +175,6 @@ bool DecodeAssetAllocationTx(const CTransaction& tx, int& op,
     return found;
 }
 
-
-bool DecodeAssetAllocationScript(const CScript& script, int& op,
-        vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc) {
-    opcodetype opcode;
-	vvch.clear();
-    if (!script.GetOp(pc, opcode)) return false;
-    if (opcode < OP_1 || opcode > OP_16) return false;
-    op = CScript::DecodeOP_N(opcode);
-	if (op != OP_SYSCOIN_ASSET_ALLOCATION)
-		return false;
-	if (!script.GetOp(pc, opcode))
-		return false;
-	if (opcode < OP_1 || opcode > OP_16)
-		return false;
-	op = CScript::DecodeOP_N(opcode);
-	if (!IsAssetAllocationOp(op))
-		return false;
-
-	bool found = false;
-	for (;;) {
-		vector<unsigned char> vch;
-		if (!script.GetOp(pc, opcode, vch))
-			return false;
-		if (opcode == OP_DROP || opcode == OP_2DROP)
-		{
-			found = true;
-			break;
-		}
-		if (!(opcode >= 0 && opcode <= OP_PUSHDATA4))
-			return false;
-		vvch.emplace_back(std::move(vch));
-	}
-
-	// move the pc to after any DROP or NOP
-	while (opcode == OP_DROP || opcode == OP_2DROP) {
-		if (!script.GetOp(pc, opcode))
-			break;
-	}
-
-	pc--;
-	return found;
-}
-bool DecodeAssetAllocationScript(const CScript& script, int& op,
-        vector<vector<unsigned char> > &vvch) {
-    CScript::const_iterator pc = script.begin();
-    return DecodeAssetAllocationScript(script, op, vvch, pc);
-}
-bool RemoveAssetAllocationScriptPrefix(const CScript& scriptIn, CScript& scriptOut) {
-    int op;
-    vector<vector<unsigned char> > vvch;
-    CScript::const_iterator pc = scriptIn.begin();
-
-    if (!DecodeAssetAllocationScript(scriptIn, op, vvch, pc))
-		return false;
-	scriptOut = CScript(pc, scriptIn.end());
-	return true;
-}
 void ResyncAssetAllocationStates(){ 
     int count = 0;
      {

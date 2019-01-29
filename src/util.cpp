@@ -1263,26 +1263,35 @@ bool StartRelayerNode(pid_t &pid, int websocketport)
         sa.sa_flags = SA_NOCLDWAIT;
       
         sigaction( SIGCHLD, &sa, NULL ) ;
-    #endif
-    // Duplicate ("fork") the process. Will return zero in the child
-    // process, and the child's PID in the parent (or negative on error).
-    pid = fork() ;
-    if( pid < 0 ) {
-        LogPrintf("Could not start Relayer, pid < 0 %d\n", pid);
-        return false;
-    }
+		// Duplicate ("fork") the process. Will return zero in the child
+        // process, and the child's PID in the parent (or negative on error).
+        pid = fork() ;
+        if( pid < 0 ) {
+            LogPrintf("Could not start Relayer, pid < 0 %d\n", pid);
+            return false;
+        }
 
-    if( pid == 0 ) {
-        std::string portStr = std::to_string(websocketport);
-        char * argv[] = {(char*)fpath.c_str(), NULL };
-        //char * argv[] = {(char*)fpath.c_str(), (char*)"--ethwsport", (char*)portStr.c_str(), (char*)"--sysrpcport", (char*)"18369", NULL };
-        execvp(argv[0], &argv[0]);
-    }
-    else{
+        if( pid == 0 ) {
+            std::string portStr = std::to_string(websocketport);
+            char * argv[] = {(char*)fpath.c_str(), (char*)"--wsport", (char*)portStr.c_str(), NULL };
+            execvp(argv[0], &argv[0]);
+        }
+        else{
+            boost::filesystem::ofstream ofs(GetRelayerPidFile(), std::ios::out | std::ios::trunc);
+            ofs << pid;
+        }
+    #else
+		std::string portStr = std::to_string(websocketport);
+        std::string args = std::string("--ethwsport ") + portStr);
+        pid = fork(fpath.string(), args);
+        if( pid <= 0 ) {
+            LogPrintf("Could not start Relayer\n");
+            return false;
+        }
         boost::filesystem::ofstream ofs(GetRelayerPidFile(), std::ios::out | std::ios::trunc);
         ofs << pid;
-    }
-    LogPrintf("%s: Relayer Started with pid %d\n", __func__, pid);
+	#endif
+    LogPrintf("%s: Relayer started with pid %d\n", __func__, pid);
     return true;
 }
 #ifndef WIN32

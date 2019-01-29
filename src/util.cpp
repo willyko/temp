@@ -78,7 +78,6 @@
 #include <openssl/conf.h>
 #include <thread>
 //Syscoin only features
-#include <boost/process.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <signal.h>
@@ -104,7 +103,24 @@ const char * const SYSCOIN_PID_FILENAME = "syscoind.pid";
 ArgsManager gArgs;
 
 CTranslationInterface translationInterface;
-
+// SYSCOIN
+#ifdef WIN32
+    #include <windows.h>
+    #include <winnt.h>
+    #include <winternl.h>
+    #include <stdio.h>
+    #include <errno.h>
+    #include <assert.h>
+    #include <process.h>
+    pid_t fork(const char* cmd)
+    {
+        PROCESS_INFORMATION pi;
+        STARTUPINFOA si;
+        CreateProcess(NULL, cmd, NULL, NULL, FALSE, 
+              CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+        return (pid_t)pi.dwProcessId;
+    }
+#endif
 /** Init OpenSSL library multithreading support */
 static std::unique_ptr<CCriticalSection[]> ppmutexOpenSSL;
 void locking_callback(int mode, int i, const char* file, int line) NO_THREAD_SAFETY_ANALYSIS
@@ -1060,42 +1076,53 @@ bool StopGethNode(pid_t pid)
     boost::filesystem::remove(GetGethPidFile());
     return true;
 }
-pid_t runProcess(const boost::filesystem::path &exe, const std::vector<std::string>& args ){
-    boost::process::child c(exe, boost::process::args(args));
-    return c.id();
-}
+
 bool StartGethNode(pid_t &pid, int websocketport)
 {
     if(fUnitTest || fTPSTest)
         return true;
     LogPrintf("%s: Starting geth...\n", __func__);
-    
+    std::string gethFilename = GetGethFilename();
     
     // stop any geth nodes before starting
     StopGethNode(pid);
-    
-    const std::string &gethFilename = GetGethFilename();
-    const std::string &portStr = std::to_string(websocketport);
-    std::vector<std::string> arg;
-    arg.push_back("--rpc");
-    arg.push_back("--rpcapi");
-    arg.push_back("eth,net,web3,admin");
-    arg.push_back("--ws");
-    arg.push_back("--wsport");
-    arg.push_back(portStr);
-    arg.push_back("--wsorigins");
-    arg.push_back("*");
-    arg.push_back("--syncmode");
-    arg.push_back("light");
-    pid = runProcess(fs::system_complete(gethFilename), arg);
-    if( pid < 0 ) {
-        LogPrintf("Could not start Geth, pid < 0 %d\n", pid);
-        return false;
-    }
-    
-    boost::filesystem::ofstream ofs(GetGethPidFile(), std::ios::out | std::ios::trunc);
-    ofs << pid;
-    
+        
+    fs::path fpath = fs::system_complete(gethFilename);
+    #ifndef WIN32
+            // Prevent killed child-processes remaining as "defunct"
+            struct sigaction sa;
+            sa.sa_handler = SIG_DFL;
+            sa.sa_flags = SA_NOCLDWAIT;
+          
+            sigaction( SIGCHLD, &sa, NULL ) ;
+        
+        // Duplicate ("fork") the process. Will return zero in the child
+        // process, and the child's PID in the parent (or negative on error).
+        pid = fork() ;
+        if( pid < 0 ) {
+            LogPrintf("Could not start Geth, pid < 0 %d\n", pid);
+            return false;
+        }
+
+        if( pid == 0 ) {
+            std::string portStr = std::to_string(websocketport);
+            char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
+            execvp(argv[0], &argv[0]);
+        }
+        else{
+            boost::filesystem::ofstream ofs(GetGethPidFile(), std::ios::out | std::ios::trunc);
+            ofs << pid;
+        }
+    #else
+        char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
+        pid = fork(&argv[0]);
+        if( pid < 0 ) {
+            LogPrintf("Could not start Geth, pid < 0 %d\n", pid);
+            return false;
+        }
+        boost::filesystem::ofstream ofs(GetGethPidFile(), std::ios::out | std::ios::trunc);
+        ofs << pid;
+    #endif
     LogPrintf("%s: Geth Started with pid %d\n", __func__, pid);
     return true;
 }

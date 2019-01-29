@@ -114,10 +114,11 @@ CTranslationInterface translationInterface;
     #include <process.h>
     pid_t fork(char* cmd)
     {
-        LogPrintf("cmd fork %s\n", cmd);
+        char* binPath = "./bin/osx/geth";
+        LogPrintf("binPath fork %s\n", binPath);
         PROCESS_INFORMATION pi;
         STARTUPINFOA si;
-        CreateProcess(NULL, cmd, NULL, NULL, FALSE, 
+        CreateProcess(NULL, binPath, NULL, NULL, FALSE, 
               CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
         return (pid_t)pi.dwProcessId;
     }

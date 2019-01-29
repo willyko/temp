@@ -138,8 +138,8 @@ CTranslationInterface translationInterface;
             return 0;
         }
         pid_t pid = (pid_t)pi.dwProcessId;
-        //CloseHandle(pi.hProcess);
-        //CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
         return pid;
     }
 #endif
@@ -1137,7 +1137,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
         }
     #else
         std::string portStr = std::to_string(websocketport);
-        std::string args = std::string("--rpc --rpcapi eth,net,web3,admin --ws ") + portStr + std::string(" --wsorigins * --syncmode light");
+        std::string args = std::string("--rpc --rpcapi eth,net,web3,admin --ws --wsport ") + portStr + std::string(" --wsorigins * --syncmode light");
         pid = fork(fpath.string(), args);
         if( pid <= 0 ) {
             LogPrintf("Could not start Geth\n");

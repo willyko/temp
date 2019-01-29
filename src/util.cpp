@@ -116,7 +116,7 @@ CTranslationInterface translationInterface;
     {
         wchar_t* binPath = L"C:\\syscoin\\bin\\win64\\geth.exe";
         PROCESS_INFORMATION pi;
-        STARTUPINFOA si;
+        STARTUPINFOW si;
         ZeroMemory(&pi, sizeof(pi));
         ZeroMemory(&si, sizeof(si));
         si.cb = sizeof(si);

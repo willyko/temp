@@ -112,7 +112,7 @@ CTranslationInterface translationInterface;
     #include <errno.h>
     #include <assert.h>
     #include <process.h>
-    pid_t fork(const char* cmd)
+    pid_t fork(char* cmd)
     {
         PROCESS_INFORMATION pi;
         STARTUPINFOA si;
@@ -1114,6 +1114,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
             ofs << pid;
         }
     #else
+        std::string portStr = std::to_string(websocketport);
         char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
         pid = fork(&argv[0]);
         if( pid < 0 ) {

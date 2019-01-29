@@ -1194,6 +1194,97 @@ bool StartGethNode(pid_t &pid, int websocketport)
     LogPrintf("%s: Geth Started with pid %d\n", __func__, pid);
     return true;
 }
+
+// SYSCOIN - RELAYER
+fs::path GetRelayerPidFile()
+{
+    return AbsPathForConfigVal(fs::path("relayer.pid"));
+}
+std::string GetRelayerFilename(){
+    // For Windows:
+    #ifdef WIN32
+       return "bin/win64/relayer-win.exe";
+    #endif    
+    #ifdef MAC_OSX
+        // Mac
+        return "./bin/osx/relayer-macos";
+    #else
+        // Linux
+        return "./bin/linux/relayer-linux";
+    #endif
+}
+bool StopRelayerNode(pid_t pid)
+{
+    if(fUnitTest || fTPSTest)
+        return true;
+    if(pid){
+        try{
+            KillProcess(pid);
+            LogPrintf("%s: Relayer successfully exited from pid %d\n", __func__, pid);
+        }
+        catch(...){
+            LogPrintf("%s: Relayer failed to exit from pid %d\n", __func__, pid);
+        }
+    }
+    {
+        boost::filesystem::ifstream ifs(GetRelayerPidFile(), std::ios::in);
+        pid_t pidFile = 0;
+        while(ifs >> pidFile){
+            if(pidFile && pidFile != pid){
+                try{
+                    KillProcess(pidFile);
+                    LogPrintf("%s: Relayer successfully exited from pid %d(from relayer.pid)\n", __func__, pidFile);
+                }
+                catch(...){
+                    LogPrintf("%s: Relayer failed to exit from pid %d(from relayer.pid)\n", __func__, pidFile);
+                }
+            } 
+        }  
+    }
+    boost::filesystem::remove(GetRelayerPidFile());
+    return true;
+}
+
+bool StartRelayerNode(pid_t &pid, int websocketport)
+{
+    if(fUnitTest || fTPSTest)
+        return true;
+    LogPrintf("%s: Starting relayer...\n", __func__);
+    std::string relayerFilename = GetRelayerFilename();
+    
+    // stop any relayer process  before starting
+    StopRelayerNode(pid);
+        
+    fs::path fpath = fs::system_complete(relayerFilename);
+    #ifndef WIN32
+        // Prevent killed child-processes remaining as "defunct"
+        struct sigaction sa;
+        sa.sa_handler = SIG_DFL;
+        sa.sa_flags = SA_NOCLDWAIT;
+      
+        sigaction( SIGCHLD, &sa, NULL ) ;
+    #endif
+    // Duplicate ("fork") the process. Will return zero in the child
+    // process, and the child's PID in the parent (or negative on error).
+    pid = fork() ;
+    if( pid < 0 ) {
+        LogPrintf("Could not start Relayer, pid < 0 %d\n", pid);
+        return false;
+    }
+
+    if( pid == 0 ) {
+        std::string portStr = std::to_string(websocketport);
+        char * argv[] = {(char*)fpath.c_str(), NULL };
+        //char * argv[] = {(char*)fpath.c_str(), (char*)"--ethwsport", (char*)portStr.c_str(), (char*)"--sysrpcport", (char*)"18369", NULL };
+        execvp(argv[0], &argv[0]);
+    }
+    else{
+        boost::filesystem::ofstream ofs(GetRelayerPidFile(), std::ios::out | std::ios::trunc);
+        ofs << pid;
+    }
+    LogPrintf("%s: Relayer Started with pid %d\n", __func__, pid);
+    return true;
+}
 #ifndef WIN32
 fs::path GetPidFile()
 {

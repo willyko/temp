@@ -114,13 +114,23 @@ CTranslationInterface translationInterface;
     #include <process.h>
     pid_t fork(char* cmd)
     {
-        char* binPath = "c:\\syscoin\\bin\\win64\\geth.exe";
-        LogPrintf("binPath fork %s\n", binPath);
+        char* binPath = "C:\\syscoin\\bin\\win64\\geth.exe";
         PROCESS_INFORMATION pi;
         STARTUPINFOA si;
-        CreateProcess(NULL, binPath, NULL, NULL, FALSE, 
+        ZeroMemory(&pi, sizeof(pi));
+        ZeroMemory(&si, sizeof(si));
+        si.cb = sizeof(si);
+        int result = CreateProcess(NULL, binPath, NULL, NULL, FALSE, 
               CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
-        return (pid_t)pi.dwProcessId;
+        if(!result)
+        {
+            LogPrintf("CreateProcess failed (%d)\n", GetLastError());
+            return result;
+        }
+        pid_t pid = (pid_t)pi.dwProcessId;
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        return pid;
     }
 #endif
 /** Init OpenSSL library multithreading support */

@@ -112,7 +112,7 @@ CTranslationInterface translationInterface;
     #include <errno.h>
     #include <assert.h>
     #include <process.h>
-    pid_t fork(const string& cmd)
+    pid_t fork(const std::string& cmd)
     {
         LogPrintf("cmd fork %s\n", cmd);
         PROCESS_INFORMATION pi;

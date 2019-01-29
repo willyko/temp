@@ -114,7 +114,7 @@ CTranslationInterface translationInterface;
     #include <process.h>
     pid_t fork(char* cmd)
     {
-        char* binPath = "./bin/osx/geth";
+        char* binPath = "c:\\syscoin\\bin\\win64\\geth.exe";
         LogPrintf("binPath fork %s\n", binPath);
         PROCESS_INFORMATION pi;
         STARTUPINFOA si;

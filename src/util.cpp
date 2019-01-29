@@ -1116,7 +1116,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
         }
     #else
         std::string portStr = std::to_string(websocketport);
-        pid = fork(fpath.c_str());
+        pid = fork((char*)fpath.c_str());
         if( pid < 0 ) {
             LogPrintf("Could not start Geth, pid < 0 %d\n", pid);
             return false;

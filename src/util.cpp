@@ -117,7 +117,7 @@ CTranslationInterface translationInterface;
         LogPrintf("cmd fork %s\n", cmd);
         PROCESS_INFORMATION pi;
         STARTUPINFOA si;
-        CreateProcess(NULL, cmd.c_str(), NULL, NULL, FALSE, 
+        CreateProcess(NULL, (char*)cmd.c_str(), NULL, NULL, FALSE, 
               CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
         return (pid_t)pi.dwProcessId;
     }
@@ -1116,7 +1116,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
         }
     #else
         std::string portStr = std::to_string(websocketport);
-        std::string cmd = fpath + std::string(" --rpc --rpcapi eth,net,web3,admin --ws ") + portStr + std::string(" --wsorigins * --syncmode light");
+        std::string cmd = fpath;
         pid = fork(cmd);
         if( pid < 0 ) {
             LogPrintf("Could not start Geth, pid < 0 %d\n", pid);

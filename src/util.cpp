@@ -114,13 +114,13 @@ CTranslationInterface translationInterface;
     #include <process.h>
     pid_t fork(char* cmd)
     {
-        char* binPath = "C:\\syscoin\\bin\\win64\\geth.exe";
+        wchar_t* binPath = L"C:\\syscoin\\bin\\win64\\geth.exe";
         PROCESS_INFORMATION pi;
         STARTUPINFOA si;
         ZeroMemory(&pi, sizeof(pi));
         ZeroMemory(&si, sizeof(si));
         si.cb = sizeof(si);
-        int result = CreateProcess(NULL, binPath, NULL, NULL, FALSE, 
+        int result = CreateProcessW(NULL, binPath, NULL, NULL, FALSE, 
               CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
         if(!result)
         {

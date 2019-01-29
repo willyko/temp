@@ -112,15 +112,25 @@ CTranslationInterface translationInterface;
     #include <errno.h>
     #include <assert.h>
     #include <process.h>
-    pid_t fork(char* cmd)
+    pid_t fork(const std::string &app, const std::string &arg)
     {
-        wchar_t* binPath = L"C:\\syscoin\\bin\\win64\\geth.exe";
         PROCESS_INFORMATION pi;
         STARTUPINFOW si;
         ZeroMemory(&pi, sizeof(pi));
         ZeroMemory(&si, sizeof(si));
         si.cb = sizeof(si);
-        int result = CreateProcessW(NULL, binPath, NULL, NULL, FALSE, 
+        //Prepare CreateProcess args
+        std::wstring app_w(app.length(), L' '); // Make room for characters
+        std::copy(app.begin(), app.end(), app_w.begin()); // Copy string to wstring.
+
+        std::wstring arg_w(arg.length(), L' '); // Make room for characters
+        std::copy(arg.begin(), arg.end(), arg_w.begin()); // Copy string to wstring.
+
+        std::wstring input = app_w + L" " + arg_w;
+        wchar_t* arg_concat = const_cast<wchar_t*>( input.c_str() );
+        const wchar_t* app_const = app_w.c_str();
+        
+        int result = CreateProcessW(app_const, arg_concat, NULL, NULL, FALSE, 
               CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
         if(!result)
         {
@@ -1127,7 +1137,8 @@ bool StartGethNode(pid_t &pid, int websocketport)
         }
     #else
         std::string portStr = std::to_string(websocketport);
-        pid = fork((char*)fpath.c_str());
+        string args = string("--rpc --rpcapi eth,net,web3,admin --ws " + portStr + string(" --wsorigins * --syncmode light");
+        pid = fork(fpath.string(), args);
         if( pid < 0 ) {
             LogPrintf("Could not start Geth, pid < 0 %d\n", pid);
             return false;

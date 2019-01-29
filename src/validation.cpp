@@ -694,7 +694,7 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
             errorMessage = "SYSCOIN_ASSET_ALLOCATION_CONSENSUS_ERROR ERRCODE: 1001 - " + _("Burn amount must be positive");
             return state.DoS(100, false, REJECT_INVALID, errorMessage);
         }  
-        auto result = mapAssets.emplace(mintSyscoin.assetAllocationTuple.nAsset, std::move(emptyAsset));
+        auto result = mapAssets.try_emplace(mintSyscoin.assetAllocationTuple.nAsset, std::move(emptyAsset));
         auto mapAsset = result.first;
         const bool &mapAssetNotFound = result.second;
         if(mapAssetNotFound){
@@ -704,7 +704,7 @@ bool CheckSyscoinMint(const bool ibd, const CTransaction& tx, CValidationState& 
         CAsset& storedSenderRef = mapAsset->second;
     
         const std::string &receiverTupleStr = mintSyscoin.assetAllocationTuple.ToString();
-        auto result1 = mapAssetAllocations.emplace(receiverTupleStr, std::move(emptyAllocation));
+        auto result1 = mapAssetAllocations.try_emplace(receiverTupleStr, std::move(emptyAllocation));
         auto mapAssetAllocation = result1.first;
         const bool &mapAssetAllocationNotFound = result1.second;
         if(mapAssetAllocationNotFound){

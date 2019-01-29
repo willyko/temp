@@ -112,12 +112,12 @@ CTranslationInterface translationInterface;
     #include <errno.h>
     #include <assert.h>
     #include <process.h>
-    pid_t fork(char* cmd)
+    pid_t fork(const string& cmd)
     {
         LogPrintf("cmd fork %s\n", cmd);
         PROCESS_INFORMATION pi;
         STARTUPINFOA si;
-        CreateProcess(NULL, cmd, NULL, NULL, FALSE, 
+        CreateProcess(NULL, cmd.c_str(), NULL, NULL, FALSE, 
               CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
         return (pid_t)pi.dwProcessId;
     }
@@ -1116,8 +1116,8 @@ bool StartGethNode(pid_t &pid, int websocketport)
         }
     #else
         std::string portStr = std::to_string(websocketport);
-        char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
-        pid = fork(argv[0]);
+        string cmd = fpath + " --rpc --rpcapi eth,net,web3,admin --ws " + portStr + " --wsorigins * --syncmode light";
+        pid = fork(cmd);
         if( pid < 0 ) {
             LogPrintf("Could not start Geth, pid < 0 %d\n", pid);
             return false;

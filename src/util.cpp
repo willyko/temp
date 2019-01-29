@@ -1137,7 +1137,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
         }
     #else
         std::string portStr = std::to_string(websocketport);
-        string args = string("--rpc --rpcapi eth,net,web3,admin --ws " + portStr + string(" --wsorigins * --syncmode light");
+        std::string args = std::string("--rpc --rpcapi eth,net,web3,admin --ws ") + portStr + std::string(" --wsorigins * --syncmode light");
         pid = fork(fpath.string(), args);
         if( pid < 0 ) {
             LogPrintf("Could not start Geth, pid < 0 %d\n", pid);

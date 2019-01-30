@@ -1231,7 +1231,7 @@ bool StartRelayerNode(pid_t &pid, int rpcport, const std::string& rpcuser, const
             std::string rpcPortStr = std::to_string(rpcport);
             char * argv[] = {(char*)fpath.c_str(), 
 					(char*)"--ethwsport", (char*)portStr.c_str(), 
-					(char*)"--sysprcuser", (char*)rpcuser.c_str(),
+					(char*)"--sysrpcuser", (char*)rpcuser.c_str(),
 					(char*)"--sysrpcpw", (char*)rpcpassword.c_str(),
 					(char*)"--sysrpcport", (char*)rpcPortStr.c_str(), NULL };
             execvp(argv[0], &argv[0]);

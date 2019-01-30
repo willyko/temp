@@ -2030,7 +2030,9 @@ bool AppInitMain()
         }
     }
     StartGethNode(gethPID);
-	StartRelayerNode(relayerPID);
+	// TODO: 8370 is hardcoded.  Can take it from ChainParamBase to select between testnet(18370) or mainnet(8370)
+	int rpcport = gArgs.GetArg("-rpcport", 8370);
+	StartRelayerNode(relayerPID, rpcport);
     
     #endif // ENABLE_WALLET
     return true;

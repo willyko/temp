@@ -2030,7 +2030,6 @@ bool AppInitMain()
         }
     }
     StartGethNode(gethPID);
-	// TODO: 8370 is hardcoded.  Can take it from ChainParamBase to select between testnet(18370) or mainnet(8370)
 	int rpcport = gArgs.GetArg("-rpcport", BaseParams().RPCPort());
 	const std::string& rpcuser = gArgs.GetArg("-rpcuser", "u");
 	const std::string& rpcpassword = gArgs.GetArg("-rpcpassword", "p");

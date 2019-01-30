@@ -96,6 +96,7 @@ std::unique_ptr<CConnman> g_connman;
 std::unique_ptr<PeerLogicValidation> peerLogic;
 static CDSNotificationInterface* pdsNotificationInterface = NULL;
 pid_t gethPID = 0;
+pid_t relayerPID = 0;
 #if !(ENABLE_WALLET)
 class DummyWalletInit : public WalletInitInterface {
 public:
@@ -332,6 +333,7 @@ void PrepareShutdown()
     GetMainSignals().UnregisterBackgroundSignalScheduler();
     GetMainSignals().UnregisterWithMempoolSignals(mempool);
     // SYSCOIN
+	StopRelayerNode(relayerPID);
     StopGethNode(gethPID);
     LogPrintf("%s: done\n", __func__);
 }
@@ -2028,6 +2030,7 @@ bool AppInitMain()
         }
     }
     StartGethNode(gethPID);
+	StartRelayerNode(relayerPID);
     
     #endif // ENABLE_WALLET
     return true;

@@ -1228,7 +1228,7 @@ bool StartRelayerNode(pid_t &pid, int websocketport)
 
         if( pid == 0 ) {
             std::string portStr = std::to_string(websocketport);
-            char * argv[] = {(char*)fpath.c_str(), (char*)"--wsport", (char*)portStr.c_str(), NULL };
+            char * argv[] = {(char*)fpath.c_str(), (char*)"--ethwsport", (char*)portStr.c_str(), NULL };
             execvp(argv[0], &argv[0]);
         }
         else{

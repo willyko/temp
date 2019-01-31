@@ -1200,7 +1200,7 @@ bool StopRelayerNode(pid_t pid)
     return true;
 }
 
-bool StartRelayerNode(pid_t &pid, int websocketport)
+bool StartRelayerNode(pid_t &pid, int rpcport, const std::string& rpcuser, const std::string& rpcpassword, int websocketport)
 {
     if(fUnitTest || fTPSTest)
         return true;
@@ -1228,7 +1228,12 @@ bool StartRelayerNode(pid_t &pid, int websocketport)
 
         if( pid == 0 ) {
             std::string portStr = std::to_string(websocketport);
-            char * argv[] = {(char*)fpath.c_str(), (char*)"--ethwsport", (char*)portStr.c_str(), NULL };
+            std::string rpcPortStr = std::to_string(rpcport);
+            char * argv[] = {(char*)fpath.c_str(), 
+					(char*)"--ethwsport", (char*)portStr.c_str(), 
+					(char*)"--sysrpcuser", (char*)rpcuser.c_str(),
+					(char*)"--sysrpcpw", (char*)rpcpassword.c_str(),
+					(char*)"--sysrpcport", (char*)rpcPortStr.c_str(), NULL };
             execvp(argv[0], &argv[0]);
         }
         else{
@@ -1237,7 +1242,12 @@ bool StartRelayerNode(pid_t &pid, int websocketport)
         }
     #else
 		std::string portStr = std::to_string(websocketport);
-        std::string args = std::string("--ethwsport ") + portStr);
+        std::string rpcPortStr = std::to_string(rpcport);
+        std::string args =
+				std::string("--ethwsport ") + portStr + 
+				std::string(" --sysrpcuser ") + rpcuser +
+				std::string(" --sysrpcpw ") + rpcpassword +
+				std::string(" --sysrpcport ") + rpcPortStr;
         pid = fork(fpath.string(), args);
         if( pid <= 0 ) {
             LogPrintf("Could not start Relayer\n");

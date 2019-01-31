@@ -2030,7 +2030,10 @@ bool AppInitMain()
         }
     }
     StartGethNode(gethPID);
-	StartRelayerNode(relayerPID);
+	int rpcport = gArgs.GetArg("-rpcport", BaseParams().RPCPort());
+	const std::string& rpcuser = gArgs.GetArg("-rpcuser", "u");
+	const std::string& rpcpassword = gArgs.GetArg("-rpcpassword", "p");
+	StartRelayerNode(relayerPID, rpcport, rpcuser, rpcpassword);
     
     #endif // ENABLE_WALLET
     return true;

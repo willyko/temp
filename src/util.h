@@ -53,6 +53,7 @@ extern bool fZMQAsset;
 extern bool fConcurrentProcessing;
 extern bool fLiteMode;
 extern uint32_t fGethSyncHeight;
+extern uint32_t fGethCurrentHeight;
 extern std::string fGethSyncStatus;
 extern bool fGethSynced;
 extern bool fLoaded;

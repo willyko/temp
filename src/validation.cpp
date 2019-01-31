@@ -1795,6 +1795,8 @@ bool IsInitialBlockDownload()
         return false;
     if (fImporting || fReindex)
         return true;
+    if(!fGethSynced && !fLiteMode)
+        return true; 
     if (chainActive.Tip() == nullptr)
         return true;
     if (chainActive.Tip()->nChainWork < nMinimumChainWork)

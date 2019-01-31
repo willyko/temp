@@ -90,8 +90,9 @@ bool fConcurrentProcessing = true;
 bool fLiteMode = false;
 bool fZMQAssetAllocation = false;
 bool fZMQAsset = false;
-uint32_t fGethSyncHeight;
-std::string fGethSyncStatus;
+uint32_t fGethSyncHeight = 0;
+uint32_t fGethCurrentHeight = 0;
+std::string fGethSyncStatus = "waiting to sync...";
 bool fGethSynced = false;
 bool fLoaded = false;
 // Application startup time (used for uptime calculation)

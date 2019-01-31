@@ -202,6 +202,10 @@ bool FlushSyscoinDBs() {
 				LogPrintf("Failed to write to asset allocation transactions database!");
                 ret = false;
 			}
+            if (!passetallocationtransactionsdb->Flush()) {
+                LogPrintf("Failed to write to asset allocation transactions database!");
+                ret = false;
+            }           
             AssetAllocationIndex.clear();
 		}
         if (passetallocationmempooldb != nullptr)
@@ -232,6 +236,10 @@ bool FlushSyscoinDBs() {
             LogPrintf("Failed to write to prune Ethereum TX Roots database!");
             ret = false;
         }
+        if (!pethereumtxrootsdb->Flush()) {
+            LogPrintf("Failed to write to ethereum tx root database!");
+            ret = false;
+        } 
      }
 	return ret;
 }
@@ -2113,6 +2121,8 @@ UniValue syscoinsetethstatus(const JSONRPCRequest& request) {
     // first time we get synced, we set fGethSynced to true so that peers can start connecting
     if(!fGethSynced && fGethSyncStatus == "synced")
         fGethSynced = true;
+    if(fGethSynced)
+        fGethSyncStatus = "synced";
     UniValue ret(UniValue::VARR);
     ret.pushKV("status", "success");
     return ret;
@@ -2137,12 +2147,13 @@ UniValue syscoinsetethheaders(const JSONRPCRequest& request) {
             if(nHeight > fGethSyncHeight)
                 fGethSyncHeight = nHeight;
         }
+        if(nHeight > fGethCurrentHeight)
+            fGethCurrentHeight = nHeight;
         string txRoot = tupleArray[1].get_str();
         boost::erase_all(txRoot, "0x");  // strip 0x
         const vector<unsigned char> &vchTxRoot = ParseHex(txRoot);
         txRootMap.try_emplace(std::move(nHeight), std::move(vchTxRoot));
-    }
-    pethereumtxrootsdb->FlushWrite(txRootMap);
+    } 
     UniValue ret(UniValue::VARR);
     ret.pushKV("status", "success");
     return ret;
@@ -2159,10 +2170,10 @@ bool CEthereumTxRootsDB::PruneTxRoots() {
         LOCK(cs_ethsyncheight);
         // cutoff is ~1.5 months of blocks is about 250k blocks
         cutoffHeight = fGethSyncHeight - MAX_ETHEREUM_TX_ROOTS;
-    }
-    if(cutoffHeight < 0){
-        LogPrint(BCLog::SYS, "Nothing to prune fGethSyncHeight = %d\n", fGethSyncHeight);
-        return true;
+        if(cutoffHeight < 0){
+            LogPrint(BCLog::SYS, "Nothing to prune fGethSyncHeight = %d\n", fGethSyncHeight);
+            return true;
+        }
     }
     std::vector<unsigned char> txPos;
     while (pcursor->Valid()) {
@@ -2177,8 +2188,21 @@ bool CEthereumTxRootsDB::PruneTxRoots() {
             return error("%s() : deserialize error", __PRETTY_FUNCTION__);
         }
     }
+    {
+        LOCK(cs_ethsyncheight);
+        WriteHighestHeight(fGethSyncHeight);
+    }
+    
+    WriteCurrentHeight(fGethCurrentHeight);      
     FlushErase(vecHeightKeys);
     return true;
+}
+bool CEthereumTxRootsDB::Init(){
+    {
+        LOCK(cs_ethsyncheight);
+        ReadHighestHeight(fGethSyncHeight);
+    }
+    ReadCurrentHeight(fGethCurrentHeight);
 }
 bool CEthereumTxRootsDB::FlushErase(const std::vector<uint32_t> &vecHeightKeys){
     if(vecHeightKeys.empty())

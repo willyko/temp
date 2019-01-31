@@ -1234,6 +1234,7 @@ bool StartRelayerNode(pid_t &pid, int rpcport, const std::string& rpcuser, const
 					(char*)"--sysrpcuser", (char*)rpcuser.c_str(),
 					(char*)"--sysrpcpw", (char*)rpcpassword.c_str(),
 					(char*)"--sysrpcport", (char*)rpcPortStr.c_str(), NULL };
+            LogPrintf("StartRelayerNode: Starting with parameters %s %s %s %s %s %s %s %s\n", argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);       
             execvp(argv[0], &argv[0]);
         }
         else{
@@ -1248,6 +1249,7 @@ bool StartRelayerNode(pid_t &pid, int rpcport, const std::string& rpcuser, const
 				std::string(" --sysrpcuser ") + rpcuser +
 				std::string(" --sysrpcpw ") + rpcpassword +
 				std::string(" --sysrpcport ") + rpcPortStr;
+        LogPrintf("StartRelayerNode: Starting with parameters %s\n", args);               
         pid = fork(fpath.string(), args);
         if( pid <= 0 ) {
             LogPrintf("Could not start Relayer\n");

@@ -92,6 +92,8 @@ bool fZMQAssetAllocation = false;
 bool fZMQAsset = false;
 uint32_t fGethSyncHeight = 0;
 uint32_t fGethCurrentHeight = 0;
+pid_t gethPID = 0;
+pid_t relayerPID = 0;
 std::string fGethSyncStatus = "waiting to sync...";
 bool fGethSynced = false;
 bool fLoaded = false;
@@ -1068,8 +1070,10 @@ std::string GetGethFilename(){
         return "./bin/linux/geth";
     #endif
 }
-bool StopGethNode(pid_t pid)
+bool StopGethNode(pid_t &pid)
 {
+    if(pid < 0)
+        return false;
     if(fUnitTest || fTPSTest)
         return true;
     if(pid){
@@ -1097,6 +1101,7 @@ bool StopGethNode(pid_t pid)
         }  
     }
     boost::filesystem::remove(GetGethPidFile());
+    pid = -1;
     return true;
 }
 
@@ -1129,7 +1134,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
 
         if( pid == 0 ) {
             std::string portStr = std::to_string(websocketport);
-            char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
+            char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpccorsdomain", (char*)"*", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
             execvp(argv[0], &argv[0]);
         }
         else{
@@ -1138,7 +1143,7 @@ bool StartGethNode(pid_t &pid, int websocketport)
         }
     #else
         std::string portStr = std::to_string(websocketport);
-        std::string args = std::string("--rpc --rpcapi eth,net,web3,admin --ws --wsport ") + portStr + std::string(" --wsorigins * --syncmode light");
+        std::string args = std::string("--rpc --rpccorsdomain * --rpcapi eth,net,web3,admin --ws --wsport ") + portStr + std::string(" --wsorigins * --syncmode light");
         pid = fork(fpath.string(), args);
         if( pid <= 0 ) {
             LogPrintf("Could not start Geth\n");
@@ -1169,8 +1174,10 @@ std::string GetRelayerFilename(){
         return "./bin/linux/relayer-linux";
     #endif
 }
-bool StopRelayerNode(pid_t pid)
+bool StopRelayerNode(pid_t &pid)
 {
+    if(pid < 0)
+        return false;
     if(fUnitTest || fTPSTest)
         return true;
     if(pid){
@@ -1198,6 +1205,7 @@ bool StopRelayerNode(pid_t pid)
         }  
     }
     boost::filesystem::remove(GetRelayerPidFile());
+    pid = -1;
     return true;
 }
 

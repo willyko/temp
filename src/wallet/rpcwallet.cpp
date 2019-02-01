@@ -5062,6 +5062,8 @@ extern UniValue tpstestadd(const JSONRPCRequest& request);
 extern UniValue tpstestsetenabled(const JSONRPCRequest& request);
 extern UniValue syscoinsetethstatus(const JSONRPCRequest& request);
 extern UniValue syscoinsetethheaders(const JSONRPCRequest& request);
+extern UniValue syscoinstartgeth(const JSONRPCRequest& request);
+extern UniValue syscoinstopgeth(const JSONRPCRequest& request);
 
 extern UniValue mnsync(const JSONRPCRequest& request);
 extern UniValue spork(const JSONRPCRequest& request);
@@ -5171,6 +5173,8 @@ static const CRPCCommand commands[] =
     { "syscoin",            "tpstestsetenabled",                &tpstestsetenabled,             {"enabled"} },
     { "syscoin",            "syscoinsetethstatus",              &syscoinsetethstatus,           {"syncing_status","highestBlock"} },
     { "syscoin",            "syscoinsetethheaders",             &syscoinsetethheaders,          {"headers"} },
+    { "syscoin",            "syscoinstopgeth",                  &syscoinstopgeth,               {} },
+    { "syscoin",            "syscoinstartgeth",                 &syscoinstartgeth,               {} },
     { "syscoin",            "mnsync",                           &mnsync,                        {} },
     { "syscoin",            "spork",                            &spork,                         {"name","value"} },
     { "syscoin",            "getgovernanceinfo",                &getgovernanceinfo,             {} },

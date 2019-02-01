@@ -4347,6 +4347,12 @@ UniValue getaddressinfo(const JSONRPCRequest& request)
 
     std::string currentAddress = EncodeDestination(dest);
     ret.pushKV("address", currentAddress);
+    // SYSCOIN
+    std::string currentV3Address = "";
+    if (auto witness_id = boost::get<WitnessV0KeyHash>(&dest)) {
+        currentV3Address =  EncodeDestination(CKeyID(*witness_id));
+    }
+    ret.pushKV("v3address", currentV3Address);
                        
     CScript scriptPubKey = GetScriptForDestination(dest);
     ret.pushKV("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end()));

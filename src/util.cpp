@@ -871,11 +871,9 @@ fs::path GetConfigFile(const std::string& confPath)
 // SYSCOIN
 fs::path GetMasternodeConfigFile()
 {
-    const fs::path& path = fs::system_complete(gArgs.GetArg("-mnconf", "masternode.conf"));
-    fs::path pathConfigFile = path;
-    if (!fs::is_directory(path)) {
+    fs::path pathConfigFile(gArgs.GetArg("-mnconf", "masternode.conf"));
+    if (!pathConfigFile.is_complete())
         pathConfigFile = GetDataDir() / pathConfigFile;
-    }
     return pathConfigFile;
 }
 static std::string TrimString(const std::string& str, const std::string& pattern)

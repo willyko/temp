@@ -839,18 +839,3 @@ UniValue sentinelping(const JSONRPCRequest& request)
     activeMasternode.UpdateSentinelPing(StringVersionToInt(request.params[0].get_str()));
     return true;
 }
-
-static const CRPCCommand commands[] =
-{ //  category              name                      actor (function)         argNames
-  //  --------------------- ------------------------  -----------------------  ----------
-    { "syscoin",               "masternode",             &masternode,               {} },
-    { "syscoin",               "masternodelist",         &masternodelist,           {} },
-    { "syscoin",               "masternodebroadcast",    &masternodebroadcast,      {} },
-    { "syscoin",               "sentinelping",           &sentinelping,             {} }
-};
-
-void RegisterMasternodeRPCCommands(CRPCTable &t)
-{
-    for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
-        t.appendCommand(commands[vcidx].name, &commands[vcidx]);
-}

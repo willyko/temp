@@ -857,7 +857,7 @@ void CMasternodePing::Relay(CConnman& connman)
 
 std::string CMasternodePing::GetSentinelString() const
 {
-    return nSentinelVersion >= DEFAULT_SENTINEL_VERSION ? SafeIntVersionToString(nSentinelVersion) : "Unknown";
+    return nSentinelVersion >= DEFAULT_SENTINEL_VERSION ? FormatVersion(nSentinelVersion) : "Unknown";
 }
 
 std::string CMasternodePing::GetDaemonString() const

@@ -1813,7 +1813,6 @@ bool AppInitMain()
     fAssetAllocationIndex = gArgs.GetBoolArg("-assetallocationindex", false);
     fZMQAssetAllocation = gArgs.IsArgSet("-zmqpubassetallocation");
     fZMQAsset = gArgs.IsArgSet("-zmqpubassetrecord");
-    // TODO: masternode should have no wallet
 
     //lite mode disables all Syscoin-specific functionality
     fLiteMode = gArgs.GetBoolArg("-litemode", false);
@@ -1821,11 +1820,7 @@ bool AppInitMain()
     if(fLiteMode) {
         InitWarning(_("You are starting in lite mode, all masternode-specific functionality is disabled."));
     }
-
-    if((!fLiteMode && g_txindex)
-       && chainparams.NetworkIDString() != CBaseChainParams::REGTEST) { // TODO remove this when pruning is fixed. See https://github.com/syscoinpay/syscoin/pull/1817 and https://github.com/syscoinpay/syscoin/pull/1743
-        return InitError(_("Transaction index can't be disabled in full mode. Either start with -litemode command line switch or enable transaction index."));
-    }
+    
 
     if(fLiteMode && fMasternodeMode) {
         return InitError(_("You can not start a masternode in lite mode."));

@@ -542,6 +542,11 @@ bool CGovernanceObject::IsCollateralValid(std::string& strError, bool& fMissingC
         LogPrint(BCLog::GOBJECT, "CGovernanceObject::IsCollateralValid -- %s\n", strError);
         return false;
     }
+    if(txCollateral->GetTotalSize() > 500u){
+        strError = strprintf("tx collateral too big (limit is 500 bytes), try reducing number of inputs used, size in bytes %d", txCollateral->GetTotalSize());
+        LogPrint(BCLog::GOBJECT, "CGovernanceObject::IsCollateralValid -- %s\n", strError);
+        return false;
+    }
 
     // LOOK FOR SPECIALIZED GOVERNANCE SCRIPT (PROOF OF BURN)
 

@@ -12,9 +12,9 @@
 #include "utilstrencodings.h"
 
 #include <boost/algorithm/string.hpp>
-
+#include <boost/multiprecision/cpp_dec_float.hpp>
 #include <univalue.h>
-
+using namespace boost::multiprecision;
 // DECLARE GLOBAL VARIABLES FOR GOVERNANCE CLASSES
 CGovernanceTriggerManager triggerman;
 
@@ -518,12 +518,33 @@ CAmount CSuperblock::GetPaymentsLimit(int nBlockHeight)
     if(!IsValidBlockHeight(nBlockHeight)) {
         return 0;
     }
-
-	// SYSCOIN
-	// some part of all blocks issued during the cycle goes to superblock, see GetBlockSubsidy
-	CAmount nTotalRewardWithMasternodes;
-	const CAmount &nSuperblockPartOfSubsidy = GetBlockSubsidy(nBlockHeight, consensusParams, nTotalRewardWithMasternodes, true);
-	const CAmount &nPaymentsLimit = nSuperblockPartOfSubsidy * consensusParams.nSuperblockCycle;
+    const int nSuperblock = nBlockHeight / consensusParams.nSuperblockCycle;
+    CAmount nPaymentsLimit;
+    if(nSuperblock > 36){
+    	// some part of all blocks issued during the cycle goes to superblock, see GetBlockSubsidy
+    	CAmount nTotalRewardWithMasternodes;
+    	const CAmount &nSuperblockPartOfSubsidy = GetBlockSubsidy(nBlockHeight, consensusParams, nTotalRewardWithMasternodes, true);
+    	nPaymentsLimit = nSuperblockPartOfSubsidy * consensusParams.nSuperblockCycle;
+    }
+    // bootstrapping period
+    else {
+        /*  
+            Compound Interest Equation
+            A = P(1 + r/n)nt
+            therefor: P = A / (1 + r/n)nt
+            A = Accrued Amount (principal + interest)
+            P = Principal Amount
+            r = Annual Monthly Interest Rate as a decimal
+            r = R/100
+            t = Time Involved in months(superblock number).
+            n = number of compounding periods per unit t; at the END of each period (1 in our case)
+        */
+        const cpp_dec_float_50& A = cpp_dec_float_50(2000000.0*COIN);
+        const cpp_dec_float_50& r = cpp_dec_float_50(0.05);
+        const cpp_dec_float_50& t = cpp_dec_float_50(nSuperblock);
+        const cpp_dec_float_50& P = A / boost::multiprecision::pow(cpp_dec_float_50(1.0) + r, t);
+        nPaymentsLimit = P.convert_to<CAmount>();  
+    }
     LogPrint(BCLog::GOBJECT, "CSuperblock::GetPaymentsLimit -- Valid superblock height %d, payments max %lld\n", nBlockHeight, nPaymentsLimit);
 
     return nPaymentsLimit;

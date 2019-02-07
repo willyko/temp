@@ -12,9 +12,8 @@
 #include "utilstrencodings.h"
 
 #include <boost/algorithm/string.hpp>
-#include <boost/multiprecision/cpp_dec_float.hpp>
 #include <univalue.h>
-using namespace boost::multiprecision;
+
 // DECLARE GLOBAL VARIABLES FOR GOVERNANCE CLASSES
 CGovernanceTriggerManager triggerman;
 
@@ -536,11 +535,11 @@ CAmount CSuperblock::GetPaymentsLimit(int nBlockHeight)
             t = Time Involved in months(superblock number).
             n = number of compounding periods per unit t; at the END of each period (1 in our case)
         */
-        const cpp_dec_float_50& A = cpp_dec_float_50(2000000.0*COIN);
-        const cpp_dec_float_50& r = cpp_dec_float_50(0.05);
-        const cpp_dec_float_50& t = cpp_dec_float_50(nSuperblock - 1);
-        const cpp_dec_float_50& P = A * boost::multiprecision::pow(cpp_dec_float_50(1.0) - r, t);
-        nPaymentsLimit = P.convert_to<CAmount>();  
+        const double& A = 2000000.0*COIN;
+        const double& r = 0.05;
+        const double& t = (double)nSuperblock - 1;
+        const double& P = A * pow(1.0 - r, t);
+        nPaymentsLimit = (CAmount)P; 
     }
     LogPrint(BCLog::GOBJECT, "CSuperblock::GetPaymentsLimit -- Valid superblock height %d, payments max %lld\n", nBlockHeight, nPaymentsLimit);
 

@@ -107,7 +107,7 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         strNetworkID = "main";
-        consensus.nSubsidyHalvingInterval = 525600;
+        consensus.nSubsidyHalvingInterval = 60;
         // 35% increase after 1 year, 100% increase after 2.5 years
         consensus.nSeniorityHeight1 = 6000;
         consensus.nSeniorityLevel1 = 0.35;

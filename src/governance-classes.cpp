@@ -529,9 +529,6 @@ CAmount CSuperblock::GetPaymentsLimit(int nBlockHeight)
     // bootstrapping period
     else {
         /*  
-            Compound Interest Equation
-            A = P(1 + r/n)nt
-            therefor: P = A / (1 + r/n)nt
             A = Accrued Amount (principal + interest)
             P = Principal Amount
             r = Annual Monthly Interest Rate as a decimal

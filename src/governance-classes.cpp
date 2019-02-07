@@ -541,7 +541,7 @@ CAmount CSuperblock::GetPaymentsLimit(int nBlockHeight)
         */
         const cpp_dec_float_50& A = cpp_dec_float_50(2000000.0*COIN);
         const cpp_dec_float_50& r = cpp_dec_float_50(0.05);
-        const cpp_dec_float_50& t = cpp_dec_float_50(nSuperblock);
+        const cpp_dec_float_50& t = cpp_dec_float_50(nSuperblock - 1);
         const cpp_dec_float_50& P = A / boost::multiprecision::pow(cpp_dec_float_50(1.0) + r, t);
         nPaymentsLimit = P.convert_to<CAmount>();  
     }

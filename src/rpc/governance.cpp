@@ -234,11 +234,16 @@ UniValue gobject(const JSONRPCRequest& request)
 
         // ASSEMBLE NEW GOVERNANCE OBJECT FROM USER PARAMETERS
 
-        uint256 txidFee;
-
+        CMutableTransaction txFee;
+        CTransactionRef txCollateral = MakeTransactionRef(txFee);
         if(request.params.size() == 6) {
-            txidFee = ParseHashV(request.params[5], "fee-txid, parameter 6");
+            if(!DecodeHexTx(txFee, request.params[5].get_str(), false, true))
+                DecodeHexTx(txFee, request.params[5].get_str(), true, true);
+            txCollateral = MakeTransactionRef(txFee);  
+            if(txCollateral->IsNull())
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid collateral transaction");  
         }
+
         uint256 hashParent;
         if(request.params[1].get_str() == "0") { // attach to root node (root node doesn't really exist, but has a hash of zero)
             hashParent = uint256();
@@ -997,6 +1002,7 @@ UniValue getsuperblockbudget(const JSONRPCRequest& request)
 
     return strBudget;
 }
+<<<<<<< HEAD
 
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
@@ -1014,3 +1020,5 @@ void RegisterGovernanceRPCCommands(CRPCTable &t)
     for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
         t.appendCommand(commands[vcidx].name, &commands[vcidx]);
 }
+=======
+>>>>>>> f2e14f3... Fixed gobject trigger submit error

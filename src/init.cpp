@@ -1320,6 +1320,8 @@ bool AppInitLockDataDirectory()
 bool AppInitMain()
 {
     const CChainParams& chainparams = Params();
+    // SYSCOIN
+    fMasternodeMode = gArgs.GetBoolArg("-masternode", false);
     // ********************************************************* Step 4a: application initialization
 #ifndef WIN32
     CreatePidFile(GetPidFile(), getpid());
@@ -1802,7 +1804,7 @@ bool AppInitMain()
         uiInterface.NotifyBlockTip.disconnect(BlockNotifyGenesisWait);
     }
     
-    fMasternodeMode = gArgs.GetBoolArg("-masternode", false);
+    
     fUnitTest = gArgs.GetBoolArg("-unittest", false);
     // if unit test then make sure geth is shown as synced as well
     fGethSynced = fUnitTest;
@@ -1825,7 +1827,6 @@ bool AppInitMain()
     if(fLiteMode && fMasternodeMode) {
         return InitError(_("You can not start a masternode in lite mode."));
     }
-    
     if(fMasternodeMode) {
         LogPrintf("MASTERNODE:\n");
         meminfo_t memInfo = parse_meminfo();
@@ -1838,9 +1839,6 @@ bool AppInitMain()
         if(boost::thread::physical_concurrency() < 2)
             return InitError(_("Insufficient CPU cores, you need atleast 2 cores to run a masternode. Please see documentation."));
             
-        bool isRunning = (0 == ::system("pgrep syscoind > /dev/null"));
-        if(isRunning)
-            return InitError(_("Only one syscoind instance is allowed to run.")); 
                
         std::string strMasterNodePrivKey = gArgs.GetArg("-masternodeprivkey", "");
         if(!strMasterNodePrivKey.empty()) {

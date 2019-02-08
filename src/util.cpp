@@ -1276,6 +1276,26 @@ fs::path GetPidFile()
 
 void CreatePidFile(const fs::path &path, pid_t pid)
 {
+    // SYSCOIN
+    if(fMasternodeMode)
+    {
+        boost::filesystem::ifstream ifs(path, std::ios::in);
+        pid_t pidFile = 0;
+        while(ifs >> pidFile){
+            if(pidFile && pidFile != pid){
+                try{
+                    KillProcess(pidFile);
+                    LogPrintf("%s: Geth successfully exited from pid %d(from geth.pid)\n", __func__, pidFile);
+                }
+                catch(...){
+                    LogPrintf("%s: Geth failed to exit from pid %d(from geth.pid)\n", __func__, pidFile);
+                }
+            } 
+        } 
+        ifs.close();
+        boost::filesystem::remove(path); 
+    }
+    
     FILE* file = fsbridge::fopen(path, "w");
     if (file)
     {

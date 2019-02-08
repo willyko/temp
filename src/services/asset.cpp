@@ -2123,13 +2123,14 @@ UniValue syscoinstartgeth(const JSONRPCRequest& request) {
     
     StopRelayerNode(relayerPID);
     StopGethNode(gethPID);
-    
-    if(!StartGethNode(gethPID))
+    int wsport = gArgs.GetArg("-gethwebsocketport", 8546);
+    bool bGethTestnet = gArgs.GetBoolArg("-gethtestnet", false);
+    if(!StartGethNode(gethPID, bGethTestnet, wsport))
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("Could not start Geth"));
     int rpcport = gArgs.GetArg("-rpcport", BaseParams().RPCPort());
     const std::string& rpcuser = gArgs.GetArg("-rpcuser", "u");
     const std::string& rpcpassword = gArgs.GetArg("-rpcpassword", "p");
-    if(!StartRelayerNode(relayerPID, rpcport, rpcuser, rpcpassword))
+    if(!StartRelayerNode(relayerPID, rpcport, rpcuser, rpcpassword, wsport))
         throw runtime_error("SYSCOIN_ASSET_RPC_ERROR: ERRCODE: 2512 - " + _("Could not stop relayer"));
     
     UniValue ret(UniValue::VARR);

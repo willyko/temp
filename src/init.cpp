@@ -594,6 +594,8 @@ void SetupServerArgs()
     gArgs.AddArg("-rpcthreads=<n>", strprintf("Set the number of threads to service RPC calls (default: %d)", DEFAULT_HTTP_THREADS), false, OptionsCategory::RPC);
     gArgs.AddArg("-rpcuser=<user>", "Username for JSON-RPC connections", false, OptionsCategory::RPC);
     gArgs.AddArg("-rpcworkqueue=<n>", strprintf("Set the depth of the work queue to service RPC calls (default: %d)", DEFAULT_HTTP_WORKQUEUE), true, OptionsCategory::RPC);
+    gArgs.AddArg("-gethwebsocketport=<port>", strprintf("Listen for GETH Web Socket connections on <port> for the relayer (default: %u)", 8546), false, OptionsCategory::RPC);
+    gArgs.AddArg("-gethtestnet", strprintf("Connect to Ethereum Ropsten testnet network (default: %d)", false), false, OptionsCategory::RPC);
     gArgs.AddArg("-server", "Accept command line and JSON-RPC commands", false, OptionsCategory::RPC);
 
 #if HAVE_DECL_DAEMON
@@ -2022,11 +2024,13 @@ bool AppInitMain()
             LogPrintf("  %s %s - locked successfully\n", mne.getTxHash(), mne.getOutputIndex());
         }
     }
-    StartGethNode(gethPID);
+    int wsport = gArgs.GetArg("-gethwebsocketport", 8546);
+    bool bGethTestnet = gArgs.GetBoolArg("-gethtestnet", false);
+    StartGethNode(gethPID, bGethTestnet, wsport);
 	int rpcport = gArgs.GetArg("-rpcport", BaseParams().RPCPort());
 	const std::string& rpcuser = gArgs.GetArg("-rpcuser", "u");
 	const std::string& rpcpassword = gArgs.GetArg("-rpcpassword", "p");
-	StartRelayerNode(relayerPID, rpcport, rpcuser, rpcpassword);
+	StartRelayerNode(relayerPID, rpcport, rpcuser, rpcpassword, wsport);
     
     #endif // ENABLE_WALLET
     return true;

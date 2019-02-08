@@ -1103,7 +1103,7 @@ bool StopGethNode(pid_t &pid)
     return true;
 }
 
-bool StartGethNode(pid_t &pid, int websocketport)
+bool StartGethNode(pid_t &pid, bool bGethTestnet, int websocketport)
 {
     if(fUnitTest || fTPSTest)
         return true;
@@ -1132,8 +1132,14 @@ bool StartGethNode(pid_t &pid, int websocketport)
 
         if( pid == 0 ) {
             std::string portStr = std::to_string(websocketport);
-            char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpccorsdomain", (char*)"*", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
-            execvp(argv[0], &argv[0]);
+            if(bGethTestnet){
+                char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--testnet", (char*)"--rpccorsdomain", (char*)"*", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
+                execvp(argv[0], &argv[0]);
+            }
+            else{
+                char * argv[] = {(char*)fpath.c_str(), (char*)"--rpc", (char*)"--rpccorsdomain", (char*)"*", (char*)"--rpcapi", (char*)"eth,net,web3,admin", (char*)"--ws", (char*)"--wsport", (char*)portStr.c_str(), (char*)"--wsorigins", (char*)"*", (char*)"--syncmode", (char*)"light", NULL };
+                execvp(argv[0], &argv[0]);
+            }
         }
         else{
             boost::filesystem::ofstream ofs(GetGethPidFile(), std::ios::out | std::ios::trunc);
@@ -1142,6 +1148,8 @@ bool StartGethNode(pid_t &pid, int websocketport)
     #else
         std::string portStr = std::to_string(websocketport);
         std::string args = std::string("--rpc --rpccorsdomain * --rpcapi eth,net,web3,admin --ws --wsport ") + portStr + std::string(" --wsorigins * --syncmode light");
+        if(bGethTestnet)
+            args += std::string(" --testnet");
         pid = fork(fpath.string(), args);
         if( pid <= 0 ) {
             LogPrintf("Could not start Geth\n");

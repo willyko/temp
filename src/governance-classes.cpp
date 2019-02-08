@@ -587,19 +587,6 @@ void CSuperblock::ParsePaymentSchedule(const std::string& strPaymentAddresses, c
             LogPrint(BCLog::GOBJECT, "%s\n", ostr.str());
             throw std::runtime_error(ostr.str());
         }
-        /*
-            TODO
-
-            - There might be an issue with multisig in the coinbase on mainnet, we will add support for it in a future release.
-            - Post 12.3+ (test multisig coinbase transaction)
-        */
-        if(boost::get<CScriptID>(&address) || boost::get<WitnessV0ScriptHash>(&address)) {
-            std::ostringstream ostr;
-            ostr << "CSuperblock::ParsePaymentSchedule -- Script addresses are not supported yet : " <<  vecParsed1[i];
-            LogPrint(BCLog::GOBJECT, "%s\n", ostr.str());
-            throw std::runtime_error(ostr.str());
-        }
-        
 
         CAmount nAmount = ParsePaymentAmount(vecParsed2[i]);
 

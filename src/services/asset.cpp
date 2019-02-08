@@ -1641,7 +1641,7 @@ UniValue assettransfer(const JSONRPCRequest& request) {
     if (request.fHelp || params.size() != 3)
         throw runtime_error(
 			"assettransfer [asset] [address] [witness]\n"
-						"Transfer a asset allocation you own to another address.\n"
+						"Transfer an asset you own to another address.\n"
 						"<asset> Asset guid.\n"
 						"<address> Address to transfer to.\n"
 						"<witness> Witness address that will sign for web-of-trust notarization of this transaction.\n"	
